@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="docs/logo.svg" alt="CodePilot" width="80" />
+  <img src="docs/logo.png" alt="CodePilot" width="80" />
 </p>
 
 <h1 align="center">CodePilot — AI 编程学习平台</h1>
