@@ -1,0 +1,403 @@
+<!DOCTYPE html>
+
+<html class="dark" lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>CodePilot | Programming Arena</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300;400;500;600;700&amp;family=Inter:wght@300;400;500;600;700&amp;family=JetBrains+Mono:wght@400;500&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script id="tailwind-config">
+        tailwind.config = {
+            darkMode: "class",
+            theme: {
+                extend: {
+                    colors: {
+                        "primary-dim": "#40ceed",
+                        "secondary-dim": "#8455ef",
+                        "on-error-container": "#ffa8a3",
+                        "on-surface-variant": "#a3aac4",
+                        "tertiary-dim": "#6b9cfe",
+                        "surface-container-low": "#091328",
+                        "on-tertiary-container": "#00153a",
+                        "primary-fixed-dim": "#40ceed",
+                        "surface-dim": "#060e20",
+                        "on-tertiary-fixed-variant": "#00367c",
+                        "tertiary": "#74a2ff",
+                        "surface-container-high": "#141f38",
+                        "tertiary-container": "#6294f6",
+                        "surface-tint": "#53ddfc",
+                        "on-background": "#dee5ff",
+                        "inverse-primary": "#00687b",
+                        "tertiary-fixed-dim": "#74a2ff",
+                        "inverse-on-surface": "#4d556b",
+                        "on-primary-fixed-variant": "#005564",
+                        "on-secondary-fixed-variant": "#5f28c8",
+                        "surface": "#060e20",
+                        "error": "#ff716c",
+                        "tertiary-fixed": "#8bb0ff",
+                        "error-dim": "#d7383b",
+                        "on-tertiary": "#002355",
+                        "on-secondary-container": "#d9c8ff",
+                        "secondary": "#ac8aff",
+                        "surface-container-highest": "#192540",
+                        "secondary-fixed-dim": "#ceb9ff",
+                        "on-surface": "#dee5ff",
+                        "background": "#060e20",
+                        "on-secondary-fixed": "#40009b",
+                        "surface-bright": "#1f2b49",
+                        "primary-fixed": "#53ddfc",
+                        "error-container": "#9f0519",
+                        "primary-container": "#21bedc",
+                        "surface-container": "#0f1930",
+                        "outline": "#6d758c",
+                        "primary": "#53ddfc",
+                        "on-tertiary-fixed": "#00163b",
+                        "on-primary": "#004b58",
+                        "secondary-fixed": "#dac9ff",
+                        "inverse-surface": "#faf8ff",
+                        "surface-container-lowest": "#000000",
+                        "on-primary-fixed": "#003640",
+                        "secondary-container": "#5516be",
+                        "on-secondary": "#280067",
+                        "surface-variant": "#192540",
+                        "outline-variant": "#40485d",
+                        "on-error": "#490006",
+                        "on-primary-container": "#00343e"
+                    },
+                    fontFamily: {
+                        "headline": ["Space Grotesk"],
+                        "body": ["Inter"],
+                        "label": ["Inter"],
+                        "mono": ["JetBrains Mono"]
+                    },
+                    borderRadius: {"DEFAULT": "0.25rem", "lg": "0.5rem", "xl": "0.75rem", "full": "9999px"},
+                },
+            },
+        }
+    </script>
+<style>
+        .material-symbols-outlined {
+            font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+        }
+        .glass-card {
+            background: rgba(20, 31, 56, 0.6);
+            backdrop-filter: blur(20px);
+            -webkit-backdrop-filter: blur(20px);
+        }
+        .hero-grid {
+            background-image: linear-gradient(to right, rgba(83, 221, 252, 0.05) 1px, transparent 1px),
+                              linear-gradient(to bottom, rgba(83, 221, 252, 0.05) 1px, transparent 1px);
+            background-size: 40px 40px;
+        }
+    </style>
+</head>
+<body class="bg-background text-on-background font-body selection:bg-primary/30 selection:text-primary min-h-screen">
+<!-- TopNavBar (JSON Managed) -->
+<header class="bg-slate-950/80 backdrop-blur-xl shadow-[0_8px_32px_0_rgba(0,0,0,0.36)] docked full-width top-0 sticky z-50">
+<nav class="flex justify-between items-center w-full px-6 py-4 max-w-screen-2xl mx-auto">
+<div class="flex items-center gap-8">
+<span class="text-2xl font-bold bg-gradient-to-r from-cyan-400 to-purple-500 bg-clip-text text-transparent font-headline tracking-tight">CodePilot</span>
+<div class="hidden md:flex items-center gap-6">
+<a class="text-slate-400 hover:text-slate-200 transition-colors font-['Space_Grotesk'] tracking-tight" href="#">Learning Path</a>
+<a class="text-cyan-400 border-b-2 border-cyan-400 pb-1 font-bold font-['Space_Grotesk'] tracking-tight" href="#">Exercises</a>
+<a class="text-slate-400 hover:text-slate-200 transition-colors font-['Space_Grotesk'] tracking-tight" href="#">Dashboard</a>
+</div>
+</div>
+<div class="flex items-center gap-4">
+<div class="relative group hidden sm:block">
+<span class="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-slate-500 text-lg">search</span>
+<input class="bg-slate-900/40 border-none rounded-lg pl-10 pr-4 py-2 text-sm focus:ring-1 focus:ring-cyan-400/50 w-64 text-slate-300" placeholder="Search challenges..." type="text"/>
+</div>
+<div class="flex items-center gap-2">
+<button class="p-2 text-slate-400 hover:bg-slate-800/50 rounded-lg transition-all duration-300 active:scale-95">
+<span class="material-symbols-outlined">history</span>
+</button>
+<button class="p-2 text-slate-400 hover:bg-slate-800/50 rounded-lg transition-all duration-300 active:scale-95">
+<span class="material-symbols-outlined">notifications</span>
+</button>
+<div class="w-8 h-8 rounded-full overflow-hidden ml-2 ring-2 ring-cyan-400/20">
+<img alt="User Profile Avatar" class="w-full h-full object-cover" data-alt="Professional user profile avatar headshot" src="https://lh3.googleusercontent.com/aida-public/AB6AXuDGjR16qyIHJ3TsLN3yOolfsO3eE79rSnNL-CPidzipCfSRKPkty_ShHfPqzo8982mhq2bNmipYEgThChQLjOeofnP7UfjeNW-m5XrwowsVmOXyX2GIlRXulXh1cAHGkUJooe0hHyg_LFusbuJNm7zjiaDL3-AxgGILSJVadPAOse8vcd7bT1GDd4TgL6Zk32Kzudy50JCSkPM-hJLoYUxCljWyRE2J-4kHPwR7PInwE2iMdr3XqY6ibXY6iA2qUPK9BFGIbEeQgtA1"/>
+</div>
+</div>
+</div>
+</nav>
+</header>
+<main class="relative">
+<!-- Hero Section -->
+<section class="relative pt-20 pb-16 overflow-hidden">
+<div class="absolute inset-0 hero-grid pointer-events-none opacity-40"></div>
+<div class="absolute top-[-10%] left-[-10%] w-[40%] h-[40%] bg-primary/10 rounded-full blur-[120px] pointer-events-none"></div>
+<div class="absolute bottom-[-10%] right-[-10%] w-[30%] h-[30%] bg-secondary/10 rounded-full blur-[100px] pointer-events-none"></div>
+<div class="max-w-screen-2xl mx-auto px-6 relative z-10">
+<div class="max-w-3xl">
+<h1 class="text-6xl md:text-8xl font-headline font-bold text-on-surface tracking-tighter mb-6 leading-[0.9]">
+                        Programming <span class="text-primary">Arena</span>
+</h1>
+<p class="text-xl text-on-surface-variant font-body max-w-xl leading-relaxed">
+                        Select your stack and level up with AI-generated real-world challenges. From system design to competitive algorithms.
+                    </p>
+</div>
+</div>
+</section>
+<!-- Control Bar -->
+<section class="max-w-screen-2xl mx-auto px-6 mb-12">
+<div class="flex flex-col lg:flex-row items-center justify-between gap-6 p-2 bg-surface-container-low/50 backdrop-blur-md rounded-2xl">
+<!-- Language Tabs -->
+<div class="flex items-center gap-1 overflow-x-auto no-scrollbar w-full lg:w-auto px-2">
+<button class="px-5 py-2.5 text-sm font-medium text-primary border-b-2 border-primary whitespace-nowrap">All</button>
+<button class="px-5 py-2.5 text-sm font-medium text-on-surface-variant hover:text-on-surface transition-colors whitespace-nowrap">Python</button>
+<button class="px-5 py-2.5 text-sm font-medium text-on-surface-variant hover:text-on-surface transition-colors whitespace-nowrap">JavaScript</button>
+<button class="px-5 py-2.5 text-sm font-medium text-on-surface-variant hover:text-on-surface transition-colors whitespace-nowrap">Go</button>
+<button class="px-5 py-2.5 text-sm font-medium text-on-surface-variant hover:text-on-surface transition-colors whitespace-nowrap">Rust</button>
+<button class="px-5 py-2.5 text-sm font-medium text-on-surface-variant hover:text-on-surface transition-colors whitespace-nowrap">C++</button>
+</div>
+<div class="flex items-center gap-4 w-full lg:w-auto px-2">
+<!-- Difficulty Dropdown -->
+<div class="relative flex-1 lg:flex-none">
+<select class="appearance-none w-full bg-surface-container-high text-on-surface border-none rounded-xl px-4 py-2.5 pr-10 text-sm font-medium focus:ring-1 focus:ring-primary/40 cursor-pointer">
+<option>Beginner</option>
+<option selected="">Intermediate</option>
+<option>Advanced</option>
+</select>
+<span class="material-symbols-outlined absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none text-on-surface-variant">expand_more</span>
+</div>
+<!-- CTA -->
+<button class="flex items-center gap-2 bg-gradient-to-r from-primary to-primary-container text-on-primary px-6 py-2.5 rounded-xl font-bold text-sm shadow-[0_0_20px_rgba(83,221,252,0.3)] hover:shadow-[0_0_30px_rgba(83,221,252,0.5)] transition-all active:scale-95 whitespace-nowrap">
+<span class="material-symbols-outlined text-[20px]">add_circle</span>
+                        Generate New Exercise
+                    </button>
+</div>
+</div>
+</section>
+<!-- Exercise Grid -->
+<section class="max-w-screen-2xl mx-auto px-6 pb-24">
+<div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
+<!-- Card 1: LRU Cache -->
+<div class="glass-card group flex flex-col p-6 rounded-[2rem] hover:translate-y-[-8px] transition-all duration-500 hover:shadow-[0_20px_40px_rgba(0,0,0,0.4),0_0_20px_rgba(83,221,252,0.1)]">
+<div class="flex justify-between items-start mb-6">
+<div class="flex gap-2">
+<span class="px-3 py-1 bg-primary/10 text-primary text-[10px] font-bold uppercase tracking-widest rounded-full">Python</span>
+<span class="px-3 py-1 bg-secondary/10 text-secondary text-[10px] font-bold uppercase tracking-widest rounded-full">Advanced</span>
+</div>
+<span class="material-symbols-outlined text-on-surface-variant group-hover:text-primary transition-colors">trending_up</span>
+</div>
+<h3 class="text-2xl font-headline font-bold text-on-surface mb-3 group-hover:text-primary transition-colors">LRU Cache Design</h3>
+<p class="text-on-surface-variant text-sm mb-8 line-clamp-2 leading-relaxed">
+                        Implement a Least Recently Used (LRU) cache data structure. It should support get and put operations in O(1) time complexity.
+                    </p>
+<div class="mt-auto flex items-center justify-between pt-6 border-t border-outline-variant/10">
+<div class="flex gap-4">
+<div class="flex flex-col">
+<span class="text-[10px] uppercase tracking-tighter text-on-surface-variant/60 font-medium">Submissions</span>
+<span class="text-sm font-mono text-on-surface">12.4k</span>
+</div>
+<div class="flex flex-col">
+<span class="text-[10px] uppercase tracking-tighter text-on-surface-variant/60 font-medium">Pass Rate</span>
+<span class="text-sm font-mono text-on-surface">42.8%</span>
+</div>
+</div>
+<div class="w-10 h-10 rounded-full bg-surface-bright flex items-center justify-center group-hover:bg-primary group-hover:text-on-primary transition-all duration-300">
+<span class="material-symbols-outlined text-sm">arrow_forward</span>
+</div>
+</div>
+</div>
+<!-- Card 2: Concurrent Crawler -->
+<div class="glass-card group flex flex-col p-6 rounded-[2rem] hover:translate-y-[-8px] transition-all duration-500 hover:shadow-[0_20px_40px_rgba(0,0,0,0.4),0_0_20px_rgba(83,221,252,0.1)]">
+<div class="flex justify-between items-start mb-6">
+<div class="flex gap-2">
+<span class="px-3 py-1 bg-blue-500/10 text-blue-400 text-[10px] font-bold uppercase tracking-widest rounded-full">Go</span>
+<span class="px-3 py-1 bg-secondary/10 text-secondary text-[10px] font-bold uppercase tracking-widest rounded-full">Intermediate</span>
+</div>
+<span class="material-symbols-outlined text-on-surface-variant group-hover:text-primary transition-colors">memory</span>
+</div>
+<h3 class="text-2xl font-headline font-bold text-on-surface mb-3 group-hover:text-primary transition-colors">Concurrent Crawler</h3>
+<p class="text-on-surface-variant text-sm mb-8 line-clamp-2 leading-relaxed">
+                        Build a thread-safe web crawler that uses goroutines to fetch pages concurrently while avoiding duplicate URLs.
+                    </p>
+<div class="mt-auto flex items-center justify-between pt-6 border-t border-outline-variant/10">
+<div class="flex gap-4">
+<div class="flex flex-col">
+<span class="text-[10px] uppercase tracking-tighter text-on-surface-variant/60 font-medium">Submissions</span>
+<span class="text-sm font-mono text-on-surface">8.1k</span>
+</div>
+<div class="flex flex-col">
+<span class="text-[10px] uppercase tracking-tighter text-on-surface-variant/60 font-medium">Pass Rate</span>
+<span class="text-sm font-mono text-on-surface">56.2%</span>
+</div>
+</div>
+<div class="w-10 h-10 rounded-full bg-surface-bright flex items-center justify-center group-hover:bg-primary group-hover:text-on-primary transition-all duration-300">
+<span class="material-symbols-outlined text-sm">arrow_forward</span>
+</div>
+</div>
+</div>
+<!-- Card 3: AI Loading State -->
+<div class="bg-surface-container-high/30 p-6 rounded-[2rem] relative overflow-hidden group">
+<div class="absolute inset-0 bg-gradient-to-br from-primary/5 to-secondary/5"></div>
+<!-- Skeleton Pulsing UI -->
+<div class="relative z-10 animate-pulse flex flex-col h-full">
+<div class="flex gap-2 mb-6">
+<div class="h-6 w-16 bg-surface-container-highest rounded-full"></div>
+<div class="h-6 w-20 bg-surface-container-highest rounded-full"></div>
+</div>
+<div class="h-8 w-3/4 bg-surface-container-highest rounded-lg mb-4"></div>
+<div class="h-4 w-full bg-surface-container-highest rounded mb-2"></div>
+<div class="h-4 w-2/3 bg-surface-container-highest rounded mb-8"></div>
+<div class="mt-auto flex items-center justify-center py-8">
+<div class="flex flex-col items-center gap-3">
+<div class="relative">
+<span class="material-symbols-outlined text-4xl text-primary animate-spin" style="font-variation-settings: 'FILL' 1;">psychology</span>
+<div class="absolute inset-0 blur-xl bg-primary/40 animate-pulse"></div>
+</div>
+<span class="text-sm font-headline font-medium text-primary tracking-widest uppercase">Generating...</span>
+</div>
+</div>
+</div>
+</div>
+<!-- Card 4: React Dynamic Forms -->
+<div class="glass-card group flex flex-col p-6 rounded-[2rem] hover:translate-y-[-8px] transition-all duration-500 hover:shadow-[0_20px_40px_rgba(0,0,0,0.4),0_0_20px_rgba(83,221,252,0.1)]">
+<div class="flex justify-between items-start mb-6">
+<div class="flex gap-2">
+<span class="px-3 py-1 bg-yellow-500/10 text-yellow-400 text-[10px] font-bold uppercase tracking-widest rounded-full">JavaScript</span>
+<span class="px-3 py-1 bg-green-500/10 text-green-400 text-[10px] font-bold uppercase tracking-widest rounded-full">Beginner</span>
+</div>
+<span class="material-symbols-outlined text-on-surface-variant group-hover:text-primary transition-colors">web</span>
+</div>
+<h3 class="text-2xl font-headline font-bold text-on-surface mb-3 group-hover:text-primary transition-colors">Dynamic Form Engine</h3>
+<p class="text-on-surface-variant text-sm mb-8 line-clamp-2 leading-relaxed">
+                        Create a flexible React component that renders forms based on a JSON schema with real-time validation.
+                    </p>
+<div class="mt-auto flex items-center justify-between pt-6 border-t border-outline-variant/10">
+<div class="flex gap-4">
+<div class="flex flex-col">
+<span class="text-[10px] uppercase tracking-tighter text-on-surface-variant/60 font-medium">Submissions</span>
+<span class="text-sm font-mono text-on-surface">24.1k</span>
+</div>
+<div class="flex flex-col">
+<span class="text-[10px] uppercase tracking-tighter text-on-surface-variant/60 font-medium">Pass Rate</span>
+<span class="text-sm font-mono text-on-surface">78.5%</span>
+</div>
+</div>
+<div class="w-10 h-10 rounded-full bg-surface-bright flex items-center justify-center group-hover:bg-primary group-hover:text-on-primary transition-all duration-300">
+<span class="material-symbols-outlined text-sm">arrow_forward</span>
+</div>
+</div>
+</div>
+<!-- Card 5: Smart Pointer Impl -->
+<div class="glass-card group flex flex-col p-6 rounded-[2rem] hover:translate-y-[-8px] transition-all duration-500 hover:shadow-[0_20px_40px_rgba(0,0,0,0.4),0_0_20px_rgba(83,221,252,0.1)]">
+<div class="flex justify-between items-start mb-6">
+<div class="flex gap-2">
+<span class="px-3 py-1 bg-red-500/10 text-red-400 text-[10px] font-bold uppercase tracking-widest rounded-full">Rust</span>
+<span class="px-3 py-1 bg-secondary/10 text-secondary text-[10px] font-bold uppercase tracking-widest rounded-full">Advanced</span>
+</div>
+<span class="material-symbols-outlined text-on-surface-variant group-hover:text-primary transition-colors">security</span>
+</div>
+<h3 class="text-2xl font-headline font-bold text-on-surface mb-3 group-hover:text-primary transition-colors">Custom Rc&lt;T&gt; Implementation</h3>
+<p class="text-on-surface-variant text-sm mb-8 line-clamp-2 leading-relaxed">
+                        Deconstruct the internals of reference counting. Implement a simplified version of Rust's Rc with Weak pointers.
+                    </p>
+<div class="mt-auto flex items-center justify-between pt-6 border-t border-outline-variant/10">
+<div class="flex gap-4">
+<div class="flex flex-col">
+<span class="text-[10px] uppercase tracking-tighter text-on-surface-variant/60 font-medium">Submissions</span>
+<span class="text-sm font-mono text-on-surface">3.2k</span>
+</div>
+<div class="flex flex-col">
+<span class="text-[10px] uppercase tracking-tighter text-on-surface-variant/60 font-medium">Pass Rate</span>
+<span class="text-sm font-mono text-on-surface">19.4%</span>
+</div>
+</div>
+<div class="w-10 h-10 rounded-full bg-surface-bright flex items-center justify-center group-hover:bg-primary group-hover:text-on-primary transition-all duration-300">
+<span class="material-symbols-outlined text-sm">arrow_forward</span>
+</div>
+</div>
+</div>
+<!-- Card 6: TCP Server -->
+<div class="glass-card group flex flex-col p-6 rounded-[2rem] hover:translate-y-[-8px] transition-all duration-500 hover:shadow-[0_20px_40px_rgba(0,0,0,0.4),0_0_20px_rgba(83,221,252,0.1)]">
+<div class="flex justify-between items-start mb-6">
+<div class="flex gap-2">
+<span class="px-3 py-1 bg-cyan-500/10 text-cyan-400 text-[10px] font-bold uppercase tracking-widest rounded-full">C++</span>
+<span class="px-3 py-1 bg-secondary/10 text-secondary text-[10px] font-bold uppercase tracking-widest rounded-full">Advanced</span>
+</div>
+<span class="material-symbols-outlined text-on-surface-variant group-hover:text-primary transition-colors">settings_ethernet</span>
+</div>
+<h3 class="text-2xl font-headline font-bold text-on-surface mb-3 group-hover:text-primary transition-colors">High-Perf TCP Echo</h3>
+<p class="text-on-surface-variant text-sm mb-8 line-clamp-2 leading-relaxed">
+                        Design an asynchronous TCP echo server using epoll/kqueue that can handle over 100k simultaneous connections.
+                    </p>
+<div class="mt-auto flex items-center justify-between pt-6 border-t border-outline-variant/10">
+<div class="flex gap-4">
+<div class="flex flex-col">
+<span class="text-[10px] uppercase tracking-tighter text-on-surface-variant/60 font-medium">Submissions</span>
+<span class="text-sm font-mono text-on-surface">5.8k</span>
+</div>
+<div class="flex flex-col">
+<span class="text-[10px] uppercase tracking-tighter text-on-surface-variant/60 font-medium">Pass Rate</span>
+<span class="text-sm font-mono text-on-surface">31.0%</span>
+</div>
+</div>
+<div class="w-10 h-10 rounded-full bg-surface-bright flex items-center justify-center group-hover:bg-primary group-hover:text-on-primary transition-all duration-300">
+<span class="material-symbols-outlined text-sm">arrow_forward</span>
+</div>
+</div>
+</div>
+</div>
+</section>
+<!-- Fixed Sidebar (JSON Managed) - Only visible on desktop -->
+<aside class="h-screen w-64 hidden lg:flex flex-col fixed left-0 top-0 bg-slate-950 py-8 px-4 z-[60] -translate-x-full transition-transform duration-300 hover:translate-x-0 group/sidebar">
+<!-- Trigger for peek effect -->
+<div class="absolute right-0 top-0 bottom-0 w-2 cursor-pointer bg-cyan-500/10 group-hover/sidebar:bg-transparent"></div>
+<div class="flex items-center gap-3 mb-10 px-2">
+<div class="w-10 h-10 rounded-lg bg-cyan-500/10 flex items-center justify-center text-cyan-400">
+<span class="material-symbols-outlined" style="font-variation-settings: 'FILL' 1;">psychology</span>
+</div>
+<div>
+<h2 class="text-sm font-bold text-cyan-400 font-headline">Arena Guide</h2>
+<p class="text-[10px] text-slate-500 font-medium">Level 12 Developer</p>
+</div>
+</div>
+<nav class="flex-1 space-y-2">
+<div class="flex items-center gap-3 px-4 py-3 rounded-lg bg-cyan-500/10 text-cyan-400 border-r-2 border-cyan-400 transition-all cursor-pointer font-['Inter'] text-sm font-medium">
+<span class="material-symbols-outlined">code</span>
+<span>All Exercises</span>
+</div>
+<div class="flex items-center gap-3 px-4 py-3 rounded-lg text-slate-500 hover:text-slate-300 hover:bg-slate-900 transition-all cursor-pointer font-['Inter'] text-sm font-medium">
+<span class="material-symbols-outlined">bookmark</span>
+<span>Saved</span>
+</div>
+<div class="flex items-center gap-3 px-4 py-3 rounded-lg text-slate-500 hover:text-slate-300 hover:bg-slate-900 transition-all cursor-pointer font-['Inter'] text-sm font-medium">
+<span class="material-symbols-outlined">check_circle</span>
+<span>Completed</span>
+</div>
+<div class="flex items-center gap-3 px-4 py-3 rounded-lg text-slate-500 hover:text-slate-300 hover:bg-slate-900 transition-all cursor-pointer font-['Inter'] text-sm font-medium">
+<span class="material-symbols-outlined">psychology</span>
+<span>AI Tutor</span>
+</div>
+<div class="flex items-center gap-3 px-4 py-3 rounded-lg text-slate-500 hover:text-slate-300 hover:bg-slate-900 transition-all cursor-pointer font-['Inter'] text-sm font-medium">
+<span class="material-symbols-outlined">leaderboard</span>
+<span>Leaderboard</span>
+</div>
+</nav>
+<div class="mt-auto space-y-4">
+<button class="w-full bg-cyan-500/10 border border-cyan-500/20 text-cyan-400 py-3 rounded-xl text-sm font-bold hover:bg-cyan-500/20 transition-all">
+                    Generate Challenge
+                </button>
+<div class="pt-6 border-t border-slate-900">
+<div class="flex items-center gap-3 px-4 py-3 rounded-lg text-slate-500 hover:text-slate-300 hover:bg-slate-900 transition-all cursor-pointer font-['Inter'] text-sm font-medium">
+<span class="material-symbols-outlined">settings</span>
+<span>Settings</span>
+</div>
+<div class="flex items-center gap-3 px-4 py-3 rounded-lg text-slate-500 hover:text-slate-300 hover:bg-slate-900 transition-all cursor-pointer font-['Inter'] text-sm font-medium">
+<span class="material-symbols-outlined">help</span>
+<span>Support</span>
+</div>
+</div>
+</div>
+</aside>
+</main>
+<!-- Contextual FAB (Suppressed on Details/Settings - Shown here for Arena context) -->
+<button class="fixed bottom-8 right-8 w-16 h-16 rounded-full bg-primary text-on-primary shadow-2xl shadow-primary/40 flex items-center justify-center group hover:scale-110 active:scale-95 transition-all z-40">
+<span class="material-symbols-outlined text-3xl group-hover:rotate-12 transition-transform">bolt</span>
+</button>
+</body></html>

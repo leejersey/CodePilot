@@ -1,0 +1,238 @@
+<!DOCTYPE html>
+
+<html class="dark" lang="zh-CN"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300;400;500;600;700&amp;family=Inter:wght@300;400;500;600;700&amp;family=JetBrains+Mono:wght@400;500&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<script id="tailwind-config">
+      tailwind.config = {
+        darkMode: "class",
+        theme: {
+          extend: {
+            colors: {
+              "on-error-container": "#ffa8a3",
+              "on-secondary": "#280067",
+              "surface-variant": "#192540",
+              "surface-tint": "#53ddfc",
+              "secondary": "#ac8aff",
+              "on-primary-fixed-variant": "#005564",
+              "surface-dim": "#060e20",
+              "on-surface": "#dee5ff",
+              "error": "#ff716c",
+              "tertiary-dim": "#6b9cfe",
+              "surface": "#060e20",
+              "surface-bright": "#1f2b49",
+              "primary-container": "#21bedc",
+              "background": "#060e20",
+              "inverse-surface": "#faf8ff",
+              "error-dim": "#d7383b",
+              "on-secondary-fixed": "#40009b",
+              "on-surface-variant": "#a3aac4",
+              "secondary-container": "#5516be",
+              "primary-dim": "#40ceed",
+              "surface-container-low": "#091328",
+              "tertiary-fixed": "#8bb0ff",
+              "primary-fixed-dim": "#40ceed",
+              "on-tertiary": "#002355",
+              "surface-container-high": "#141f38",
+              "surface-container-lowest": "#000000",
+              "tertiary-container": "#6294f6",
+              "on-secondary-container": "#d9c8ff",
+              "on-primary-fixed": "#003640",
+              "outline": "#6d758c",
+              "inverse-primary": "#00687b",
+              "outline-variant": "#40485d",
+              "surface-container-highest": "#192540",
+              "inverse-on-surface": "#4d556b",
+              "on-background": "#dee5ff",
+              "secondary-dim": "#8455ef",
+              "on-primary": "#004b58",
+              "tertiary": "#74a2ff",
+              "error-container": "#9f0519",
+              "tertiary-fixed-dim": "#74a2ff",
+              "on-error": "#490006",
+              "on-tertiary-fixed-variant": "#00367c",
+              "on-tertiary-fixed": "#00163b",
+              "surface-container": "#0f1930",
+              "primary": "#53ddfc",
+              "on-primary-container": "#00343e",
+              "secondary-fixed": "#dac9ff",
+              "on-tertiary-container": "#00153a",
+              "secondary-fixed-dim": "#ceb9ff",
+              "primary-fixed": "#53ddfc",
+              "on-secondary-fixed-variant": "#5f28c8"
+            },
+            fontFamily: {
+              "headline": ["Space Grotesk"],
+              "body": ["Inter"],
+              "label": ["Inter"],
+              "mono": ["JetBrains Mono"]
+            },
+            borderRadius: {"DEFAULT": "0.25rem", "lg": "0.5rem", "xl": "0.75rem", "full": "9999px"},
+          },
+        },
+      }
+    </script>
+<style>
+      body {
+        font-family: 'Inter', sans-serif;
+        background-color: #060e20;
+      }
+      .font-headline { font-family: 'Space Grotesk', sans-serif; }
+      .bg-gradient-mesh {
+        background: radial-gradient(circle at 50% 50%, #141f38 0%, #060e20 100%);
+        position: relative;
+        overflow: hidden;
+      }
+      .bg-gradient-mesh::before {
+        content: '';
+        position: absolute;
+        width: 200%;
+        height: 200%;
+        top: -50%;
+        left: -50%;
+        background: radial-gradient(circle at center, rgba(172, 138, 255, 0.08) 0%, transparent 50%);
+        z-index: 0;
+      }
+      .glass-card {
+        background: rgba(20, 31, 56, 0.4);
+        backdrop-filter: blur(20px);
+        -webkit-backdrop-filter: blur(20px);
+      }
+    </style>
+</head>
+<body class="bg-background text-on-background min-h-screen selection:bg-primary/30">
+<!-- TopNavBar Implementation from JSON -->
+<header class="fixed top-0 w-full flex justify-between items-center px-6 py-3 bg-[#060e20]/80 backdrop-blur-xl docked full-width z-50 shadow-[0_8px_32px_rgba(6,14,32,0.8)] tonal-shift bg-slate-900/50">
+<div class="flex items-center gap-8">
+<div class="text-xl font-bold tracking-tighter text-cyan-400 font-['Space_Grotesk']">
+                CodePilot
+            </div>
+<nav class="hidden md:flex items-center gap-6 font-['Space_Grotesk'] text-sm tracking-wide">
+<a class="text-slate-400 hover:text-cyan-300 transition-colors hover:bg-white/5 transition-all duration-200" href="#">Learning Path</a>
+<a class="text-slate-400 hover:text-cyan-300 transition-colors hover:bg-white/5 transition-all duration-200" href="#">Dashboard</a>
+</nav>
+</div>
+<div class="flex items-center gap-4">
+<div class="hidden lg:flex items-center bg-surface-container-low px-4 py-1.5 rounded-full border border-white/5">
+<span class="material-symbols-outlined text-slate-500 text-sm">search</span>
+<input class="bg-transparent border-none text-xs focus:ring-0 text-on-surface w-32" placeholder="搜索资源..." type="text"/>
+</div>
+<button class="text-slate-400 hover:text-cyan-300 transition-all active:scale-95">
+<span class="material-symbols-outlined">history</span>
+</button>
+<div class="w-8 h-8 rounded-full overflow-hidden border border-cyan-400/30">
+<img alt="User Profile Avatar" data-alt="Minimalist geometric avatar for user profile" src="https://lh3.googleusercontent.com/aida-public/AB6AXuB9e-_N2sUFnX748PdQM1c-PYHJtm2H_GCmuNV-cznx1KTAhp8XJ_MxqVQnAaS6WNUNIw9VUZ7gOmLjjDefwjmNh-TDcD3hOy60iE9ITsuaQ9cgfZsy5Y1TkZaLU-EwcvGKksDifd0FpMW8LDTjjMBVvqZtHeRR1LpRur3iNCiBkCfK8pwfO0csRHvE-CxGarGwwCbUh84WE_3chzfKeh9FRYAIw2erhuAqcONnQUck0U9PtnjLX4L1zkYI5kSVfjzgnT6Fvzhqb3me"/>
+</div>
+</div>
+</header>
+<main class="relative min-h-screen flex flex-col items-center justify-center px-6 bg-gradient-mesh pt-16">
+<!-- Ambient Glow Elements -->
+<div class="absolute top-1/4 -left-20 w-96 h-96 bg-secondary/10 blur-[120px] rounded-full"></div>
+<div class="absolute bottom-1/4 -right-20 w-96 h-96 bg-primary/10 blur-[120px] rounded-full"></div>
+<!-- Hero Content Section -->
+<div class="w-full max-w-4xl z-10 text-center">
+<div class="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-secondary-container/20 text-secondary text-[0.6875rem] font-bold tracking-[0.1em] uppercase mb-8 border border-secondary/10">
+<span class="w-1.5 h-1.5 rounded-full bg-secondary animate-pulse"></span>
+                Next-Gen AI Learning
+            </div>
+<h1 class="font-headline text-5xl md:text-7xl font-bold text-on-surface mb-6 tracking-tight leading-[1.1]">
+                开启你的 <span class="text-transparent bg-clip-text bg-gradient-to-r from-primary via-secondary to-primary bg-[length:200%_auto] animate-text-shimmer">编程进化</span> 之旅
+            </h1>
+<p class="text-on-surface-variant text-lg md:text-xl max-w-2xl mx-auto mb-12 font-light leading-relaxed">
+                由 AI 驱动的个性化编程路径。输入你感兴趣的技术，剩下的交给我们。
+            </p>
+<!-- Massive Tech Search Bar -->
+<div class="relative group max-w-3xl mx-auto mb-16">
+<div class="absolute -inset-1 bg-gradient-to-r from-primary/30 to-secondary/30 rounded-xl blur-xl opacity-50 group-hover:opacity-100 transition duration-500"></div>
+<div class="relative glass-card border border-white/10 rounded-xl p-2 flex items-center shadow-2xl">
+<div class="flex-shrink-0 ml-4 mr-2">
+<span class="material-symbols-outlined text-primary text-3xl" style="font-variation-settings: 'FILL' 1;">terminal</span>
+</div>
+<input class="w-full bg-transparent border-none text-on-surface placeholder:text-slate-500 text-lg md:text-xl py-4 focus:ring-0 font-body" placeholder="你想学习什么编程主题？（例如：Python 异步编程、React 状态管理...）" type="text"/>
+<button class="ml-2 bg-primary text-on-primary-container px-8 py-4 rounded-lg font-bold hover:bg-primary-dim transition-all active:scale-95 flex items-center gap-2 whitespace-nowrap">
+                        开始构建
+                        <span class="material-symbols-outlined text-lg">bolt</span>
+</button>
+</div>
+</div>
+<!-- Hot Topics Grid -->
+<div class="space-y-6">
+<h3 class="text-[0.6875rem] font-bold text-slate-500 uppercase tracking-widest">热门探索主题</h3>
+<div class="flex flex-wrap justify-center gap-3">
+<button class="px-6 py-2.5 rounded-full bg-surface-container-low border border-white/5 text-on-surface-variant hover:border-primary/50 hover:text-primary transition-all duration-300 flex items-center gap-2 group">
+<span class="w-2 h-2 rounded-full bg-blue-400"></span>
+                        Python
+                    </button>
+<button class="px-6 py-2.5 rounded-full bg-surface-container-low border border-white/5 text-on-surface-variant hover:border-yellow-400/50 hover:text-yellow-400 transition-all duration-300 flex items-center gap-2">
+<span class="w-2 h-2 rounded-full bg-yellow-400"></span>
+                        JavaScript
+                    </button>
+<button class="px-6 py-2.5 rounded-full bg-surface-container-low border border-white/5 text-on-surface-variant hover:border-cyan-400/50 hover:text-cyan-400 transition-all duration-300 flex items-center gap-2">
+<span class="w-2 h-2 rounded-full bg-cyan-400"></span>
+                        Go
+                    </button>
+<button class="px-6 py-2.5 rounded-full bg-surface-container-low border border-white/5 text-on-surface-variant hover:border-orange-500/50 hover:text-orange-500 transition-all duration-300 flex items-center gap-2">
+<span class="w-2 h-2 rounded-full bg-orange-500"></span>
+                        Rust
+                    </button>
+<button class="px-6 py-2.5 rounded-full bg-surface-container-high border border-secondary/30 text-secondary hover:bg-secondary/10 transition-all duration-300 flex items-center gap-2">
+<span class="material-symbols-outlined text-sm" style="font-variation-settings: 'FILL' 1;">auto_awesome</span>
+                        AI 原生开发
+                    </button>
+</div>
+</div>
+</div>
+<!-- Bento Decorative Section (Bottom) -->
+<div class="mt-24 w-full max-w-6xl grid grid-cols-1 md:grid-cols-3 gap-6 opacity-60">
+<div class="glass-card p-6 rounded-xl border border-white/5 flex items-start gap-4">
+<div class="p-3 rounded-lg bg-primary/10 text-primary">
+<span class="material-symbols-outlined">psychology</span>
+</div>
+<div>
+<h4 class="font-bold text-sm text-on-surface mb-1">自适应引擎</h4>
+<p class="text-xs text-on-surface-variant">根据你的基础实时调整难度。</p>
+</div>
+</div>
+<div class="glass-card p-6 rounded-xl border border-white/5 flex items-start gap-4">
+<div class="p-3 rounded-lg bg-secondary/10 text-secondary">
+<span class="material-symbols-outlined">schema</span>
+</div>
+<div>
+<h4 class="font-bold text-sm text-on-surface mb-1">知识图谱</h4>
+<p class="text-xs text-on-surface-variant">可视化你的每一个学习里程碑。</p>
+</div>
+</div>
+<div class="glass-card p-6 rounded-xl border border-white/5 flex items-start gap-4">
+<div class="p-3 rounded-lg bg-tertiary/10 text-tertiary">
+<span class="material-symbols-outlined">rocket_launch</span>
+</div>
+<div>
+<h4 class="font-bold text-sm text-on-surface mb-1">实战驱动</h4>
+<p class="text-xs text-on-surface-variant">通过构建真实世界的项目来学习。</p>
+</div>
+</div>
+</div>
+</main>
+<!-- Background Animation Layer (Custom) -->
+<div class="fixed inset-0 -z-10 pointer-events-none overflow-hidden">
+<!-- Floating orbs -->
+<div class="absolute top-[10%] left-[15%] w-64 h-64 bg-secondary/5 rounded-full blur-[80px]"></div>
+<div class="absolute top-[60%] right-[10%] w-96 h-96 bg-primary/5 rounded-full blur-[100px]"></div>
+<!-- Grid Pattern (Low opacity) -->
+<div class="absolute inset-0 bg-[linear-gradient(to_right,#8080800a_1px,transparent_1px),linear-gradient(to_bottom,#8080800a_1px,transparent_1px)] bg-[size:4rem_4rem] [mask-image:radial-gradient(ellipse_60%_50%_at_50%_0%,#000_70%,transparent_100%)]"></div>
+</div>
+<style>
+        @keyframes text-shimmer {
+            to {
+                background-position: 200% center;
+            }
+        }
+        .animate-text-shimmer {
+            animation: text-shimmer 4s linear infinite;
+        }
+    </style>
+</body></html>

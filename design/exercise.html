@@ -1,0 +1,287 @@
+<!DOCTYPE html>
+
+<html class="dark" lang="zh-CN"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>CodePilot - 练习模式</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300;400;500;600;700&amp;family=Inter:wght@300;400;500;600;700&amp;family=JetBrains+Mono:wght@400;500&amp;family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script id="tailwind-config">
+        tailwind.config = {
+            darkMode: "class",
+            theme: {
+                extend: {
+                    colors: {
+                        "on-error-container": "#ffa8a3",
+                        "on-secondary": "#280067",
+                        "surface-variant": "#192540",
+                        "surface-tint": "#53ddfc",
+                        "secondary": "#ac8aff",
+                        "on-primary-fixed-variant": "#005564",
+                        "surface-dim": "#060e20",
+                        "on-surface": "#dee5ff",
+                        "error": "#ff716c",
+                        "tertiary-dim": "#6b9cfe",
+                        "surface": "#060e20",
+                        "surface-bright": "#1f2b49",
+                        "primary-container": "#21bedc",
+                        "background": "#060e20",
+                        "inverse-surface": "#faf8ff",
+                        "error-dim": "#d7383b",
+                        "on-secondary-fixed": "#40009b",
+                        "on-surface-variant": "#a3aac4",
+                        "secondary-container": "#5516be",
+                        "primary-dim": "#40ceed",
+                        "surface-container-low": "#091328",
+                        "tertiary-fixed": "#8bb0ff",
+                        "primary-fixed-dim": "#40ceed",
+                        "on-tertiary": "#002355",
+                        "surface-container-high": "#141f38",
+                        "surface-container-lowest": "#000000",
+                        "tertiary-container": "#6294f6",
+                        "on-secondary-container": "#d9c8ff",
+                        "on-primary-fixed": "#003640",
+                        "outline": "#6d758c",
+                        "inverse-primary": "#00687b",
+                        "outline-variant": "#40485d",
+                        "surface-container-highest": "#192540",
+                        "inverse-on-surface": "#4d556b",
+                        "on-background": "#dee5ff",
+                        "secondary-dim": "#8455ef",
+                        "on-primary": "#004b58",
+                        "tertiary": "#74a2ff",
+                        "error-container": "#9f0519",
+                        "tertiary-fixed-dim": "#74a2ff",
+                        "on-error": "#490006",
+                        "on-tertiary-fixed-variant": "#00367c",
+                        "on-tertiary-fixed": "#00163b",
+                        "surface-container": "#0f1930",
+                        "primary": "#53ddfc",
+                        "on-primary-container": "#00343e",
+                        "secondary-fixed": "#dac9ff",
+                        "on-tertiary-container": "#00153a",
+                        "secondary-fixed-dim": "#ceb9ff",
+                        "primary-fixed": "#53ddfc",
+                        "on-secondary-fixed-variant": "#5f28c8"
+                    },
+                    fontFamily: {
+                        "headline": ["Space Grotesk"],
+                        "body": ["Inter"],
+                        "label": ["Inter"],
+                        "code": ["JetBrains Mono"]
+                    },
+                    borderRadius: {"DEFAULT": "0.25rem", "lg": "0.5rem", "xl": "0.75rem", "full": "9999px"},
+                },
+            },
+        }
+    </script>
+<style>
+        .material-symbols-outlined {
+            font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+        }
+        body {
+            background-color: #060e20;
+            color: #dee5ff;
+            font-family: 'Inter', sans-serif;
+        }
+        .hide-scrollbar::-webkit-scrollbar {
+            display: none;
+        }
+        .glass-panel {
+            background: rgba(15, 25, 48, 0.7);
+            backdrop-filter: blur(16px);
+        }
+        .code-glow {
+            text-shadow: 0 0 8px rgba(83, 221, 252, 0.3);
+        }
+    </style>
+</head>
+<body class="h-screen flex flex-col overflow-hidden">
+<!-- Top Navigation Bar -->
+<header class="fixed top-0 w-full flex justify-between items-center px-6 py-3 bg-[#060e20]/80 backdrop-blur-xl z-50 tonal-shift bg-slate-900/50 shadow-[0_8px_32px_rgba(6,14,32,0.8)]">
+<div class="flex items-center gap-8">
+<div class="text-xl font-bold tracking-tighter text-cyan-400 font-['Space_Grotesk']">CodePilot</div>
+<nav class="hidden md:flex gap-6 items-center">
+<a class="font-['Space_Grotesk'] text-sm tracking-wide text-slate-400 hover:text-cyan-300 transition-colors" href="#">Learning Path</a>
+<a class="font-['Space_Grotesk'] text-sm tracking-wide text-cyan-400 border-b-2 border-cyan-400 pb-1" href="#">Dashboard</a>
+</nav>
+</div>
+<div class="flex items-center gap-4">
+<button class="p-2 text-slate-400 hover:bg-white/5 transition-all duration-200 rounded-lg">
+<span class="material-symbols-outlined">history</span>
+</button>
+<div class="w-8 h-8 rounded-full overflow-hidden border border-white/10">
+<img alt="Profile" class="w-full h-full object-cover" data-alt="User Profile Avatar" src="https://lh3.googleusercontent.com/aida-public/AB6AXuBBBLZZsveA-nYKJxgiRjNGMHAr7e_eNJ7OOV7vNRna5530COxmVgvrrzWy5Xm3MCgR58ySqQMNWc4M7xQvjEsQLG127boRH6mcKB4vFcGSwTovK4oTleDURS3rNBWYqEzJbzjwvCcE5LwBnUx-c7fQCGWYTTh2YRwi2K3zcmja8q9wTzSXFxYrRtH0nYF4tPgkLVdqUW4U2KdXFfdEICKMOR_Q_7WG_HtaAjg4qpflq19sn6D10OgeQ2-iLsmmUxcMBaiSb0gE11La"/>
+</div>
+</div>
+</header>
+<!-- Main Workspace -->
+<main class="flex-1 mt-14 flex overflow-hidden">
+<!-- Left Section: Instructions (Markdown Style) -->
+<section class="w-[450px] flex-shrink-0 bg-surface-container-low flex flex-col border-r border-white/5 overflow-hidden">
+<div class="p-6 overflow-y-auto hide-scrollbar flex-1">
+<div class="flex items-center gap-2 mb-8">
+<span class="text-xs font-bold tracking-[0.2em] uppercase text-primary bg-primary/10 px-2 py-1 rounded">Level 2</span>
+<span class="text-xs text-on-surface-variant">异步编程进阶</span>
+</div>
+<h1 class="text-3xl font-headline font-bold text-on-surface mb-6 leading-tight">实现异步数据采集器</h1>
+<div class="space-y-6 text-on-surface-variant leading-relaxed">
+<p class="text-on-surface">在这个练习中，你将探索 Python <code>asyncio</code> 的核心机制。你需要处理网络请求中的不确定性因素。</p>
+<div class="bg-surface-container-high p-5 rounded-xl border border-white/5">
+<h3 class="text-sm font-bold text-primary mb-3 flex items-center gap-2">
+<span class="material-symbols-outlined text-sm">task_alt</span> 任务目标
+                        </h3>
+<ul class="space-y-3 text-sm">
+<li>1. 实现一个异步函数 <code>fetch_data(api_id: int)</code>。</li>
+<li>2. 使用 <code>asyncio.sleep</code> 模拟 0.5 到 1.5 秒之间的随机延迟。</li>
+<li>3. 处理超时异常：如果延迟超过 1.2 秒，应重试最多 3 次。</li>
+<li>4. 返回格式化后的字符串 <code>"Data from {api_id}"</code>。</li>
+</ul>
+</div>
+<div class="space-y-4">
+<h3 class="text-lg font-headline font-semibold text-on-surface">补充说明</h3>
+<p class="text-sm">确保你的实现是线程安全的，并且能够通过我们的并发测试脚本（100个并发任务）。</p>
+<div class="bg-surface-container-lowest p-4 rounded-lg font-code text-xs text-secondary-dim border-l-2 border-secondary">
+                            # 期望的输出样例<br/>
+                            &gt;&gt; await fetch_data(101)<br/>
+                            'Data from 101'
+                        </div>
+</div>
+</div>
+</div>
+<!-- SideNav Footer Info -->
+<div class="p-6 bg-surface-container-lowest border-t border-white/5">
+<div class="flex items-center justify-between mb-2">
+<span class="text-xs text-slate-500">当前进度</span>
+<span class="text-xs text-cyan-400 font-medium">65% 已完成</span>
+</div>
+<div class="w-full bg-white/5 h-1 rounded-full overflow-hidden">
+<div class="bg-cyan-400 h-full w-[65%]"></div>
+</div>
+</div>
+</section>
+<!-- Right Section: Editor Area -->
+<section class="flex-1 bg-surface-container-lowest relative flex flex-col">
+<!-- Editor Tabs -->
+<div class="flex bg-surface-container-low px-4 border-b border-white/5 h-10 items-center">
+<div class="flex items-center gap-2 px-4 py-2 bg-surface-container-high border-t border-cyan-400 text-xs text-on-surface font-code">
+<span class="material-symbols-outlined text-[14px] text-cyan-400">terminal</span>
+                    main.py
+                </div>
+<div class="flex items-center gap-2 px-4 py-2 text-xs text-on-surface-variant font-code hover:bg-white/5 cursor-pointer">
+<span class="material-symbols-outlined text-[14px]">account_tree</span>
+                    utils.py
+                </div>
+</div>
+<!-- Editor Mockup -->
+<div class="flex-1 p-6 font-code text-[14px] leading-relaxed overflow-y-auto">
+<div class="flex gap-6">
+<div class="text-outline-variant text-right select-none opacity-50 pr-4 border-r border-white/5">
+                        1<br/>2<br/>3<br/>4<br/>5<br/>6<br/>7<br/>8<br/>9<br/>10<br/>11<br/>12<br/>13<br/>14<br/>15
+                    </div>
+<div class="flex-1">
+<span class="text-secondary">import</span> asyncio<br/>
+<span class="text-secondary">import</span> random<br/><br/>
+<span class="text-secondary">async def</span> <span class="text-primary code-glow">fetch_data</span>(api_id: int):<br/>
+                            <span class="text-outline-variant">"""实现你的异步逻辑"""</span><br/>
+                            retries = <span class="text-tertiary">3</span><br/>
+                            <span class="text-secondary">for</span> i <span class="text-secondary">in</span> <span class="text-primary">range</span>(retries):<br/>
+                                delay = random.uniform(<span class="text-tertiary">0.5</span>, <span class="text-tertiary">1.5</span>)<br/>
+                                <span class="text-secondary">await</span> asyncio.sleep(delay)<br/>
+                                <span class="text-secondary">if</span> delay &lt;= <span class="text-tertiary">1.2</span>:<br/>
+                                    <span class="text-secondary">return</span> f<span class="text-tertiary">"Data from {api_id}"</span><br/>
+                            <span class="text-secondary">raise</span> TimeoutError(<span class="text-tertiary">"请求超时"</span>)<br/><br/>
+<span class="bg-primary/20 border-l-2 border-primary w-full inline-block px-1"># 在这里继续编写测试代码...</span>
+</div>
+</div>
+</div>
+<!-- AI Feedback Floating Window -->
+<div class="absolute right-8 top-16 w-80 glass-panel border border-secondary/30 rounded-xl p-4 shadow-2xl">
+<div class="flex items-center gap-3 mb-3">
+<div class="w-8 h-8 rounded-lg bg-secondary/20 flex items-center justify-center">
+<span class="material-symbols-outlined text-secondary text-sm" style="font-variation-settings: 'FILL' 1;">smart_toy</span>
+</div>
+<div>
+<div class="text-xs font-bold text-on-surface">CodePilot AI</div>
+<div class="text-[10px] text-secondary">正在实时分析...</div>
+</div>
+</div>
+<p class="text-xs text-on-surface-variant leading-normal mb-3">
+                    检测到你已经处理了重试逻辑。建议在异常捕获中添加日志记录，以符合生产环境的最佳实践。
+                </p>
+<button class="w-full py-2 bg-secondary/10 hover:bg-secondary/20 border border-secondary/30 rounded-lg text-[11px] text-secondary font-medium transition-colors">
+                    应用优化建议
+                </button>
+</div>
+<!-- Bottom Action Bar -->
+<div class="h-16 border-t border-white/5 bg-surface-container-low px-6 flex items-center justify-between">
+<div class="flex gap-4">
+<button class="flex items-center gap-2 px-4 py-2 text-sm text-on-surface hover:bg-white/5 rounded-lg transition-all active:scale-95">
+<span class="material-symbols-outlined text-lg">terminal</span>
+<span>终端输出</span>
+</button>
+<button class="flex items-center gap-2 px-4 py-2 text-sm text-on-surface hover:bg-white/5 rounded-lg transition-all active:scale-95">
+<span class="material-symbols-outlined text-lg">settings</span>
+<span>环境配置</span>
+</button>
+</div>
+<div class="flex gap-3">
+<button class="flex items-center gap-2 px-6 py-2 bg-surface-container-high hover:bg-surface-bright text-on-surface rounded-lg font-medium transition-all active:scale-95 border border-white/10">
+<span class="material-symbols-outlined text-[20px]">play_arrow</span>
+                        运行代码
+                    </button>
+<button class="flex items-center gap-2 px-8 py-2 bg-primary hover:bg-primary-dim text-on-primary-container rounded-lg font-bold transition-all active:scale-95 shadow-lg shadow-primary/20">
+<span class="material-symbols-outlined text-[20px]" style="font-variation-settings: 'FILL' 1;">send</span>
+                        提交任务
+                    </button>
+</div>
+</div>
+</section>
+</main>
+<!-- Side Navigation (Mobile Hidden) -->
+<aside class="hidden md:flex flex-col h-full py-6 bg-[#091328] w-64 fixed left-0 top-14 border-r border-white/5 z-40 transform -translate-x-full transition-transform duration-300">
+<div class="px-6 mb-8">
+<div class="flex items-center gap-3 mb-2">
+<div class="w-10 h-10 rounded-xl bg-cyan-500/10 flex items-center justify-center">
+<span class="material-symbols-outlined text-cyan-400">auto_awesome</span>
+</div>
+<div>
+<h3 class="text-sm font-bold text-cyan-400">Learning Path</h3>
+<p class="text-[10px] text-slate-500">65% Completed</p>
+</div>
+</div>
+</div>
+<nav class="flex-1 space-y-1">
+<div class="px-3">
+<a class="flex items-center gap-3 px-4 py-3 rounded-lg text-slate-500 hover:bg-white/5 hover:text-slate-300 transition-colors" href="#">
+<span class="material-symbols-outlined text-sm">book</span>
+<span class="text-sm">Introduction</span>
+</a>
+</div>
+<div class="px-3">
+<a class="flex items-center gap-3 px-4 py-3 rounded-lg bg-cyan-500/10 text-cyan-400 border-r-2 border-cyan-400 font-medium" href="#">
+<span class="material-symbols-outlined text-sm">account_tree</span>
+<span class="text-sm">Data Structures</span>
+</a>
+</div>
+<div class="px-3">
+<a class="flex items-center gap-3 px-4 py-3 rounded-lg text-slate-500 hover:bg-white/5 hover:text-slate-300 transition-colors" href="#">
+<span class="material-symbols-outlined text-sm">terminal</span>
+<span class="text-sm">Algorithms</span>
+</a>
+</div>
+<div class="px-3">
+<a class="flex items-center gap-3 px-4 py-3 rounded-lg text-slate-500 hover:bg-white/5 hover:text-slate-300 transition-colors" href="#">
+<span class="material-symbols-outlined text-sm">layers</span>
+<span class="text-sm">System Design</span>
+</a>
+</div>
+</nav>
+<div class="px-6 mt-auto">
+<button class="w-full py-3 bg-cyan-500/10 hover:bg-cyan-500/20 text-cyan-400 text-xs font-bold rounded-lg border border-cyan-400/30 transition-all active:translate-x-1">
+                Resume Lesson
+            </button>
+</div>
+</aside>
+</body></html>
