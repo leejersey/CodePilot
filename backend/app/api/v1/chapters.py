@@ -8,6 +8,9 @@ from app.db.database import get_db
 from app.models import Chapter
 from app.schemas.schemas import ChapterResponse, ChapterStatusUpdate
 from app.db.redis import cache_delete
+from app.core.deps import get_current_user
+from app.models.models import User
+from app.services.learning_docs import build_kb_doc_stages, build_learning_docs_payload
 
 router = APIRouter()
 
@@ -19,6 +22,35 @@ async def get_chapter(chapter_id: uuid.UUID, db: AsyncSession = Depends(get_db))
     if not chapter:
         raise HTTPException(status_code=404, detail="章节不存在")
     return chapter
+
+
+@router.get("/{chapter_id}/learning-docs")
+async def get_chapter_learning_docs(
+    chapter_id: uuid.UUID,
+    db: AsyncSession = Depends(get_db),
+    user: User = Depends(get_current_user),
+):
+    """文档学习模式：课程讲义阶段 + 可用知识库文档列表。"""
+    _ = user
+    payload = await build_learning_docs_payload(db, chapter_id)
+    if not payload:
+        raise HTTPException(status_code=404, detail="章节不存在")
+    return payload
+
+
+@router.get("/{chapter_id}/learning-docs/kb/{doc_id}")
+async def get_chapter_kb_doc_stages(
+    chapter_id: uuid.UUID,
+    doc_id: uuid.UUID,
+    db: AsyncSession = Depends(get_db),
+    user: User = Depends(get_current_user),
+):
+    """知识库原文按标题分阶段。"""
+    _ = user
+    payload = await build_kb_doc_stages(db, chapter_id, doc_id)
+    if payload.get("error"):
+        raise HTTPException(status_code=404, detail=payload["error"])
+    return payload
 
 
 @router.patch("/{chapter_id}/status", response_model=ChapterResponse)

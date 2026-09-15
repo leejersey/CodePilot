@@ -2,6 +2,7 @@
 
 import { useMemo, useState } from "react";
 import { Player } from "@remotion/player";
+import { Film, Maximize2, Minimize2, X } from "lucide-react";
 import {
   WalkthroughVideo,
   type WalkthroughVideoSegment,
@@ -116,16 +117,11 @@ export function DocumentWalkthrough({ data, onClose }: Props) {
     <div className="my-4 rounded-xl overflow-hidden border border-primary/30 bg-[#050a16] shadow-[0_0_32px_rgba(83,221,252,0.12)]">
       <div className="flex items-center justify-between gap-3 px-4 py-2.5 bg-black/40 border-b border-white/5">
         <div className="flex items-center gap-2 min-w-0">
-          <span
-            className="material-symbols-outlined text-primary text-lg shrink-0"
-            style={{ fontVariationSettings: "'FILL' 1" }}
-          >
-            movie
-          </span>
-          <span className="text-sm font-medium text-on-surface truncate">
+          <Film className="w-4 h-4 text-cyan-400 shrink-0" />
+          <span className="text-sm font-semibold text-slate-100 truncate">
             {prepared.title}
           </span>
-          <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-primary/15 text-primary border border-primary/25 shrink-0">
+          <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-cyan-500/15 text-cyan-300 border border-cyan-500/25 shrink-0">
             Remotion 讲解片
           </span>
         </div>
@@ -136,18 +132,20 @@ export function DocumentWalkthrough({ data, onClose }: Props) {
             onClick={() => setExpanded((v) => !v)}
             title={expanded ? "收起" : "展开"}
           >
-            <span className="material-symbols-outlined text-sm">
-              {expanded ? "close_fullscreen" : "open_in_full"}
-            </span>
+            {expanded ? (
+              <Minimize2 className="w-3.5 h-3.5" />
+            ) : (
+              <Maximize2 className="w-3.5 h-3.5" />
+            )}
           </button>
           {onClose && (
             <button
               type="button"
-              className="p-1.5 text-slate-500 hover:text-red-400 transition-colors"
+              className="p-1.5 text-slate-500 hover:text-rose-400 transition-colors"
               onClick={onClose}
               title="关闭"
             >
-              <span className="material-symbols-outlined text-sm">close</span>
+              <X className="w-3.5 h-3.5" />
             </button>
           )}
         </div>

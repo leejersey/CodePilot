@@ -2,40 +2,27 @@
 
 import { useState, useEffect } from "react";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
 import { Header } from "@/components/layout/Header";
 import { AuthGuard } from "@/components/AuthGuard";
+import { Card } from "@/components/common/Card";
+import { Badge } from "@/components/common/Badge";
+import { CardSkeleton } from "@/components/common/Skeleton";
+import { EmptyState } from "@/components/common/EmptyState";
+import { listExercises, type Exercise } from "@/lib/api";
+import { useAuth } from "@/hooks/useAuth";
 import {
-  listExercises,
-  generateExercise,
-  Exercise,
-} from "@/lib/api";
-import { useDialog } from "@/components/DialogProvider";
-
-const getLangTheme = (lang: string) => {
-  const l = lang.toLowerCase();
-  if (l === "python") return { bg: "bg-primary/10", text: "text-primary", icon: "trending_up" };
-  if (l === "go") return { bg: "bg-blue-500/10", text: "text-blue-400", icon: "memory" };
-  if (l === "javascript" || l === "js" || l === "typescript" || l === "ts") return { bg: "bg-yellow-500/10", text: "text-yellow-400", icon: "web" };
-  if (l === "rust") return { bg: "bg-red-500/10", text: "text-red-400", icon: "security" };
-  if (l === "c++" || l === "cpp" || l === "c") return { bg: "bg-cyan-500/10", text: "text-cyan-400", icon: "settings_ethernet" };
-  return { bg: "bg-surface-container-high", text: "text-on-surface", icon: "code" };
-};
-
-const getDiffTheme = (diff: string) => {
-  const d = diff.toLowerCase();
-  if (d === "easy" || d === "初级") return { bg: "bg-green-500/10", text: "text-green-400", label: "初级" };
-  if (d === "hard" || d === "高级") return { bg: "bg-secondary/10", text: "text-secondary", label: "高级" };
-  return { bg: "bg-orange-500/10", text: "text-orange-400", label: "中级" };
-};
+  ArrowRight,
+  BookMarked,
+  ChevronDown,
+  Clock,
+  Code2,
+  SearchX,
+} from "lucide-react";
 
 export default function ExercisesHub() {
-  const router = useRouter();
-  const { alert } = useDialog();
+  const { isAdmin } = useAuth();
   const [activeLang, setActiveLang] = useState("全部");
   const [activeDifficulty, setActiveDifficulty] = useState("所有难度");
-  const [isGenerating, setIsGenerating] = useState(false);
-
   const [exercises, setExercises] = useState<Exercise[]>([]);
   const [loading, setLoading] = useState(true);
 
@@ -53,7 +40,8 @@ export default function ExercisesHub() {
       setLoading(true);
       try {
         const lang = activeLang === "全部" ? undefined : activeLang.toLowerCase();
-        const diff = activeDifficulty === "所有难度" ? undefined : diffMap[activeDifficulty];
+        const diff =
+          activeDifficulty === "所有难度" ? undefined : diffMap[activeDifficulty];
         const data = await listExercises({ language: lang, difficulty: diff });
         setExercises(data);
       } catch (err) {
@@ -65,62 +53,52 @@ export default function ExercisesHub() {
     fetchExercises();
   }, [activeLang, activeDifficulty]);
 
-  const handleGenerate = async () => {
-    setIsGenerating(true);
-    try {
-      const lang = activeLang === "全部" ? "python" : activeLang.toLowerCase();
-      const diff = activeDifficulty === "所有难度" ? "medium" : diffMap[activeDifficulty];
-
-      const newEx = await generateExercise({
-        language: lang,
-        difficulty: diff,
-        topic: "核心编程挑战",
-      });
-      router.push(`/exercise/${newEx.id}`);
-    } catch (err) {
-      console.error("生成失败:", err);
-      setIsGenerating(false);
-      await alert({
-        title: "生成失败",
-        message: err instanceof Error ? err.message : "生成练习题失败，请检查网络或后端配置",
-      });
-    }
-  };
-
   return (
     <AuthGuard>
       <div className="min-h-screen bg-background text-on-background font-body flex flex-col">
         <Header />
 
-        <main className="flex-1 relative pt-20">
-          <section className="relative pt-20 pb-16 overflow-hidden">
-            <div className="absolute inset-0 hero-grid pointer-events-none opacity-40"></div>
-            <div className="absolute top-[-10%] left-[-10%] w-[40%] h-[40%] bg-primary/10 rounded-full blur-[120px] pointer-events-none"></div>
-            <div className="absolute bottom-[-10%] right-[-10%] w-[30%] h-[30%] bg-secondary/10 rounded-full blur-[100px] pointer-events-none"></div>
+        <main className="flex-1 relative pt-16 pb-20">
+          <section className="relative pt-16 pb-12 overflow-hidden">
+            <div className="absolute inset-0 hero-grid pointer-events-none opacity-30" />
+            <div className="absolute top-[-10%] left-[-10%] w-[40%] h-[40%] bg-primary/10 rounded-full blur-[120px] pointer-events-none" />
 
             <div className="max-w-screen-2xl mx-auto px-6 relative z-10">
               <div className="max-w-3xl">
-                <h1 className="text-6xl md:text-8xl font-headline font-bold text-on-surface tracking-tighter mb-6 leading-[0.9]">
+                <div className="inline-flex items-center gap-2 px-3.5 py-1 rounded-full bg-primary/10 border border-primary/20 text-primary text-xs font-mono font-semibold mb-4">
+                  <BookMarked size={13} />
+                  PUBLISHED CHALLENGES
+                </div>
+                <h1 className="text-4xl md:text-6xl font-headline font-bold text-on-surface tracking-tight mb-4 leading-tight">
                   编程 <span className="text-primary">演练场</span>
                 </h1>
-                <p className="text-xl text-on-surface-variant font-body max-w-xl leading-relaxed">
-                  选择技术栈，由 AI 依据平台知识库资料动态生成真实场景挑战。
+                <p className="text-base md:text-lg text-on-surface-variant font-light max-w-xl leading-relaxed">
+                  题目由管理员基于知识库出题并发布。选择语言与难度开始挑战。
                 </p>
+                {isAdmin && (
+                  <Link
+                    href="/admin/exercises"
+                    className="inline-flex mt-4 text-xs font-bold text-primary underline underline-offset-2"
+                  >
+                    前往练习管理（出题 / 发布）
+                  </Link>
+                )}
               </div>
             </div>
           </section>
 
-          <section className="max-w-screen-2xl mx-auto px-6 mb-12 space-y-4">
-            <div className="flex flex-col lg:flex-row items-center justify-between gap-6 p-2 bg-surface-container-low/50 backdrop-blur-md rounded-2xl border border-white/5">
-              <div className="flex items-center gap-1 overflow-x-auto no-scrollbar w-full lg:w-auto px-2">
+          <section className="sticky top-[61px] z-30 backdrop-blur-xl bg-[#060e20]/80 border-y border-white/[0.06] py-3 mb-8">
+            <div className="max-w-screen-2xl mx-auto px-6 flex flex-col sm:flex-row items-center justify-between gap-4">
+              <div className="flex items-center gap-1 overflow-x-auto no-scrollbar w-full sm:w-auto p-1 bg-surface-container-low/60 rounded-xl border border-white/5">
                 {languages.map((lang) => (
                   <button
                     key={lang}
+                    type="button"
                     onClick={() => setActiveLang(lang)}
-                    className={`px-5 py-2.5 text-sm font-medium whitespace-nowrap transition-colors ${
+                    className={`px-4 py-1.5 text-xs font-medium rounded-lg whitespace-nowrap transition-all ${
                       activeLang === lang
-                        ? "text-primary border-b-2 border-primary"
-                        : "text-on-surface-variant hover:text-on-surface"
+                        ? "bg-primary/20 text-primary font-bold border border-primary/30"
+                        : "text-slate-400 hover:text-slate-200 hover:bg-white/5"
                     }`}
                   >
                     {lang}
@@ -128,168 +106,107 @@ export default function ExercisesHub() {
                 ))}
               </div>
 
-              <div className="flex items-center gap-4 w-full lg:w-auto px-2">
-                <div className="relative flex-1 lg:flex-none">
-                  <select
-                    value={activeDifficulty}
-                    onChange={(e) => setActiveDifficulty(e.target.value)}
-                    className="appearance-none w-full bg-surface-container-high text-on-surface border-none rounded-xl px-4 py-2.5 pr-10 text-sm font-medium focus:ring-1 focus:ring-primary/40 cursor-pointer outline-none hover:bg-surface-bright transition-colors"
-                  >
-                    <option>所有难度</option>
-                    <option>初级</option>
-                    <option>中级</option>
-                    <option>高级</option>
-                  </select>
-                  <span className="material-symbols-outlined absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none text-on-surface-variant text-lg">
-                    expand_more
-                  </span>
-                </div>
-
-                <button
-                  onClick={handleGenerate}
-                  disabled={isGenerating}
-                  className="flex items-center gap-2 bg-gradient-to-r from-primary to-primary-container text-on-primary px-6 py-2.5 rounded-xl font-bold text-sm shadow-[0_0_20px_rgba(83,221,252,0.3)] hover:shadow-[0_0_30px_rgba(83,221,252,0.5)] transition-all active:scale-95 whitespace-nowrap disabled:opacity-70 disabled:active:scale-100"
+              <div className="relative">
+                <select
+                  value={activeDifficulty}
+                  onChange={(e) => setActiveDifficulty(e.target.value)}
+                  className="appearance-none bg-surface-container-high text-on-surface border border-white/10 rounded-xl px-4 py-2 pr-9 text-xs font-medium focus:ring-1 focus:ring-primary/40 cursor-pointer outline-none"
                 >
-                  {isGenerating ? (
-                    <>
-                      <span
-                        className="material-symbols-outlined text-[20px] animate-spin"
-                        style={{ fontVariationSettings: "'FILL' 1" }}
-                      >
-                        progress_activity
-                      </span>
-                      AI 生成中...
-                    </>
-                  ) : (
-                    <>
-                      <span className="material-symbols-outlined text-[20px]">add_circle</span>
-                      生成新练习
-                    </>
-                  )}
-                </button>
+                  <option>所有难度</option>
+                  <option>初级</option>
+                  <option>中级</option>
+                  <option>高级</option>
+                </select>
+                <ChevronDown
+                  size={14}
+                  className="absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none text-slate-400"
+                />
               </div>
             </div>
           </section>
 
-          <section className="max-w-screen-2xl mx-auto px-6 pb-24">
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
-              {isGenerating && (
-                <div className="bg-surface-container-high/30 p-6 rounded-[2rem] relative overflow-hidden group border border-white/5">
-                  <div className="absolute inset-0 bg-gradient-to-br from-primary/5 to-secondary/5"></div>
-                  <div className="relative z-10 animate-pulse flex flex-col h-full">
-                    <div className="flex gap-2 mb-6">
-                      <div className="h-6 w-16 bg-surface-container-highest rounded-full"></div>
-                      <div className="h-6 w-20 bg-surface-container-highest rounded-full"></div>
-                    </div>
-                    <div className="h-8 w-3/4 bg-surface-container-highest rounded-lg mb-4"></div>
-                    <div className="h-4 w-full bg-surface-container-highest rounded mb-2"></div>
-                    <div className="h-4 w-2/3 bg-surface-container-highest rounded mb-8"></div>
-                    <div className="mt-auto flex items-center justify-center py-8">
-                      <div className="flex flex-col items-center gap-3">
-                        <div className="relative">
-                          <span
-                            className="material-symbols-outlined text-4xl text-primary animate-spin"
-                            style={{ fontVariationSettings: "'FILL' 1" }}
-                          >
-                            psychology
-                          </span>
-                          <div className="absolute inset-0 blur-xl bg-primary/40 animate-pulse"></div>
+          <section className="max-w-screen-2xl mx-auto px-6">
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+              {loading ? (
+                <div className="col-span-1 md:col-span-2 lg:col-span-3">
+                  <CardSkeleton count={6} />
+                </div>
+              ) : (
+                exercises.map((ex) => (
+                  <Link href={`/exercise/${ex.id}`} key={ex.id}>
+                    <Card
+                      className="p-6 flex flex-col h-full group"
+                      interactive
+                      enableSpotlight
+                    >
+                      <div className="flex justify-between items-start mb-4">
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <Badge language={ex.language} size="sm" />
+                          <Badge difficulty={ex.difficulty} size="sm" />
+                          {ex.source_kbs && ex.source_kbs.length > 0 && (
+                            <span
+                              className="inline-flex items-center gap-1 text-[10px] font-mono text-violet-300 bg-violet-500/10 border border-violet-500/25 px-2 py-0.5 rounded-full max-w-[140px] truncate"
+                              title={ex.source_kbs.map((k) => k.name).join("、")}
+                            >
+                              <BookMarked size={10} />
+                              {ex.source_kbs[0].name}
+                            </span>
+                          )}
                         </div>
-                        <span className="text-sm font-headline font-medium text-primary tracking-widest uppercase">
-                          题目生成中...
+                        <span className="text-slate-500 group-hover:text-primary transition-colors">
+                          <Code2 size={16} />
                         </span>
                       </div>
-                    </div>
-                  </div>
-                </div>
-              )}
 
-              {loading ? (
-                <>
-                  <div className="bg-surface-container-high/30 p-6 rounded-[2rem] border border-white/5 animate-pulse min-h-[300px]"></div>
-                  <div className="bg-surface-container-high/30 p-6 rounded-[2rem] border border-white/5 animate-pulse min-h-[300px]"></div>
-                  <div className="bg-surface-container-high/30 p-6 rounded-[2rem] border border-white/5 animate-pulse min-h-[300px]"></div>
-                </>
-              ) : (
-                exercises.map((ex) => {
-                  const langTheme = getLangTheme(ex.language);
-                  const diffTheme = getDiffTheme(ex.difficulty);
+                      <h3 className="text-xl font-headline font-bold text-white mb-2.5 group-hover:text-primary transition-colors">
+                        {ex.title}
+                      </h3>
 
-                  return (
-                    <Link href={`/exercise/${ex.id}`} key={ex.id}>
-                      <div className="glass-card group flex flex-col p-6 rounded-[2rem] h-full hover:translate-y-[-8px] transition-all duration-500 hover:shadow-[0_20px_40px_rgba(0,0,0,0.4),0_0_20px_rgba(83,221,252,0.1)] border border-white/5 hover:border-white/10 cursor-pointer">
-                        <div className="flex justify-between items-start mb-6">
-                          <div className="flex gap-2">
-                            <span
-                              className={`px-3 py-1 ${langTheme.bg} ${langTheme.text} text-[10px] font-bold uppercase tracking-widest rounded-full`}
-                            >
-                              {ex.language}
-                            </span>
-                            <span
-                              className={`px-3 py-1 ${diffTheme.bg} ${diffTheme.text} text-[10px] font-bold uppercase tracking-widest rounded-full`}
-                            >
-                              {diffTheme.label}
-                            </span>
-                          </div>
-                          <span className="material-symbols-outlined text-on-surface-variant group-hover:text-primary transition-colors">
-                            {langTheme.icon}
+                      <p className="text-on-surface-variant/80 text-xs mb-6 line-clamp-3 leading-relaxed flex-1">
+                        {ex.description}
+                      </p>
+
+                      <div className="mt-auto flex items-center justify-between pt-4 border-t border-white/[0.06]">
+                        <div className="flex items-center gap-3">
+                          <span className="text-[11px] font-mono text-slate-400 bg-white/5 px-2 py-0.5 rounded border border-white/5">
+                            {ex.tags && ex.tags.length > 0 ? ex.tags[0] : "综合挑战"}
+                          </span>
+                          <span className="text-[11px] text-slate-500 flex items-center gap-1">
+                            <Clock size={11} /> 15m
                           </span>
                         </div>
-
-                        <h3 className="text-2xl font-headline font-bold text-on-surface mb-3 group-hover:text-primary transition-colors">
-                          {ex.title}
-                        </h3>
-
-                        <p className="text-on-surface-variant text-sm mb-8 line-clamp-3 leading-relaxed flex-1">
-                          {ex.description}
-                        </p>
-
-                        <div className="mt-auto flex items-center justify-between pt-6 border-t border-outline-variant/20">
-                          <div className="flex gap-4">
-                            <div className="flex flex-col">
-                              <span className="text-[10px] uppercase tracking-tighter text-on-surface-variant/60 font-medium">
-                                标签
-                              </span>
-                              <span className="text-sm font-mono text-on-surface">
-                                {ex.tags && ex.tags.length > 0 ? ex.tags[0] : "综合算法"}
-                              </span>
-                            </div>
-                          </div>
-                          <div className="w-10 h-10 rounded-full bg-surface-bright flex items-center justify-center group-hover:bg-primary group-hover:text-on-primary transition-all duration-300 shadow-sm">
-                            <span className="material-symbols-outlined text-sm">arrow_forward</span>
-                          </div>
+                        <div className="w-8 h-8 rounded-full bg-white/5 border border-white/10 flex items-center justify-center text-slate-400 group-hover:bg-primary group-hover:text-surface group-hover:border-primary transition-all">
+                          <ArrowRight size={14} />
                         </div>
                       </div>
-                    </Link>
-                  );
-                })
+                    </Card>
+                  </Link>
+                ))
               )}
 
-              {!loading && exercises.length === 0 && !isGenerating && (
-                <div className="col-span-1 md:col-span-2 lg:col-span-3 py-20 flex flex-col items-center justify-center text-on-surface-variant bg-surface-container-low/30 rounded-[2rem] border border-white/5 border-dashed">
-                  <span className="material-symbols-outlined text-6xl mb-4 opacity-50">search_off</span>
-                  <p className="text-lg mb-4">当前分类下暂无可用的编程挑战</p>
-                  <button
-                    onClick={handleGenerate}
-                    className="px-6 py-2.5 bg-surface-container-high hover:bg-surface-bright text-on-surface rounded-xl transition-colors font-medium border border-white/10"
-                  >
-                    让 AI 生成一题
-                  </button>
+              {!loading && exercises.length === 0 && (
+                <div className="col-span-1 md:col-span-2 lg:col-span-3 py-8">
+                  <EmptyState
+                    icon={<SearchX size={28} className="text-slate-500" />}
+                    title="暂无已发布的编程挑战"
+                    description={
+                      isAdmin
+                        ? "请到「练习管理」基于知识库出题并发布。"
+                        : "管理员发布题目后会出现在这里。"
+                    }
+                    actionText={isAdmin ? "去练习管理" : undefined}
+                    onAction={
+                      isAdmin
+                        ? () => {
+                            window.location.href = "/admin/exercises";
+                          }
+                        : undefined
+                    }
+                  />
                 </div>
               )}
             </div>
           </section>
-
-          <button
-            type="button"
-            onClick={handleGenerate}
-            disabled={isGenerating}
-            className="fixed bottom-8 right-8 w-16 h-16 rounded-full bg-primary text-on-primary shadow-2xl shadow-primary/40 flex items-center justify-center group hover:scale-110 active:scale-95 transition-all z-40 disabled:opacity-70"
-          >
-            <span className="material-symbols-outlined text-3xl group-hover:rotate-12 transition-transform">
-              bolt
-            </span>
-          </button>
         </main>
       </div>
     </AuthGuard>

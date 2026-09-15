@@ -1,5 +1,8 @@
 "use client";
 
+import { Calendar } from "lucide-react";
+import { Card } from "@/components/common/Card";
+
 /**
  * 30 天学习活动热力图 — 类 GitHub 贡献图
  * 纯 SVG，零依赖
@@ -27,17 +30,14 @@ export function ActivityHeatmap({ data }: { data: ActivityItem[] }) {
   const svgWidth = cols * (cellSize + gap) - gap;
   const svgHeight = rows * (cellSize + gap) - gap + 24; // extra for labels
 
-  // 星期标签
-  const weekDays = ["日", "一", "二", "三", "四", "五", "六"];
-
   return (
-    <div className="glass-panel bg-surface-container/50 rounded-2xl p-5 border border-white/5">
+    <Card className="p-5">
       <div className="flex items-center justify-between mb-4">
-        <h3 className="text-sm font-bold text-on-surface flex items-center gap-2">
-          <span className="material-symbols-outlined text-cyan-400 text-lg" style={{ fontVariationSettings: "'FILL' 1" }}>calendar_month</span>
-          学习活动
+        <h3 className="text-sm font-bold text-slate-100 flex items-center gap-2">
+          <Calendar className="w-4 h-4 text-cyan-400" />
+          学习活动热力图
         </h3>
-        <div className="flex items-center gap-1.5 text-[10px] text-slate-600">
+        <div className="flex items-center gap-1.5 text-[10px] text-slate-500 font-mono">
           <span>少</span>
           {[0.15, 0.25, 0.45, 0.7, 1].map((op, i) => (
             <div
@@ -80,12 +80,12 @@ export function ActivityHeatmap({ data }: { data: ActivityItem[] }) {
         </svg>
       </div>
 
-      <div className="flex items-center justify-between mt-3 text-xs text-slate-600">
+      <div className="flex items-center justify-between mt-3 text-xs text-slate-500">
         <span>最近 30 天</span>
-        <span className="text-cyan-400 font-medium">
+        <span className="text-cyan-400 font-mono font-medium">
           {data.reduce((s, d) => s + d.count, 0)} 次活动
         </span>
       </div>
-    </div>
+    </Card>
   );
 }

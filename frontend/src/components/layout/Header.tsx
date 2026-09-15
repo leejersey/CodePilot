@@ -3,10 +3,32 @@
 import { useEffect, useRef, useState } from "react";
 import { useAuth } from "@/hooks/useAuth";
 import Link from "next/link";
+import { usePathname } from "next/navigation";
+import {
+  BookOpen,
+  ChevronDown,
+  ClipboardList,
+  Code2,
+  Compass,
+  History,
+  LayoutDashboard,
+  LogIn,
+  LogOut,
+  Menu,
+  Search,
+  Settings,
+  Sparkles,
+  User,
+  X,
+} from "lucide-react";
+import { CommandMenu } from "./CommandMenu";
 
 export function Header() {
   const { user, init, logout, loading, isAdmin } = useAuth();
+  const pathname = usePathname();
   const [menuOpen, setMenuOpen] = useState(false);
+  const [mobileNavOpen, setMobileNavOpen] = useState(false);
+  const [commandMenuOpen, setCommandMenuOpen] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
   const initDone = useRef(false);
 
@@ -15,6 +37,18 @@ export function Header() {
     initDone.current = true;
     init();
   }, [init]);
+
+  // 全局快捷键 Cmd+K / Ctrl+K 监听
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "k") {
+        e.preventDefault();
+        setCommandMenuOpen((prev) => !prev);
+      }
+    };
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, []);
 
   // 点击外部关闭菜单
   useEffect(() => {
@@ -27,101 +61,219 @@ export function Header() {
     return () => document.removeEventListener("mousedown", handleClick);
   }, []);
 
+  const navItems = [
+    { label: "学习路径", href: "/learn", icon: Compass },
+    ...(isAdmin
+      ? [
+          { label: "知识库", href: "/knowledge", icon: BookOpen },
+          { label: "练习管理", href: "/admin/exercises", icon: ClipboardList },
+        ]
+      : []),
+    { label: "练习", href: "/exercises", icon: Code2 },
+    { label: "仪表盘", href: "/dashboard", icon: LayoutDashboard },
+  ];
+
   return (
-    <header className="fixed top-0 w-full flex justify-between items-center px-6 py-4 bg-[#060e20]/80 backdrop-blur-xl z-50 shadow-[0_8px_32px_rgba(6,14,32,0.8)] border-b border-white/5">
-      <div className="flex items-center gap-8">
-        <Link href="/" className="text-2xl font-bold tracking-tighter text-cyan-400 font-headline">
-          CodePilot
-        </Link>
-        <nav className="hidden md:flex items-center gap-6 font-headline text-sm tracking-wide">
-          <Link className="text-slate-400 hover:text-cyan-300 transition-colors hover:bg-white/5 duration-200 px-3 py-1.5 rounded-md" href="/learn">学习路径</Link>
-          {isAdmin && (
-            <Link className="text-slate-400 hover:text-cyan-300 transition-colors hover:bg-white/5 duration-200 px-3 py-1.5 rounded-md" href="/knowledge">知识库</Link>
-          )}
-          <Link className="text-slate-400 hover:text-cyan-300 transition-colors hover:bg-white/5 duration-200 px-3 py-1.5 rounded-md" href="/exercises">练习</Link>
-          <Link className="text-slate-400 hover:text-cyan-300 transition-colors hover:bg-white/5 duration-200 px-3 py-1.5 rounded-md" href="/dashboard">仪表盘</Link>
-        </nav>
-      </div>
-      <div className="flex items-center gap-6">
-        <div className="hidden lg:flex items-center bg-surface-container-low px-4 py-2 rounded-full border border-white/5">
-          <span className="material-symbols-outlined text-slate-500 text-[18px]">search</span>
-          <input className="bg-transparent border-none text-sm focus:ring-0 text-on-surface w-40 outline-none ml-2 placeholder:text-slate-500" placeholder="搜索资源..." type="text" />
-        </div>
-        <Link href="/history">
-          <button className="text-slate-400 hover:text-cyan-300 transition-all active:scale-95">
-            <span className="material-symbols-outlined text-xl">history</span>
-          </button>
-        </Link>
-
-        {/* 用户区域 */}
-        {loading ? (
-          <div className="w-9 h-9 rounded-full bg-surface-container-low border border-white/10 animate-pulse" />
-        ) : user ? (
-          /* 已登录 */
-          <div className="relative" ref={menuRef}>
-            <button
-              className="flex items-center gap-2 hover:bg-white/5 px-2 py-1 rounded-xl transition-colors"
-              onClick={() => setMenuOpen(!menuOpen)}
-            >
-              <div className="w-8 h-8 rounded-full bg-gradient-to-br from-primary to-secondary flex items-center justify-center text-surface text-sm font-bold">
-                {(user.nickname || user.email || "U")[0].toUpperCase()}
-              </div>
-              <span className="hidden md:inline text-sm text-on-surface-variant max-w-[100px] truncate">
-                {user.nickname || user.email}
-              </span>
-              <span className="material-symbols-outlined text-slate-500 text-sm">expand_more</span>
-            </button>
-
-            {menuOpen && (
-              <div className="absolute right-0 top-full mt-2 w-56 bg-surface-container-high/95 backdrop-blur-xl rounded-xl border border-white/10 shadow-2xl py-2 z-50 animate-in fade-in slide-in-from-top-2 duration-200">
-                <div className="px-4 py-2 border-b border-white/5">
-                  <p className="text-sm font-medium text-on-surface truncate">{user.nickname}</p>
-                  <p className="text-xs text-slate-500 truncate">{user.email}</p>
-                  {isAdmin && (
-                    <p className="text-[10px] text-primary mt-1 uppercase tracking-widest">Admin</p>
-                  )}
-                </div>
-                <a href="/settings" className="flex items-center gap-3 px-4 py-2.5 text-sm text-on-surface-variant hover:bg-white/5 transition-colors">
-                  <span className="material-symbols-outlined text-base">manage_accounts</span>
-                  个人中心
-                </a>
-                {isAdmin && (
-                  <a href="/knowledge" className="flex items-center gap-3 px-4 py-2.5 text-sm text-on-surface-variant hover:bg-white/5 transition-colors">
-                    <span className="material-symbols-outlined text-base">menu_book</span>
-                    知识库管理
-                  </a>
-                )}
-                <a href="/dashboard" className="flex items-center gap-3 px-4 py-2.5 text-sm text-on-surface-variant hover:bg-white/5 transition-colors">
-                  <span className="material-symbols-outlined text-base">dashboard</span>
-                  学习仪表盘
-                </a>
-                <a href="/history" className="flex items-center gap-3 px-4 py-2.5 text-sm text-on-surface-variant hover:bg-white/5 transition-colors">
-                  <span className="material-symbols-outlined text-base">history</span>
-                  学习历史
-                </a>
-                <div className="border-t border-white/5 mt-1 pt-1">
-                  <button
-                    className="flex items-center gap-3 w-full px-4 py-2.5 text-sm text-red-400 hover:bg-red-500/10 transition-colors"
-                    onClick={() => { logout(); setMenuOpen(false); }}
-                  >
-                    <span className="material-symbols-outlined text-base">logout</span>
-                    退出登录
-                  </button>
-                </div>
-              </div>
-            )}
-          </div>
-        ) : (
-          /* 未登录 */
-          <Link
-            href="/auth/login"
-            className="flex items-center gap-2 bg-primary/15 hover:bg-primary/25 text-primary px-4 py-2 rounded-xl text-sm font-medium transition-all active:scale-95 border border-primary/20"
-          >
-            <span className="material-symbols-outlined text-base">login</span>
-            登录
+    <>
+      <header className="fixed top-0 w-full flex justify-between items-center px-6 py-3.5 bg-[#060e20]/80 backdrop-blur-xl z-40 shadow-[0_8px_32px_rgba(6,14,32,0.8)] border-b border-white/[0.06]">
+        {/* Logo & Navigation */}
+        <div className="flex items-center gap-8">
+          <Link href="/" className="flex items-center gap-2 group">
+            <div className="w-8 h-8 rounded-xl bg-gradient-to-tr from-primary/30 to-secondary/30 border border-primary/40 flex items-center justify-center text-primary group-hover:scale-105 transition-transform shadow-[0_0_15px_rgba(83,221,252,0.3)]">
+              <Sparkles size={16} className="text-primary" />
+            </div>
+            <span className="text-xl font-bold tracking-tight text-white font-headline">
+              Code<span className="text-primary">Pilot</span>
+            </span>
           </Link>
-        )}
-      </div>
-    </header>
+
+          <nav className="hidden md:flex items-center gap-1 font-headline text-sm tracking-wide">
+            {navItems.map((item) => {
+              const isActive = pathname.startsWith(item.href);
+              return (
+                <Link
+                  key={item.href}
+                  href={item.href}
+                  className={`flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl transition-all duration-200 ${
+                    isActive
+                      ? "text-primary bg-primary/10 border border-primary/20 shadow-[0_0_15px_rgba(83,221,252,0.1)]"
+                      : "text-slate-400 hover:text-slate-200 hover:bg-white/[0.04]"
+                  }`}
+                >
+                  <item.icon size={15} className={isActive ? "text-primary" : "text-slate-400"} />
+                  {item.label}
+                </Link>
+              );
+            })}
+          </nav>
+        </div>
+
+        {/* Right Actions */}
+        <div className="flex items-center gap-4">
+          {/* Quick Command Trigger */}
+          <button
+            onClick={() => setCommandMenuOpen(true)}
+            className="hidden sm:flex items-center gap-2.5 px-3 py-1.5 rounded-xl bg-surface-container-low/70 border border-white/10 hover:border-primary/40 text-slate-400 hover:text-slate-200 text-xs transition-all shadow-sm group"
+          >
+            <Search size={14} className="group-hover:text-primary transition-colors" />
+            <span className="text-slate-400">快速搜索...</span>
+            <kbd className="px-1.5 py-0.5 rounded bg-white/5 border border-white/10 text-[10px] font-mono text-slate-400 group-hover:border-primary/30">
+              ⌘K
+            </kbd>
+          </button>
+
+          {/* History */}
+          <Link
+            href="/history"
+            className={`p-2 rounded-xl border transition-all ${
+              pathname === "/history"
+                ? "text-primary bg-primary/10 border-primary/30"
+                : "text-slate-400 hover:text-slate-200 hover:bg-white/5 border-transparent"
+            }`}
+            title="学习历史"
+          >
+            <History size={18} />
+          </Link>
+
+          {/* User Section */}
+          {loading ? (
+            <div className="w-9 h-9 rounded-full bg-surface-container-low border border-white/10 animate-pulse" />
+          ) : user ? (
+            /* Logged in */
+            <div className="relative" ref={menuRef}>
+              <button
+                className="flex items-center gap-2 hover:bg-white/5 p-1.5 rounded-xl transition-all border border-transparent hover:border-white/10"
+                onClick={() => setMenuOpen(!menuOpen)}
+              >
+                <div className="w-8 h-8 rounded-full bg-gradient-to-br from-primary via-secondary/70 to-primary/40 flex items-center justify-center text-surface text-xs font-bold shadow-[0_0_12px_rgba(83,221,252,0.25)]">
+                  {(user.nickname || user.email || "U")[0].toUpperCase()}
+                </div>
+                <span className="hidden md:inline text-xs font-medium text-slate-300 max-w-[100px] truncate">
+                  {user.nickname || user.email}
+                </span>
+                <ChevronDown size={14} className="text-slate-500" />
+              </button>
+
+              {menuOpen && (
+                <div className="absolute right-0 top-full mt-2 w-56 bg-surface-container-high/95 backdrop-blur-2xl rounded-2xl border border-white/10 shadow-[0_20px_50px_rgba(0,0,0,0.6)] py-2 z-50 animate-in fade-in slide-in-from-top-2 duration-200">
+                  <div className="px-4 py-2.5 border-b border-white/5">
+                    <p className="text-sm font-semibold text-on-surface truncate">{user.nickname}</p>
+                    <p className="text-xs text-slate-500 truncate">{user.email}</p>
+                    {isAdmin && (
+                      <span className="inline-block mt-1 px-2 py-0.5 rounded-md bg-secondary/15 text-secondary text-[10px] font-mono uppercase tracking-wider font-bold border border-secondary/30">
+                        Admin 权限
+                      </span>
+                    )}
+                  </div>
+                  <Link
+                    href="/dashboard"
+                    onClick={() => setMenuOpen(false)}
+                    className="flex items-center gap-2.5 px-4 py-2 text-xs text-slate-300 hover:text-primary hover:bg-white/5 transition-colors"
+                  >
+                    <LayoutDashboard size={15} />
+                    学习仪表盘
+                  </Link>
+                  <Link
+                    href="/settings"
+                    onClick={() => setMenuOpen(false)}
+                    className="flex items-center gap-2.5 px-4 py-2 text-xs text-slate-300 hover:text-primary hover:bg-white/5 transition-colors"
+                  >
+                    <Settings size={15} />
+                    个人中心
+                  </Link>
+                  {isAdmin && (
+                    <Link
+                      href="/knowledge"
+                      onClick={() => setMenuOpen(false)}
+                      className="flex items-center gap-2.5 px-4 py-2 text-xs text-slate-300 hover:text-primary hover:bg-white/5 transition-colors"
+                    >
+                      <BookOpen size={15} />
+                      知识库管理
+                    </Link>
+                  )}
+                  {isAdmin && (
+                    <Link
+                      href="/admin/exercises"
+                      onClick={() => setMenuOpen(false)}
+                      className="flex items-center gap-2.5 px-4 py-2 text-xs text-slate-300 hover:text-primary hover:bg-white/5 transition-colors"
+                    >
+                      <ClipboardList size={15} />
+                      练习管理
+                    </Link>
+                  )}
+                  <Link
+                    href="/history"
+                    onClick={() => setMenuOpen(false)}
+                    className="flex items-center gap-2.5 px-4 py-2 text-xs text-slate-300 hover:text-primary hover:bg-white/5 transition-colors"
+                  >
+                    <History size={15} />
+                    学习历史
+                  </Link>
+                  <div className="border-t border-white/5 mt-1 pt-1">
+                    <button
+                      className="flex items-center gap-2.5 w-full px-4 py-2 text-xs text-rose-400 hover:bg-rose-500/10 transition-colors"
+                      onClick={() => {
+                        logout();
+                        setMenuOpen(false);
+                      }}
+                    >
+                      <LogOut size={15} />
+                      退出登录
+                    </button>
+                  </div>
+                </div>
+              )}
+            </div>
+          ) : (
+            /* Guest */
+            <Link
+              href="/auth/login"
+              className="flex items-center gap-1.5 bg-primary/15 hover:bg-primary/25 text-primary px-3.5 py-1.5 rounded-xl text-xs font-semibold transition-all active:scale-95 border border-primary/30 shadow-[0_0_15px_rgba(83,221,252,0.15)]"
+            >
+              <LogIn size={14} />
+              登录
+            </Link>
+          )}
+
+          {/* Mobile Hamburger */}
+          <button
+            onClick={() => setMobileNavOpen(!mobileNavOpen)}
+            className="md:hidden p-2 rounded-xl text-slate-400 hover:text-slate-200 hover:bg-white/5"
+          >
+            {mobileNavOpen ? <X size={20} /> : <Menu size={20} />}
+          </button>
+        </div>
+      </header>
+
+      {/* Mobile Drawer Navigation */}
+      {mobileNavOpen && (
+        <div className="md:hidden fixed top-[61px] inset-x-0 bg-surface-container-high/95 backdrop-blur-2xl border-b border-white/10 z-30 p-4 space-y-2 animate-in slide-in-from-top duration-200">
+          {navItems.map((item) => (
+            <Link
+              key={item.href}
+              href={item.href}
+              onClick={() => setMobileNavOpen(false)}
+              className="flex items-center gap-3 px-4 py-2.5 rounded-xl text-sm font-medium text-slate-300 hover:text-primary hover:bg-white/5"
+            >
+              <item.icon size={18} />
+              {item.label}
+            </Link>
+          ))}
+          <button
+            onClick={() => {
+              setMobileNavOpen(false);
+              setCommandMenuOpen(true);
+            }}
+            className="flex items-center gap-3 w-full px-4 py-2.5 rounded-xl text-sm font-medium text-slate-400 hover:text-primary hover:bg-white/5"
+          >
+            <Search size={18} />
+            全局搜索 (Cmd + K)
+          </button>
+        </div>
+      )}
+
+      {/* Command Menu Modal */}
+      <CommandMenu isOpen={commandMenuOpen} onClose={() => setCommandMenuOpen(false)} />
+    </>
   );
 }

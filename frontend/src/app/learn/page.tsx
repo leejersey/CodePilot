@@ -6,11 +6,28 @@ import Link from "next/link";
 import { getProgressPaths, deletePath, type PathProgress, getPathSourceLabel } from "@/lib/api";
 import { AuthGuard } from "@/components/AuthGuard";
 import { useDialog } from "@/components/DialogProvider";
+import { Card } from "@/components/common/Card";
+import { EmptyState } from "@/components/common/EmptyState";
+import { CardSkeleton } from "@/components/common/Skeleton";
+import { DifficultyBadge, KnowledgeBadge } from "@/components/common/Badge";
+import {
+  Compass,
+  ChevronRight,
+  GraduationCap,
+  Terminal,
+  Rocket,
+  Sparkles,
+  Trash2,
+  ArrowRight,
+  PlusCircle,
+  Loader2,
+  CheckCircle2,
+} from "lucide-react";
 
-const DIFFICULTY_LABEL: Record<string, { text: string; color: string; icon: string }> = {
-  beginner: { text: "入门", color: "bg-green-500/15 text-green-400 border-green-500/20", icon: "school" },
-  intermediate: { text: "中级", color: "bg-yellow-500/15 text-yellow-400 border-yellow-500/20", icon: "terminal" },
-  advanced: { text: "高级", color: "bg-red-500/15 text-red-400 border-red-500/20", icon: "rocket_launch" },
+const DIFFICULTY_ICON_MAP = {
+  beginner: GraduationCap,
+  intermediate: Terminal,
+  advanced: Rocket,
 };
 
 export default function LearnPage() {
@@ -58,139 +75,136 @@ export default function LearnPage() {
 
   return (
     <AuthGuard>
-    <div className="max-w-5xl mx-auto w-full pb-20 p-6 md:p-10 h-full overflow-y-auto">
-      {/* Page Header */}
-      <div className="mb-10">
-        <div className="flex items-center gap-2 text-on-surface-variant text-xs mb-4 font-label tracking-widest uppercase">
-          <Link href="/" className="hover:text-primary transition-colors">首页</Link>
-          <span className="material-symbols-outlined text-[10px]">chevron_right</span>
-          <span className="text-primary">学习路线</span>
-        </div>
-        <h1 className="text-4xl md:text-5xl font-bold font-headline mb-3 tracking-tight">我的学习路线</h1>
-        <p className="text-on-surface-variant">选择一条路线，开始你的编程进化之旅</p>
-      </div>
-
-      {loading ? (
-        <div className="grid gap-6">
-          {[1, 2, 3].map(i => (
-            <div key={i} className="bg-surface-container-high rounded-2xl p-8 border border-outline-variant/10 animate-pulse h-36" />
-          ))}
-        </div>
-      ) : paths.length === 0 ? (
-        /* 空状态 */
-        <div className="flex flex-col items-center justify-center py-24 text-center">
-          <div className="w-24 h-24 rounded-full bg-surface-container-high flex items-center justify-center mb-6">
-            <span className="material-symbols-outlined text-5xl text-on-surface-variant">explore</span>
+      <div className="max-w-5xl mx-auto w-full pb-20 p-6 md:p-10 h-full overflow-y-auto space-y-8">
+        {/* Page Header */}
+        <div className="border-b border-white/5 pb-6">
+          <div className="flex items-center gap-1.5 text-slate-400 text-xs mb-3 font-mono">
+            <Link href="/" className="hover:text-cyan-400 transition-colors">首页</Link>
+            <ChevronRight className="w-3.5 h-3.5 text-slate-600" />
+            <span className="text-cyan-400 font-medium">学习路线</span>
           </div>
-          <h2 className="text-xl font-bold font-headline mb-2 text-on-surface">还没有学习路线</h2>
-          <p className="text-on-surface-variant mb-6 max-w-md">
-            去首页输入你感兴趣的编程主题，AI 将为你量身定制一条学习路线。
+          <h1 className="text-3xl md:text-4xl font-extrabold font-headline tracking-tight text-slate-100 flex items-center gap-3">
+            <Compass className="w-8 h-8 text-cyan-400" />
+            我的定制学习路线
+          </h1>
+          <p className="text-slate-400 text-sm mt-1.5">
+            选择正在推进的技术路线，循序渐进掌握底层原理与实战技能
           </p>
-          <Link
-            href="/"
-            className="bg-primary text-on-primary px-8 py-3 rounded-xl font-bold text-sm tracking-wide transition-all active:scale-95 shadow-lg shadow-primary/20 flex items-center gap-2"
-          >
-            <span className="material-symbols-outlined text-base">auto_awesome</span>
-            开始探索
-          </Link>
         </div>
-      ) : (
-        /* 路线列表 */
-        <div className="grid gap-5">
-          {paths.map(path => {
-            const diff = DIFFICULTY_LABEL[path.difficulty] || DIFFICULTY_LABEL.intermediate;
-            const isCompleted = path.progress === 100;
 
-            return (
-              <Link
-                key={path.id}
-                href={`/learn/${path.id}`}
-                className="group relative bg-surface-container-high rounded-2xl p-6 border border-outline-variant/10 hover:border-primary/30 hover:shadow-[0_0_30px_rgba(83,221,252,0.08)] transition-all duration-300"
-              >
-                <div className="flex items-center gap-6">
-                  {/* Icon */}
-                  <div className="w-14 h-14 rounded-xl bg-primary/10 flex items-center justify-center border border-primary/20 shrink-0 group-hover:scale-110 transition-transform">
-                    <span className="material-symbols-outlined text-primary text-2xl" style={{ fontVariationSettings: "'FILL' 1" }}>
-                      {diff.icon}
-                    </span>
-                  </div>
+        {loading ? (
+          <div className="grid gap-4">
+            {[1, 2, 3].map(i => (
+              <CardSkeleton key={i} />
+            ))}
+          </div>
+        ) : paths.length === 0 ? (
+          <EmptyState
+            icon={Compass}
+            title="还没有任何学习路线"
+            description="在首页输入想要掌握的技术栈或业务主题，AI 将为你规划结构化的全套进阶路线"
+            action={{
+              label: "前往首页生成路线",
+              href: "/",
+            }}
+          />
+        ) : (
+          <div className="grid gap-4">
+            {paths.map(path => {
+              const diffKey = (path.difficulty as keyof typeof DIFFICULTY_ICON_MAP) || "intermediate";
+              const DiffIcon = DIFFICULTY_ICON_MAP[diffKey] || Terminal;
+              const isCompleted = path.progress === 100;
+              const src = getPathSourceLabel(path.source_type);
 
-                  {/* Content */}
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-center gap-3 mb-1.5">
-                      <h3 className="text-lg font-bold font-headline text-on-surface group-hover:text-primary transition-colors truncate">
-                        {path.topic}
-                      </h3>
-                      {(() => {
-                        const src = getPathSourceLabel(path.source_type);
-                        return src.type === "knowledge_base" ? (
-                          <span className="text-[10px] font-bold px-2.5 py-0.5 rounded-full bg-primary/15 text-primary border border-primary/25 shrink-0">
-                            {src.short}
-                            {path.kb_names?.[0] ? ` · ${path.kb_names[0]}` : ""}
+              return (
+                <Link
+                  key={path.id}
+                  href={`/learn/${path.id}`}
+                  className="group block"
+                >
+                  <Card className="p-6 hover:border-cyan-500/30 transition-all duration-300">
+                    <div className="flex items-center gap-5">
+                      {/* Icon */}
+                      <div className="w-13 h-13 rounded-2xl bg-cyan-500/10 border border-cyan-500/20 flex items-center justify-center text-cyan-400 shrink-0 group-hover:scale-105 group-hover:bg-cyan-500/20 transition-all">
+                        <DiffIcon className="w-6 h-6" />
+                      </div>
+
+                      {/* Content */}
+                      <div className="flex-1 min-w-0">
+                        <div className="flex flex-wrap items-center gap-2.5 mb-2">
+                          <h3 className="text-lg font-bold font-headline text-slate-100 group-hover:text-cyan-400 transition-colors truncate">
+                            {path.topic}
+                          </h3>
+                          {src.type === "knowledge_base" ? (
+                            <KnowledgeBadge kbName={path.kb_names?.[0]} />
+                          ) : null}
+                          <DifficultyBadge difficulty={path.difficulty} />
+                          {isCompleted && (
+                            <span className="inline-flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-500/15 text-emerald-400 border border-emerald-500/25">
+                              <CheckCircle2 className="w-3 h-3" />
+                              已通关
+                            </span>
+                          )}
+                        </div>
+
+                        <div className="flex items-center gap-3 text-xs text-slate-400 font-mono">
+                          <span>{path.completed_chapters}/{path.total_chapters} 章节</span>
+                          <span>·</span>
+                          <span className={`font-bold ${isCompleted ? "text-emerald-400" : "text-cyan-400"}`}>
+                            完成度 {path.progress}%
                           </span>
-                        ) : (
-                          <span className="text-[10px] font-bold px-2.5 py-0.5 rounded-full bg-slate-500/15 text-slate-300 border border-slate-500/25 shrink-0">
-                            {src.short}
-                          </span>
-                        );
-                      })()}
-                      <span className={`text-[10px] font-bold px-2.5 py-0.5 rounded-full border shrink-0 ${diff.color}`}>
-                        {diff.text}
-                      </span>
-                      {isCompleted && (
-                        <span className="text-[10px] font-bold px-2.5 py-0.5 rounded-full bg-green-500/15 text-green-400 border border-green-500/20 shrink-0">
-                          已完成
-                        </span>
-                      )}
-                    </div>
-                    <div className="flex items-center gap-4 text-xs text-on-surface-variant">
-                      <span>{path.completed_chapters}/{path.total_chapters} 章节</span>
-                      <span>·</span>
-                      <span className={`font-mono font-bold ${isCompleted ? "text-green-400" : "text-primary"}`}>
-                        {path.progress}%
-                      </span>
-                    </div>
-                    {/* Progress Bar */}
-                    <div className="h-1.5 w-full bg-surface-container-low rounded-full overflow-hidden mt-3">
-                      <div
-                        className={`h-full rounded-full transition-all duration-700 ${isCompleted ? "bg-green-400" : "bg-gradient-to-r from-primary to-secondary"}`}
-                        style={{ width: `${path.progress}%` }}
-                      />
-                    </div>
-                  </div>
+                        </div>
 
-                  <div className="flex items-center gap-1 shrink-0">
-                    <button
-                      type="button"
-                      title="删除路线"
-                      disabled={deletingId === path.id}
-                      onClick={(e) => handleDelete(e, path)}
-                      className="p-2 rounded-lg text-on-surface-variant hover:text-red-400 hover:bg-red-500/10 transition-colors disabled:opacity-50"
-                    >
-                      <span className="material-symbols-outlined text-xl">
-                        {deletingId === path.id ? "hourglass_empty" : "delete"}
-                      </span>
-                    </button>
-                    <span className="material-symbols-outlined text-on-surface-variant group-hover:text-primary group-hover:translate-x-1 transition-all">
-                      arrow_forward
-                    </span>
-                  </div>
-                </div>
-              </Link>
-            );
-          })}
+                        {/* Progress Bar */}
+                        <div className="h-1.5 w-full bg-slate-900 rounded-full overflow-hidden mt-3 border border-white/5">
+                          <div
+                            className={`h-full rounded-full transition-all duration-700 ${
+                              isCompleted
+                                ? "bg-emerald-400 shadow-[0_0_8px_rgba(52,211,153,0.5)]"
+                                : "bg-gradient-to-r from-cyan-500 to-primary shadow-[0_0_8px_rgba(6,182,212,0.4)]"
+                            }`}
+                            style={{ width: `${path.progress}%` }}
+                          />
+                        </div>
+                      </div>
 
-          {/* CTA: 创建新路线 */}
-          <Link
-            href="/"
-            className="group flex items-center justify-center gap-3 p-6 rounded-2xl border-2 border-dashed border-outline-variant/20 hover:border-primary/40 text-on-surface-variant hover:text-primary transition-all"
-          >
-            <span className="material-symbols-outlined text-2xl">add_circle</span>
-            <span className="font-medium">创建新的学习路线</span>
-          </Link>
-        </div>
-      )}
-    </div>
+                      {/* Action */}
+                      <div className="flex items-center gap-2 shrink-0">
+                        <button
+                          type="button"
+                          title="删除路线"
+                          disabled={deletingId === path.id}
+                          onClick={(e) => handleDelete(e, path)}
+                          className="p-2 rounded-xl text-slate-500 hover:text-rose-400 hover:bg-rose-500/10 transition-colors disabled:opacity-50"
+                        >
+                          {deletingId === path.id ? (
+                            <Loader2 className="w-4 h-4 animate-spin" />
+                          ) : (
+                            <Trash2 className="w-4 h-4" />
+                          )}
+                        </button>
+                        <div className="w-8 h-8 rounded-xl bg-surface-container flex items-center justify-center text-slate-500 group-hover:text-cyan-400 group-hover:bg-cyan-500/10 group-hover:translate-x-0.5 transition-all">
+                          <ArrowRight className="w-4 h-4" />
+                        </div>
+                      </div>
+                    </div>
+                  </Card>
+                </Link>
+              );
+            })}
+
+            {/* CTA: 创建新路线 */}
+            <Link
+              href="/"
+              className="group flex items-center justify-center gap-3 p-6 rounded-2xl border border-dashed border-white/10 hover:border-cyan-500/40 hover:bg-cyan-500/5 text-slate-400 hover:text-cyan-400 transition-all duration-300"
+            >
+              <PlusCircle className="w-5 h-5 text-cyan-400 group-hover:scale-110 transition-transform" />
+              <span className="font-semibold text-sm">定制生成新的学习路线</span>
+            </Link>
+          </div>
+        )}
+      </div>
     </AuthGuard>
   );
 }
+

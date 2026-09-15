@@ -10,6 +10,7 @@ import {
   useState,
   type ReactNode,
 } from "react";
+import { AlertTriangle, HelpCircle, Info } from "lucide-react";
 
 export type ConfirmOptions = {
   title?: string;
@@ -137,20 +138,19 @@ export function DialogProvider({ children }: { children: ReactNode }) {
                 <div
                   className={`w-10 h-10 rounded-xl flex items-center justify-center shrink-0 border ${
                     isDanger && pending.kind === "confirm"
-                      ? "bg-red-500/15 text-red-400 border-red-500/25"
-                      : "bg-primary/15 text-primary border-primary/25"
+                      ? "bg-rose-500/15 text-rose-400 border-rose-500/25"
+                      : "bg-cyan-500/15 text-cyan-400 border-cyan-500/25"
                   }`}
                 >
-                  <span
-                    className="material-symbols-outlined text-xl"
-                    style={{ fontVariationSettings: "'FILL' 1" }}
-                  >
-                    {pending.kind === "confirm"
-                      ? isDanger
-                        ? "warning"
-                        : "help"
-                      : "info"}
-                  </span>
+                  {pending.kind === "confirm" ? (
+                    isDanger ? (
+                      <AlertTriangle className="w-5 h-5" />
+                    ) : (
+                      <HelpCircle className="w-5 h-5" />
+                    )
+                  ) : (
+                    <Info className="w-5 h-5" />
+                  )}
                 </div>
                 <div className="min-w-0 flex-1 pt-0.5">
                   <h2

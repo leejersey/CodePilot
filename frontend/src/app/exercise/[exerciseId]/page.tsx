@@ -1,74 +1,101 @@
 "use client";
 
-import { useEffect, useState, useRef } from "react";
+import { useEffect, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
+import Editor from "@monaco-editor/react";
 import { useAuth } from "@/hooks/useAuth";
 import { Header } from "@/components/layout/Header";
-import ReactMarkdown from 'react-markdown';
-import { getExercise, submitExercise, Exercise } from "@/lib/api";
+import { MarkdownRenderer } from "@/components/MarkdownRenderer";
+import { getExercise, submitExercise, type Exercise } from "@/lib/api";
+import { Badge } from "@/components/common/Badge";
+import {
+  Bot,
+  BookMarked,
+  CheckCircle2,
+  Loader2,
+  Send,
+  Terminal,
+  X,
+} from "lucide-react";
 
+function monacoLanguage(lang?: string | null): string {
+  const l = (lang || "python").toLowerCase();
+  if (l.includes("javascript") || l === "js" || l === "node") return "javascript";
+  if (l.includes("typescript") || l === "ts") return "typescript";
+  if (l.includes("go")) return "go";
+  if (l.includes("rust") || l === "rs") return "rust";
+  if (l.includes("c++") || l === "cpp" || l === "cplusplus") return "cpp";
+  if (l.includes("java") && !l.includes("script")) return "java";
+  return "python";
+}
 
-// Mock default data in case API fails
-const MOCK_EXERCISE = {
-  title: "实现异步数据采集器",
-  difficulty: "intermediate",
-  description: "在这个练习中，你将探索 Python `asyncio` 的核心机制。你需要处理网络请求中的不确定性因素。\n\n### 任务目标\n1. 实现一个异步函数 `fetch_data(api_id: int)`。\n2. 使用 `asyncio.sleep` 模拟 0.5 到 1.5 秒之间的随机延迟。\n3. 处理超时异常：如果延迟超过 1.2 秒，应重试最多 3 次。\n4. 返回格式化后的字符串 `\"Data from {api_id}\"`。\n\n### 补充说明\n确保你的实现是线程安全的，并且能够通过我们的并发测试脚本（100个并发任务）。",
-  starter_code: "import asyncio\nimport random\n\nasync def fetch_data(api_id: int):\n    # 实现你的异步逻辑\n    pass\n",
-};
+function fileLabel(lang?: string | null): string {
+  const m = monacoLanguage(lang);
+  const map: Record<string, string> = {
+    python: "main.py",
+    javascript: "main.js",
+    typescript: "main.ts",
+    go: "main.go",
+    rust: "main.rs",
+    cpp: "main.cpp",
+    java: "Main.java",
+  };
+  return map[m] || "main.py";
+}
 
 export default function ExercisePage() {
   const params = useParams();
   const router = useRouter();
-  const { token, init } = useAuth();
+  const { init } = useAuth();
   const exerciseId = params.exerciseId as string;
 
-  const [code, setCode] = useState(MOCK_EXERCISE.starter_code);
-  const [exercise, setExercise] = useState<Exercise | typeof MOCK_EXERCISE>(MOCK_EXERCISE);
+  const [code, setCode] = useState("");
+  const [exercise, setExercise] = useState<Exercise | null>(null);
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [aiFeedback, setAiFeedback] = useState<string | null>(null);
-  const [submissionResult, setSubmissionResult] = useState<"pass" | "fail" | "error" | null>(null);
-  
-  const textareaRef = useRef<HTMLTextAreaElement>(null);
-
-  useEffect(() => { init(); }, [init]);
+  const [submissionResult, setSubmissionResult] = useState<
+    "pass" | "fail" | "error" | null
+  >(null);
 
   useEffect(() => {
+    init();
+  }, [init]);
+
+  useEffect(() => {
+    let cancelled = false;
     async function fetchExerciseData() {
-      if (exerciseId === "mock-id") {
-        setExercise(MOCK_EXERCISE);
-        setLoading(false);
-        return;
-      }
-      
+      setLoading(true);
+      setLoadError("");
       try {
         const data = await getExercise(exerciseId);
+        if (cancelled) return;
         setExercise(data);
         setCode(data.starter_code || "");
       } catch (e) {
-        console.error("Failed to load exercise:", e);
-        setExercise(MOCK_EXERCISE); // fallback to mock on error
+        if (!cancelled) {
+          console.error("Failed to load exercise:", e);
+          setLoadError(e instanceof Error ? e.message : "加载练习失败");
+          setExercise(null);
+        }
+      } finally {
+        if (!cancelled) setLoading(false);
       }
-      setLoading(false);
     }
     fetchExerciseData();
-  }, [exerciseId, token]);
+    return () => {
+      cancelled = true;
+    };
+  }, [exerciseId]);
 
   const handleSubmit = async () => {
+    if (!exercise || submitting) return;
     setSubmitting(true);
     setAiFeedback(null);
     setSubmissionResult(null);
 
     try {
-      if (exerciseId === "mock-id") {
-        // Mock successful submission delay
-        await new Promise(r => setTimeout(r, 1500));
-        setSubmissionResult("fail");
-        setAiFeedback("检测到你已经处理了重试逻辑。建议在异常捕获中添加日志记录，以符合生产环境的最佳实践。");
-        setSubmitting(false);
-        return;
-      }
-
       const res = await submitExercise(exerciseId, code);
       setSubmissionResult(res.result);
       if (res.ai_feedback) {
@@ -77,184 +104,253 @@ export default function ExercisePage() {
     } catch (e) {
       console.error("Submission failed:", e);
       setSubmissionResult("error");
-      setAiFeedback("提交失败，请检查网络连接或后端错误。");
+      setAiFeedback(
+        e instanceof Error ? e.message : "提交失败，请检查网络连接或后端服务。"
+      );
     }
     setSubmitting(false);
   };
 
-  const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
-    if (e.key === "Tab") {
-      e.preventDefault();
-      const target = e.target as HTMLTextAreaElement;
-      const start = target.selectionStart;
-      const end = target.selectionEnd;
-      const newCode = code.substring(0, start) + "    " + code.substring(end);
-      setCode(newCode);
-      // Wait for React to update state, then set cursor
-      setTimeout(() => {
-        if (textareaRef.current) {
-          textareaRef.current.selectionStart = textareaRef.current.selectionEnd = start + 4;
-        }
-      }, 0);
-    }
-  };
-
   if (loading) {
-    return <div className="min-h-screen bg-background flex items-center justify-center">
-             <div className="w-10 h-10 border-4 border-primary border-t-transparent rounded-full animate-spin"></div>
-           </div>;
+    return (
+      <div className="min-h-screen bg-background flex items-center justify-center">
+        <div className="flex flex-col items-center gap-3">
+          <Loader2 size={36} className="text-primary animate-spin" />
+          <p className="text-sm font-headline text-slate-400">
+            正在配置编程沙箱与测试用例...
+          </p>
+        </div>
+      </div>
+    );
   }
+
+  if (!exercise) {
+    return (
+      <div className="min-h-screen bg-background flex items-center justify-center">
+        <div className="text-center px-6">
+          <p className="text-sm text-red-400 mb-4">{loadError || "练习不存在"}</p>
+          <button
+            type="button"
+            onClick={() => router.push("/exercises")}
+            className="text-xs font-bold text-primary underline"
+          >
+            返回练习列表
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  const editorLang = monacoLanguage(exercise.language);
 
   return (
     <div className="h-screen flex flex-col overflow-hidden bg-background text-on-background font-body selection:bg-primary/30">
       <Header />
-      
-      {/* Main Workspace */}
-      <main className="flex-1 mt-16 flex overflow-hidden">
-        
-        {/* Left Section: Instructions */}
-        <section className="w-[450px] flex-shrink-0 bg-surface-container-low flex flex-col border-r border-white/5 overflow-hidden">
-          <div className="p-6 overflow-y-auto overflow-x-hidden hide-scrollbar flex-1 text-on-surface-variant leading-relaxed">
-            <div className="flex items-center gap-2 mb-8">
-              <span className="text-xs font-bold tracking-[0.2em] uppercase text-primary bg-primary/10 px-2 py-1 rounded">LEVEL {exercise?.difficulty === 'advanced' ? '3' : exercise?.difficulty === 'intermediate' ? '2' : '1'}</span>
-              <span className="text-xs text-on-surface-variant uppercase">{exercise?.difficulty || "unknown"}</span>
+
+      <main className="flex-1 mt-[61px] flex overflow-hidden">
+        {/* Left: Markdown description */}
+        <section className="w-[min(480px,42%)] flex-shrink-0 bg-surface-container-low flex flex-col border-r border-white/5 overflow-hidden">
+          <div className="p-6 overflow-y-auto flex-1 text-on-surface-variant">
+            <div className="flex items-center gap-2 mb-5 flex-wrap">
+              <Badge difficulty={exercise.difficulty || "medium"} size="sm" />
+              {exercise.language && (
+                <Badge language={exercise.language} size="sm" />
+              )}
+              {exercise.source_kbs && exercise.source_kbs.length > 0 && (
+                <span
+                  className="inline-flex items-center gap-1 text-[10px] font-mono text-violet-300 bg-violet-500/10 border border-violet-500/25 px-2 py-0.5 rounded-full max-w-[180px] truncate"
+                  title={exercise.source_kbs.map((k) => k.name).join("、")}
+                >
+                  <BookMarked size={10} />
+                  {exercise.source_kbs[0].name}
+                </span>
+              )}
             </div>
-            
-            <h1 className="text-3xl font-headline font-bold text-on-surface mb-6 leading-tight">
-              {exercise?.title}
+
+            <h1 className="text-2xl md:text-3xl font-headline font-bold text-white mb-5 leading-tight">
+              {exercise.title}
             </h1>
-            
-            <div className="space-y-2 mt-4 prose prose-invert prose-sm max-w-none prose-headings:font-headline prose-headings:text-primary prose-h3:text-lg prose-h3:flex prose-h3:items-center prose-h3:gap-2 prose-p:text-sm prose-p:leading-relaxed prose-code:text-secondary-dim prose-code:bg-surface-container-highest prose-code:px-1 prose-code:py-0.5 prose-code:rounded">
-              <ReactMarkdown
-                components={{
-                  h3: ({node, ...props}) => (
-                    <h3 {...props}>
-                      <span className="material-symbols-outlined text-sm">task_alt</span> 
-                      {props.children}
-                    </h3>
-                  )
-                }}
-              >
-                {exercise?.description || ""}
-              </ReactMarkdown>
+
+            <div className="text-sm leading-relaxed">
+              <MarkdownRenderer content={exercise.description || ""} />
             </div>
-            
-            <div className="mt-8 bg-surface-container-lowest p-4 rounded-lg font-code text-xs text-secondary-dim border-l-2 border-secondary overflow-x-auto">
-              # 期望的输出样例<br/>
-              &gt;&gt; await fetch_data(101)<br/>
-              'Data from 101'
-            </div>
+
+            {exercise.test_cases && exercise.test_cases.length > 0 && (
+              <div className="mt-8 space-y-3">
+                <h3 className="text-sm font-bold text-primary font-headline">
+                  公开测试用例
+                </h3>
+                {exercise.test_cases
+                  .filter((tc) => !tc.hidden)
+                  .slice(0, 3)
+                  .map((tc, i) => (
+                    <div
+                      key={i}
+                      className="rounded-xl border border-white/10 bg-[#0d1117] p-3 font-mono text-[11px] space-y-2"
+                    >
+                      <div>
+                        <span className="text-slate-500">输入</span>
+                        <pre className="mt-1 whitespace-pre-wrap text-cyan-200/90">
+                          {tc.input}
+                        </pre>
+                      </div>
+                      <div>
+                        <span className="text-slate-500">期望</span>
+                        <pre className="mt-1 whitespace-pre-wrap text-emerald-300/90">
+                          {tc.expected}
+                        </pre>
+                      </div>
+                    </div>
+                  ))}
+              </div>
+            )}
           </div>
-          
-          {/* SideNav Footer Info */}
-          <div className="p-6 bg-surface-container-lowest border-t border-white/5">
-            <div className="flex items-center justify-between mb-2">
-              <span className="text-xs text-slate-500">当前任务</span>
-              <span className="text-xs text-cyan-400 font-medium">进行中</span>
+
+          <div className="p-5 bg-surface-container-lowest/80 border-t border-white/5 flex items-center justify-between">
+            <div className="flex items-center gap-2 text-xs text-slate-400">
+              <span className="w-2 h-2 rounded-full bg-cyan-400 animate-pulse" />
+              实战模式
             </div>
-            <div className="w-full bg-white/5 h-1 rounded-full overflow-hidden">
-              <div className="bg-cyan-400 h-full w-[30%]"></div>
-            </div>
+            <span className="text-xs font-mono text-cyan-400 font-medium">
+              AI 自动评测就绪
+            </span>
           </div>
         </section>
 
-        {/* Right Section: Editor Area */}
-        <section className="flex-1 bg-surface-container-lowest relative flex flex-col overflow-hidden">
-          {/* Editor Tabs */}
-          <div className="flex bg-surface-container-low px-0 border-b border-white/5 h-10 items-center">
-            <div className="flex items-center gap-2 px-6 py-2 bg-surface-container-highest border-t-2 border-cyan-400 text-xs text-on-surface font-code h-full">
-              <span className="material-symbols-outlined text-[14px] text-cyan-400">terminal</span>
-              main.py
+        {/* Right: Monaco editor */}
+        <section className="flex-1 bg-surface-container-lowest relative flex flex-col overflow-hidden min-w-0">
+          <div className="flex bg-surface-container-low px-2 border-b border-white/5 h-11 items-center justify-between shrink-0">
+            <div className="flex items-center gap-2 px-4 py-2 bg-surface-container-highest/80 border-t-2 border-primary text-xs text-primary font-mono h-full">
+              <Terminal size={14} />
+              {fileLabel(exercise.language)}
             </div>
+            <span className="text-[11px] font-mono text-slate-500 pr-4">
+              UTF-8 · {editorLang}
+            </span>
           </div>
-          
-          {/* Editor Area */}
-          <div className="flex-1 relative font-code text-[14px] leading-relaxed flex flex-col">
-            <div className="absolute top-0 left-0 bottom-0 w-12 bg-surface-container-lowest border-r border-white/5 text-right text-outline-variant pr-3 py-6 select-none opacity-50 z-10 flex flex-col gap-[2px]">
-              {code.split('\n').map((_, i) => <div key={i}>{i + 1}</div>)}
-            </div>
-            
-            <textarea
-              ref={textareaRef}
-              className="flex-1 w-full h-full bg-transparent text-primary-dim p-6 pl-16 resize-none outline-none font-code leading-relaxed whitespace-pre z-20"
+
+          <div className="flex-1 min-h-0">
+            <Editor
+              height="100%"
+              language={editorLang}
+              theme="vs-dark"
               value={code}
-              onChange={(e) => setCode(e.target.value)}
-              onKeyDown={handleKeyDown}
-              spellCheck="false"
-              placeholder="# 在这里编写代码..."
+              onChange={(v) => setCode(v ?? "")}
+              options={{
+                fontSize: 14,
+                fontFamily: "JetBrains Mono, ui-monospace, monospace",
+                minimap: { enabled: false },
+                scrollBeyondLastLine: false,
+                padding: { top: 16, bottom: 16 },
+                lineNumbers: "on",
+                automaticLayout: true,
+                tabSize: 4,
+                wordWrap: "on",
+                renderLineHighlight: "line",
+              }}
+              loading={
+                <div className="h-full flex items-center justify-center text-sm text-slate-500">
+                  <Loader2 size={18} className="animate-spin mr-2" />
+                  加载编辑器…
+                </div>
+              }
             />
           </div>
 
-          {/* AI Feedback Floating Window */}
           {aiFeedback && (
-            <div className="absolute right-8 top-16 w-80 glass-panel border border-secondary/30 rounded-xl p-4 shadow-2xl z-30 animate-in fade-in slide-in-from-top-4 duration-300">
+            <div
+              className={`absolute right-8 top-16 w-88 max-w-[min(360px,90%)] backdrop-blur-2xl rounded-2xl p-5 shadow-[0_20px_50px_rgba(0,0,0,0.6)] z-30 border ${
+                submissionResult === "pass"
+                  ? "bg-emerald-950/80 border-emerald-500/40"
+                  : "bg-surface-container-high/95 border-secondary/30"
+              }`}
+            >
               <div className="flex items-center justify-between mb-3">
-                <div className="flex items-center gap-3">
-                  <div className="w-8 h-8 rounded-lg bg-secondary/20 flex items-center justify-center">
-                    <span className="material-symbols-outlined text-secondary text-sm" style={{ fontVariationSettings: "'FILL' 1" }}>smart_toy</span>
+                <div className="flex items-center gap-2.5">
+                  <div
+                    className={`w-8 h-8 rounded-xl flex items-center justify-center ${
+                      submissionResult === "pass"
+                        ? "bg-emerald-500/20 text-emerald-400"
+                        : "bg-secondary/20 text-secondary"
+                    }`}
+                  >
+                    {submissionResult === "pass" ? (
+                      <CheckCircle2 size={16} />
+                    ) : (
+                      <Bot size={16} />
+                    )}
                   </div>
                   <div>
-                    <div className="text-xs font-bold text-on-surface">CodePilot AI</div>
-                    <div className="text-[10px] text-secondary">
-                      {submissionResult === 'fail' ? '给出了一些改进建议' : submissionResult === 'pass' ? '任务完美完成！' : '运行结果反馈'}
+                    <div className="text-xs font-bold text-white font-headline">
+                      CodePilot AI 判题
+                    </div>
+                    <div
+                      className={`text-[11px] font-medium ${
+                        submissionResult === "pass"
+                          ? "text-emerald-400"
+                          : "text-secondary"
+                      }`}
+                    >
+                      {submissionResult === "fail"
+                        ? "存在优化点"
+                        : submissionResult === "pass"
+                          ? "通过全部测试"
+                          : "执行反馈"}
                     </div>
                   </div>
                 </div>
-                <button onClick={() => setAiFeedback(null)} className="text-outline hover:text-on-surface transition-colors">
-                  <span className="material-symbols-outlined text-sm">close</span>
+                <button
+                  type="button"
+                  onClick={() => setAiFeedback(null)}
+                  className="text-slate-500 hover:text-slate-300 transition-colors p-1"
+                >
+                  <X size={15} />
                 </button>
               </div>
-              <p className="text-xs text-on-surface-variant leading-normal mb-3">
-                {aiFeedback}
-              </p>
-              {submissionResult === 'fail' && (
-                <button className="w-full py-2 bg-secondary/10 hover:bg-secondary/20 border border-secondary/30 rounded-lg text-[11px] text-secondary font-medium transition-colors">
-                  应用优化建议
+
+              <div className="text-xs text-slate-300 leading-relaxed mb-4 max-h-48 overflow-y-auto">
+                <MarkdownRenderer content={aiFeedback} />
+              </div>
+
+              {submissionResult === "pass" && (
+                <button
+                  type="button"
+                  onClick={() => router.push("/exercises")}
+                  className="w-full py-2 bg-emerald-500 text-surface rounded-xl text-xs font-bold font-headline hover:bg-emerald-400 transition-colors"
+                >
+                  返回题库
                 </button>
               )}
             </div>
           )}
 
-          {/* Bottom Action Bar */}
           <div className="h-16 border-t border-white/5 bg-surface-container-low px-6 flex items-center justify-between shrink-0">
-            <div className="flex gap-4">
-              <button className="flex items-center gap-2 px-4 py-2 text-sm text-on-surface hover:bg-white/5 rounded-lg transition-all active:scale-95">
-                <span className="material-symbols-outlined text-lg">terminal</span>
-                <span>终端输出</span>
-              </button>
+            <div className="flex items-center gap-1.5 text-xs text-slate-400">
+              <Terminal size={14} className="text-primary" />
+              <span>Monaco 编辑器 · 语法高亮已启用</span>
             </div>
-            <div className="flex gap-3">
-              <button className="flex items-center gap-2 px-6 py-2 bg-surface-container-high hover:bg-surface-bright text-on-surface rounded-lg font-medium transition-all active:scale-95 border border-white/10">
-                <span className="material-symbols-outlined text-[20px]">play_arrow</span>
-                运行代码
-              </button>
-              <button 
-                onClick={handleSubmit}
-                disabled={submitting}
-                className="flex items-center gap-2 px-8 py-2 bg-primary hover:bg-primary-dim text-on-primary-container rounded-lg font-bold transition-all active:scale-95 shadow-[0_0_15px_rgba(83,221,252,0.3)] disabled:opacity-50 disabled:active:scale-100"
-              >
-                {submitting ? (
-                  <span className="w-5 h-5 border-2 border-on-primary-container border-t-transparent rounded-full animate-spin"></span>
-                ) : (
-                  <span className="material-symbols-outlined text-[20px]" style={{ fontVariationSettings: "'FILL' 1" }}>send</span>
-                )}
-                提交任务
-              </button>
-            </div>
+
+            <button
+              type="button"
+              onClick={handleSubmit}
+              disabled={submitting}
+              className="flex items-center gap-2 px-7 py-2.5 bg-primary hover:bg-primary-dim text-on-primary-container rounded-xl font-bold font-headline text-xs transition-all active:scale-95 shadow-[0_0_20px_rgba(83,221,252,0.3)] disabled:opacity-50"
+            >
+              {submitting ? (
+                <>
+                  <Loader2 size={14} className="animate-spin" />
+                  AI 正在运行并判题...
+                </>
+              ) : (
+                <>
+                  <Send size={14} />
+                  提交任务并让 AI 判题
+                </>
+              )}
+            </button>
           </div>
         </section>
       </main>
-      
-      {/* Required CSS Styles */}
-      <style dangerouslySetInnerHTML={{__html: `
-        .hide-scrollbar::-webkit-scrollbar {
-            display: none;
-        }
-        .glass-panel {
-            background: rgba(15, 25, 48, 0.7);
-            backdrop-filter: blur(16px);
-        }
-      `}} />
     </div>
   );
 }

@@ -15,6 +15,11 @@ export interface TestCase {
   hidden: boolean;
 }
 
+export interface ExerciseSourceKb {
+  id: string;
+  name: string;
+}
+
 export interface Exercise {
   id: string;
   chapter_id: string | null;
@@ -25,15 +30,18 @@ export interface Exercise {
   starter_code: string | null;
   test_cases: TestCase[] | null;
   difficulty: string;
+  source_kbs?: ExerciseSourceKb[] | null;
+  status?: "draft" | "published" | "archived" | string;
   created_at: string;
 }
 
 export interface ExerciseGenerateRequest {
   language: string;
   difficulty: string;
-  topic?: string;
+  topic: string;
   chapter_id?: string;
-  knowledge_base_ids?: string[];
+  knowledge_base_ids: string[];
+  publish?: boolean;
 }
 
 export interface SubmissionResponse {
@@ -339,6 +347,41 @@ export async function listExercises(params?: {
   return fetchAPI<Exercise[]>(`/api/v1/exercises${qs ? `?${qs}` : ""}`);
 }
 
+export async function listReadyKnowledgeBasesForExercises(): Promise<
+  ExerciseSourceKb[]
+> {
+  return fetchAPI<ExerciseSourceKb[]>(
+    "/api/v1/exercises/ready-knowledge-bases"
+  );
+}
+
+export async function adminListExercises(params?: {
+  status?: string;
+  language?: string;
+  difficulty?: string;
+}): Promise<Exercise[]> {
+  const query = new URLSearchParams();
+  if (params?.status) query.set("status", params.status);
+  if (params?.language) query.set("language", params.language.toLowerCase());
+  if (params?.difficulty) query.set("difficulty", params.difficulty.toLowerCase());
+  const qs = query.toString();
+  return fetchAPI<Exercise[]>(`/api/v1/exercises/admin${qs ? `?${qs}` : ""}`);
+}
+
+export async function updateExerciseStatus(
+  id: string,
+  status: "draft" | "published" | "archived"
+): Promise<Exercise> {
+  return fetchAPI<Exercise>(`/api/v1/exercises/${id}/status`, {
+    method: "PATCH",
+    body: JSON.stringify({ status }),
+  });
+}
+
+export async function deleteExercise(id: string): Promise<void> {
+  await fetchAPI<void>(`/api/v1/exercises/${id}`, { method: "DELETE" });
+}
+
 export async function getExercise(id: string): Promise<Exercise> {
   return fetchAPI<Exercise>(`/api/v1/exercises/${id}`);
 }
@@ -352,6 +395,7 @@ export async function generateExercise(req: ExerciseGenerateRequest): Promise<Ex
       topic: req.topic || "",
       chapter_id: req.chapter_id || null,
       knowledge_base_ids: req.knowledge_base_ids || [],
+      publish: req.publish ?? false,
     }),
   });
 }
@@ -510,6 +554,49 @@ export async function deleteKnowledgeDocument(kbId: string, docId: string): Prom
   await fetchAPI<void>(`/api/v1/knowledge-bases/${kbId}/documents/${docId}`, {
     method: "DELETE",
   });
+}
+
+// ══════════════════════════════════════════
+//  Document learning mode
+// ══════════════════════════════════════════
+
+export interface DocStage {
+  id: string;
+  title: string;
+  content: string;
+  from_doc?: string;
+}
+
+export interface LearningDocsPayload {
+  chapter_id: string;
+  chapter_title: string;
+  sources: {
+    handout: {
+      available: boolean;
+      label: string;
+      stages: DocStage[];
+    };
+    knowledge_base: {
+      available: boolean;
+      label: string;
+      documents: { id: string; filename: string; byte_size: number }[];
+    };
+  };
+}
+
+export async function getChapterLearningDocs(
+  chapterId: string
+): Promise<LearningDocsPayload> {
+  return fetchAPI<LearningDocsPayload>(
+    `/api/v1/chapters/${chapterId}/learning-docs`
+  );
+}
+
+export async function getChapterKbDocStages(
+  chapterId: string,
+  docId: string
+): Promise<{ doc_id: string; filename: string; stages: DocStage[] }> {
+  return fetchAPI(`/api/v1/chapters/${chapterId}/learning-docs/kb/${docId}`);
 }
 
 // ══════════════════════════════════════════

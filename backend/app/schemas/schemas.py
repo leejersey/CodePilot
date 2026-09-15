@@ -100,15 +100,27 @@ class MessageResponse(BaseModel):
 class ExerciseGenerateRequest(BaseModel):
     chapter_id: uuid.UUID | None = None
     language: str = Field("python", max_length=50, examples=["python", "javascript", "go"])
-    topic: str = Field("", max_length=200, examples=["并发编程", "数据结构"])
+    topic: str = Field(..., min_length=2, max_length=200, examples=["并发编程", "数据结构"])
     difficulty: str = Field("medium", pattern="^(easy|medium|hard)$")
-    knowledge_base_ids: list[uuid.UUID] = Field(default_factory=list)
+    # 必选：至少绑定一个就绪知识库，出题必须基于 RAG
+    knowledge_base_ids: list[uuid.UUID] = Field(..., min_length=1)
+    # 生成后是否直接发布（默认草稿，需管理员审核发布）
+    publish: bool = False
 
 
 class TestCase(BaseModel):
     input: str
     expected: str
     hidden: bool = False
+
+
+class ExerciseSourceKb(BaseModel):
+    id: str
+    name: str
+
+
+class ExerciseStatusUpdate(BaseModel):
+    status: str = Field(..., pattern="^(draft|published|archived)$")
 
 
 class ExerciseResponse(BaseModel):
@@ -121,6 +133,8 @@ class ExerciseResponse(BaseModel):
     starter_code: str | None
     test_cases: list[TestCase] | None
     difficulty: str
+    source_kbs: list[ExerciseSourceKb] | None = None
+    status: str = "draft"
     created_at: datetime
 
     model_config = {"from_attributes": True}

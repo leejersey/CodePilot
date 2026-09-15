@@ -1,5 +1,8 @@
 "use client";
 
+import { TrendingUp } from "lucide-react";
+import { Card } from "@/components/common/Card";
+
 /**
  * 学习趋势折线图 — 基于活动数据的 SVG 折线图
  * 纯 SVG，零依赖
@@ -34,10 +37,10 @@ export function TrendChart({ data }: { data: ActivityItem[] }) {
   const yTicks = [...new Set([0, Math.round(maxVal / 2), maxVal])];
 
   return (
-    <div className="glass-panel bg-surface-container/50 rounded-2xl p-5 border border-white/5">
-      <h3 className="text-sm font-bold text-on-surface flex items-center gap-2 mb-4">
-        <span className="material-symbols-outlined text-green-400 text-lg" style={{ fontVariationSettings: "'FILL' 1" }}>trending_up</span>
-        学习趋势
+    <Card className="p-5">
+      <h3 className="text-sm font-bold text-slate-100 flex items-center gap-2 mb-4">
+        <TrendingUp className="w-4 h-4 text-emerald-400" />
+        学习趋势波动
       </h3>
 
       <svg viewBox={`0 0 ${width} ${height}`} className="w-full" preserveAspectRatio="xMidYMid meet">
@@ -85,12 +88,12 @@ export function TrendChart({ data }: { data: ActivityItem[] }) {
         ))}
       </svg>
 
-      <div className="flex items-center justify-between mt-2 text-xs text-slate-600">
+      <div className="flex items-center justify-between mt-3 text-xs text-slate-500">
         <span>最近 30 天趋势</span>
-        <span className="text-green-400 font-medium">
+        <span className="text-emerald-400 font-mono font-medium">
           日均 {(data.reduce((s, d) => s + d.count, 0) / data.length).toFixed(1)} 次
         </span>
       </div>
-    </div>
+    </Card>
   );
 }

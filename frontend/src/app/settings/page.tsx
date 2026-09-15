@@ -6,6 +6,7 @@ import { Header } from "@/components/layout/Header";
 import { AuthGuard } from "@/components/AuthGuard";
 import { useAuth } from "@/hooks/useAuth";
 import { useDialog } from "@/components/DialogProvider";
+import { ChevronRight, Plus, X } from "lucide-react";
 import {
   getLlmSettings,
   setActiveLlmProfile,
@@ -210,7 +211,7 @@ export default function ProfileSettingsPage() {
             <Link href="/" className="hover:text-primary transition-colors">
               首页
             </Link>
-            <span className="material-symbols-outlined text-[10px]">chevron_right</span>
+            <ChevronRight className="w-3 h-3" />
             <span className="text-primary">个人中心</span>
           </div>
 
@@ -264,9 +265,9 @@ export default function ProfileSettingsPage() {
                   <button
                     type="button"
                     onClick={openCreate}
-                    className="flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs font-bold bg-primary/15 text-primary border border-primary/25 hover:bg-primary/25"
+                    className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold bg-primary/15 text-primary border border-primary/25 hover:bg-primary/25"
                   >
-                    <span className="material-symbols-outlined text-sm">add</span>
+                    <Plus className="w-3.5 h-3.5" />
                     新增配置
                   </button>
                 </div>
@@ -360,10 +361,10 @@ export default function ProfileSettingsPage() {
                     </h3>
                     <button
                       type="button"
-                      className="text-slate-500 hover:text-on-surface"
+                      className="text-slate-500 hover:text-slate-300 p-1 transition-colors"
                       onClick={() => setFormMode("closed")}
                     >
-                      <span className="material-symbols-outlined text-lg">close</span>
+                      <X className="w-4 h-4" />
                     </button>
                   </div>
 

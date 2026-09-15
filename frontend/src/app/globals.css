@@ -80,6 +80,28 @@
     width: 0;
     height: 0;
   }
+
+  .spotlight-card {
+    position: relative;
+    overflow: hidden;
+  }
+  .spotlight-card::before {
+    content: '';
+    position: absolute;
+    top: var(--mouse-y, -1000px);
+    left: var(--mouse-x, -1000px);
+    width: 400px;
+    height: 400px;
+    transform: translate(-50%, -50%);
+    background: radial-gradient(circle, rgba(83, 221, 252, 0.12) 0%, transparent 70%);
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 0.3s ease;
+    z-index: 0;
+  }
+  .spotlight-card:hover::before {
+    opacity: 1;
+  }
 }
 
 @keyframes text-shimmer {
@@ -89,4 +111,18 @@
 }
 .animate-text-shimmer {
   animation: text-shimmer 4s linear infinite;
+}
+
+@keyframes skeleton-shimmer {
+  0% {
+    background-position: -200% 0;
+  }
+  100% {
+    background-position: 200% 0;
+  }
+}
+.animate-skeleton {
+  background: linear-gradient(90deg, rgba(25, 37, 64, 0.4) 0%, rgba(83, 221, 252, 0.08) 50%, rgba(25, 37, 64, 0.4) 100%);
+  background-size: 200% 100%;
+  animation: skeleton-shimmer 1.8s ease-in-out infinite;
 }

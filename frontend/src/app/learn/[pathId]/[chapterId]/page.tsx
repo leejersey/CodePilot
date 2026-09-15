@@ -19,6 +19,11 @@ import {
   updateChapterStatus,
 } from "@/lib/api";
 import { defaultFilename, extractCodeBlocks, fingerprintCode } from "@/lib/codeBlocks";
+import {
+  DocumentLearningPanel,
+  type DocAskContext,
+} from "@/components/DocumentLearningPanel";
+import { BookOpen, Bot, CheckCircle2, Loader2, MessageSquare, Play, Send, User as UserIcon, X } from "lucide-react";
 
 interface ChatMessage {
   id?: string;
@@ -87,10 +92,15 @@ export default function LearningWorkspacePage() {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const [animationData, setAnimationData] = useState<any | null>(null);
   const [generatingAnim, setGeneratingAnim] = useState(false);
+  const [learnMode, setLearnMode] = useState<"ai" | "doc">("ai");
+  const [docAskContext, setDocAskContext] = useState<DocAskContext | null>(null);
+  const [docMessages, setDocMessages] = useState<ChatMessage[]>([]);
   const router = useRouter();
 
   const wsRef = useRef<WebSocket | null>(null);
   const chatEndRef = useRef<HTMLDivElement>(null);
+  const docChatEndRef = useRef<HTMLDivElement>(null);
+  const replyTargetRef = useRef<"ai" | "doc">("ai");
   const splitRef = useRef<HTMLDivElement>(null);
   const draggingRef = useRef(false);
 
@@ -143,6 +153,26 @@ export default function LearningWorkspacePage() {
   }, []);
 
   useEffect(() => { scrollToBottom(); }, [messages, scrollToBottom]);
+
+  useEffect(() => {
+    docChatEndRef.current?.scrollIntoView({ behavior: "smooth" });
+  }, [docMessages]);
+
+  const appendStreamToken = useCallback((content: string) => {
+    const setter = replyTargetRef.current === "doc" ? setDocMessages : setMessages;
+    setter((prev) => {
+      const last = prev[prev.length - 1];
+      if (last?.role === "assistant") {
+        return [...prev.slice(0, -1), { ...last, content: last.content + content }];
+      }
+      return [...prev, { role: "assistant", content }];
+    });
+  }, []);
+
+  const appendSystemError = useCallback((message: string) => {
+    const setter = replyTargetRef.current === "doc" ? setDocMessages : setMessages;
+    setter((prev) => [...prev, { role: "system", content: `错误: ${message}` }]);
+  }, []);
 
   const activeTab = tabs.find((t) => t.id === activeTabId) || tabs[0];
   const activeCode = activeTab?.code ?? "";
@@ -295,24 +325,18 @@ export default function LearningWorkspacePage() {
       ws.onmessage = (event) => {
         const data = JSON.parse(event.data);
         if (data.type === "token") {
-          setMessages(prev => {
-            const last = prev[prev.length - 1];
-            if (last?.role === "assistant") {
-              return [...prev.slice(0, -1), { ...last, content: last.content + data.content }];
-            }
-            return [...prev, { role: "assistant", content: data.content }];
-          });
+          appendStreamToken(data.content);
         } else if (data.type === "done") {
           setStreaming(false);
         } else if (data.type === "error") {
           setStreaming(false);
-          setMessages(prev => [...prev, { role: "system", content: `错误: ${data.message}` }]);
+          appendSystemError(data.message || "未知错误");
         }
       };
 
       ws.onclose = () => { wsRef.current = null; };
     });
-  }, []);
+  }, [appendStreamToken, appendSystemError]);
 
   // 3. 页面加载：复用章节对话（有历史则恢复，否则新建并引导）
   useEffect(() => {
@@ -389,6 +413,7 @@ export default function LearningWorkspacePage() {
         // 无历史才发送自动引导；有历史则直接续聊
         if (!hasHistory) {
           setStreaming(true);
+          replyTargetRef.current = "ai";
           const ws = wsRef.current;
           if (!ws) {
             setStreaming(false);
@@ -405,8 +430,10 @@ export default function LearningWorkspacePage() {
     }
 
     setMessages([]);
+    setDocMessages([]);
     setConvId(null);
     setStreaming(false);
+    setLearnMode("ai");
     initWorkspace();
 
     return () => {
@@ -455,7 +482,13 @@ export default function LearningWorkspacePage() {
     if (!input.trim() || streaming) return;
 
     const userMsg: ChatMessage = { role: "user", content: input.trim() };
-    setMessages(prev => [...prev, userMsg]);
+    const target = learnMode === "doc" ? "doc" : "ai";
+    replyTargetRef.current = target;
+    if (target === "doc") {
+      setDocMessages((prev) => [...prev, userMsg]);
+    } else {
+      setMessages((prev) => [...prev, userMsg]);
+    }
     setInput("");
     setStreaming(true);
 
@@ -469,7 +502,15 @@ export default function LearningWorkspacePage() {
       try { await connectWs(currentConvId); } catch { setStreaming(false); return; }
     }
 
-    wsRef.current?.send(JSON.stringify({ type: "message", content: userMsg.content }));
+    wsRef.current?.send(
+      JSON.stringify({
+        type: "message",
+        content: userMsg.content,
+        ...(target === "doc" && docAskContext
+          ? { doc_context: docAskContext }
+          : {}),
+      })
+    );
   };
 
   return (
@@ -477,68 +518,175 @@ export default function LearningWorkspacePage() {
       ref={splitRef}
       className={`flex h-full w-full min-w-0 ${isDragging ? "select-none cursor-col-resize" : ""}`}
     >
-      {/* Left: AI Chat */}
+      {/* Left: AI Chat / Document mode — 互斥，不叠在一起 */}
       <main className="flex-1 min-w-0 flex flex-col bg-surface overflow-hidden relative">
-        <div className="flex-1 overflow-y-auto p-6 space-y-6 scroll-smooth pb-32">
-          {messages.length === 0 && (
-            <div className="flex items-center justify-center h-full opacity-60">
-              <div className="text-center">
-                <span className="material-symbols-outlined text-5xl text-secondary mb-4 block animate-spin">progress_activity</span>
-                <p className="text-on-surface-variant">AI 导师正在准备引导...</p>
-              </div>
-            </div>
-          )}
-
-          {messages.map((msg, i) => (
-            msg.role === "user" ? (
-              <div key={i} className="flex gap-4 max-w-3xl ml-auto flex-row-reverse">
-                <div className="w-8 h-8 rounded-full bg-primary/20 flex items-center justify-center flex-shrink-0 mt-1 border border-primary/30">
-                  <span className="material-symbols-outlined text-primary text-sm">person</span>
-                </div>
-                <div className="glass-panel bg-primary/10 p-4 rounded-2xl rounded-tr-none border border-primary/20 shadow-lg text-on-surface">
-                  <p className="leading-relaxed whitespace-pre-wrap">{msg.content}</p>
-                </div>
-              </div>
-            ) : msg.role === "system" ? (
-              <div key={i} className="text-center text-red-400 text-sm py-2">{msg.content}</div>
-            ) : (
-              <div key={i} className="flex gap-4 max-w-3xl">
-                <div className="w-8 h-8 rounded-full bg-secondary/20 flex items-center justify-center flex-shrink-0 mt-1 border border-secondary/30">
-                  <span className="material-symbols-outlined text-secondary text-sm" style={{ fontVariationSettings: "'FILL' 1" }}>smart_toy</span>
-                </div>
-                <div className="glass-panel bg-surface-container-high/40 p-5 rounded-2xl rounded-tl-none border border-white/5 shadow-xl text-on-surface-variant">
-                  <StepAnimator
-                    content={msg.content}
-                    isStreaming={streaming && i === messages.length - 1}
-                    onOpenInEditor={openInEditor}
-                    onExplainSnippet={explainSnippet}
-                    explaining={generatingAnim}
-                    activeFingerprint={activeTab?.fingerprint}
-                  />
-                </div>
-              </div>
-            )
-          ))}
-
-          {streaming && messages[messages.length - 1]?.role !== "assistant" && (
-            <div className="flex gap-4 max-w-3xl">
-              <div className="w-8 h-8 rounded-full bg-secondary/20 flex items-center justify-center flex-shrink-0 mt-1 border border-secondary/30">
-                <span className="material-symbols-outlined text-secondary text-sm" style={{ fontVariationSettings: "'FILL' 1" }}>smart_toy</span>
-              </div>
-              <div className="flex items-center gap-1 px-4 py-3 bg-surface-container-low rounded-full border border-white/5">
-                <div className="w-1.5 h-1.5 bg-secondary/60 rounded-full animate-bounce"></div>
-                <div className="w-1.5 h-1.5 bg-secondary/60 rounded-full animate-bounce [animation-delay:0.2s]"></div>
-                <div className="w-1.5 h-1.5 bg-secondary/60 rounded-full animate-bounce [animation-delay:0.4s]"></div>
-              </div>
-            </div>
-          )}
-          <div ref={chatEndRef} />
+        {/* Mode switch */}
+        <div className="shrink-0 flex items-center gap-2 px-4 py-2 border-b border-white/5 bg-surface-container-low/30">
+          <button
+            type="button"
+            onClick={() => {
+              setLearnMode("ai");
+              setDocAskContext(null);
+            }}
+            className={`flex items-center gap-1.5 text-xs font-bold px-3 py-1.5 rounded-lg border transition-colors ${
+              learnMode === "ai"
+                ? "bg-primary/20 text-primary border-primary/40"
+                : "text-slate-400 border-white/10 hover:border-white/25"
+            }`}
+          >
+            <MessageSquare size={14} />
+            AI 教学
+          </button>
+          <button
+            type="button"
+            onClick={() => setLearnMode("doc")}
+            className={`flex items-center gap-1.5 text-xs font-bold px-3 py-1.5 rounded-lg border transition-colors ${
+              learnMode === "doc"
+                ? "bg-violet-500/20 text-violet-300 border-violet-500/40"
+                : "text-slate-400 border-white/10 hover:border-white/25"
+            }`}
+          >
+            <BookOpen size={14} />
+            文档学习
+          </button>
+          <span className="text-[10px] text-slate-500 ml-1 hidden sm:inline">
+            {learnMode === "doc"
+              ? "阅读讲义 / 原文 · 下方可针对当前阶段提问"
+              : "与 AI 导师对话学习 · 可随时切换到文档模式"}
+          </span>
         </div>
 
+        {learnMode === "doc" ? (
+          <>
+            <div className="flex-1 min-h-0 flex flex-col overflow-hidden">
+              <DocumentLearningPanel
+                chapterId={chapterId}
+                onAskContextChange={setDocAskContext}
+                onOpenInEditor={openInEditor}
+                onExplainSnippet={explainSnippet}
+                explaining={generatingAnim}
+                activeFingerprint={activeTab?.fingerprint}
+              />
+            </div>
+
+            {/* 文档模式独立问答区（不混入 AI 教学对话） */}
+            <div className="shrink-0 border-t border-white/10 bg-surface-container-low/40 max-h-[32%] flex flex-col min-h-[120px]">
+              <div className="shrink-0 px-4 py-1.5 flex items-center justify-between border-b border-white/5">
+                <span className="text-[11px] font-bold text-violet-300/90">针对文档提问</span>
+                {docAskContext && (
+                  <span className="text-[10px] text-slate-500 truncate max-w-[70%]">
+                    {docAskContext.source_label} · {docAskContext.stage_title.replace(/\*+/g, "")}
+                    {docAskContext.selection ? " · 含选中" : ""}
+                  </span>
+                )}
+              </div>
+              <div className="flex-1 min-h-0 overflow-y-auto px-4 py-2 space-y-2">
+                {docMessages.length === 0 && (
+                  <p className="text-[11px] text-slate-500 py-2">
+                    选中文中片段或直接提问，回答只出现在这里，不会和「AI 教学」对话混在一起。
+                  </p>
+                )}
+                {docMessages.map((msg, i) =>
+                  msg.role === "user" ? (
+                    <div key={i} className="text-xs text-right">
+                      <span className="inline-block bg-primary/15 border border-primary/25 rounded-xl rounded-tr-sm px-3 py-1.5 text-on-surface max-w-[90%] text-left whitespace-pre-wrap">
+                        {msg.content}
+                      </span>
+                    </div>
+                  ) : msg.role === "system" ? (
+                    <div key={i} className="text-[11px] text-center text-red-400">{msg.content}</div>
+                  ) : (
+                    <div key={i} className="text-xs">
+                      <div className="inline-block bg-surface-container-high/50 border border-white/5 rounded-xl rounded-tl-sm px-3 py-2 text-on-surface-variant max-w-[95%]">
+                        <StepAnimator
+                          content={msg.content}
+                          isStreaming={streaming && i === docMessages.length - 1}
+                          onOpenInEditor={openInEditor}
+                          onExplainSnippet={explainSnippet}
+                          explaining={generatingAnim}
+                          activeFingerprint={activeTab?.fingerprint}
+                        />
+                        {streaming && i === docMessages.length - 1 && (
+                          <span className="inline-block w-1.5 h-3 bg-secondary ml-1 animate-pulse align-middle" />
+                        )}
+                      </div>
+                    </div>
+                  )
+                )}
+                <div ref={docChatEndRef} />
+              </div>
+            </div>
+          </>
+        ) : (
+          <div className="flex-1 overflow-y-auto p-6 space-y-6 scroll-smooth pb-32">
+            {messages.length === 0 && (
+              <div className="flex items-center justify-center h-full opacity-60">
+                <div className="flex flex-col items-center text-center">
+                  <Loader2 size={36} className="text-secondary animate-spin mb-3" />
+                  <p className="text-on-surface-variant text-sm font-headline">AI 导师正在准备引导与代码案例...</p>
+                </div>
+              </div>
+            )}
+
+            {messages.map((msg, i) => (
+              msg.role === "user" ? (
+                <div key={i} className="flex gap-4 max-w-3xl ml-auto flex-row-reverse">
+                  <div className="w-8 h-8 rounded-full bg-primary/20 flex items-center justify-center flex-shrink-0 mt-1 border border-primary/30">
+                    <UserIcon size={15} className="text-primary" />
+                  </div>
+                  <div className="glass-panel bg-primary/10 p-4 rounded-2xl rounded-tr-none border border-primary/20 shadow-lg text-on-surface">
+                    <p className="leading-relaxed whitespace-pre-wrap">{msg.content}</p>
+                  </div>
+                </div>
+              ) : msg.role === "system" ? (
+                <div key={i} className="text-center text-red-400 text-sm py-2">{msg.content}</div>
+              ) : (
+                <div key={i} className="flex gap-4 max-w-3xl">
+                  <div className="w-8 h-8 rounded-full bg-secondary/20 flex items-center justify-center flex-shrink-0 mt-1 border border-secondary/30">
+                    <Bot size={16} className="text-secondary" />
+                  </div>
+                  <div className="glass-panel bg-surface-container-high/40 p-5 rounded-2xl rounded-tl-none border border-white/5 shadow-xl text-on-surface-variant">
+                    <StepAnimator
+                      content={msg.content}
+                      isStreaming={streaming && i === messages.length - 1}
+                      onOpenInEditor={openInEditor}
+                      onExplainSnippet={explainSnippet}
+                      explaining={generatingAnim}
+                      activeFingerprint={activeTab?.fingerprint}
+                    />
+                    {streaming && i === messages.length - 1 && (
+                      <span className="inline-block w-1.5 h-4 bg-secondary ml-1 animate-pulse align-middle" />
+                    )}
+                  </div>
+                </div>
+              )
+            ))}
+
+            {streaming && messages[messages.length - 1]?.role !== "assistant" && replyTargetRef.current === "ai" && (
+              <div className="flex gap-4 max-w-3xl">
+                <div className="w-8 h-8 rounded-full bg-secondary/20 flex items-center justify-center flex-shrink-0 mt-1 border border-secondary/30">
+                  <Bot size={16} className="text-secondary" />
+                </div>
+                <div className="flex items-center gap-1.5 px-4 py-3 bg-surface-container-low rounded-full border border-white/5">
+                  <div className="w-1.5 h-1.5 bg-secondary/70 rounded-full animate-bounce"></div>
+                  <div className="w-1.5 h-1.5 bg-secondary/70 rounded-full animate-bounce [animation-delay:0.2s]"></div>
+                  <div className="w-1.5 h-1.5 bg-secondary/70 rounded-full animate-bounce [animation-delay:0.4s]"></div>
+                </div>
+              </div>
+            )}
+            <div ref={chatEndRef} />
+          </div>
+        )}
+
         {/* Chat Input + Complete Button */}
-        <div className="absolute bottom-0 left-0 w-full p-6 bg-gradient-to-t from-surface via-surface to-transparent pt-12">
+        <div
+          className={`shrink-0 p-4 border-t border-white/5 ${
+            learnMode === "ai"
+              ? "absolute bottom-0 left-0 w-full bg-gradient-to-t from-surface via-surface to-transparent pt-12 border-t-0"
+              : "bg-surface"
+          }`}
+        >
           <div className="relative flex items-end gap-3">
-            {/* Complete Chapter Button */}
             {!chapterCompleted ? (
               <button
                 className="flex-shrink-0 flex items-center gap-1.5 px-4 py-3 bg-secondary/20 hover:bg-secondary/30 text-secondary border border-secondary/30 rounded-xl text-sm font-bold transition-all active:scale-95 disabled:opacity-50"
@@ -548,32 +696,49 @@ export default function LearningWorkspacePage() {
                   try {
                     await updateChapterStatus(chapterId, "completed");
                     setChapterCompleted(true);
-                    // 触发侧边栏刷新
                     window.dispatchEvent(new Event("chapter-status-changed"));
-                    // AI 提示
-                    setMessages(prev => [...prev, { role: "assistant", content: "🎉 恭喜你完成了本章学习！下一章已自动解锁，可以从侧边栏继续学习。" }]);
+                    if (learnMode === "doc") {
+                      setDocMessages((prev) => [
+                        ...prev,
+                        { role: "assistant", content: "🎉 本章已标记完成。可继续阅读文档，或切换回 AI 教学。" },
+                      ]);
+                    } else {
+                      setMessages((prev) => [
+                        ...prev,
+                        { role: "assistant", content: "🎉 恭喜你完成了本章学习！下一章已自动解锁，可以从侧边栏继续学习。" },
+                      ]);
+                    }
                   } catch {
-                    setMessages(prev => [...prev, { role: "system", content: "标记完成失败，请重试" }]);
+                    const errMsg = { role: "system" as const, content: "标记完成失败，请重试" };
+                    if (learnMode === "doc") setDocMessages((prev) => [...prev, errMsg]);
+                    else setMessages((prev) => [...prev, errMsg]);
                   } finally {
                     setCompleting(false);
                   }
                 }}
                 disabled={completing}
               >
-                <span className="material-symbols-outlined text-sm">check_circle</span>
+                {completing ? (
+                  <Loader2 size={15} className="animate-spin" />
+                ) : (
+                  <CheckCircle2 size={15} />
+                )}
                 {completing ? "确认中..." : "完成本章"}
               </button>
             ) : (
               <div className="flex-shrink-0 flex items-center gap-1.5 px-4 py-3 bg-primary/10 text-primary rounded-xl text-sm font-bold border border-primary/20">
-                <span className="material-symbols-outlined text-sm" style={{ fontVariationSettings: "'FILL' 1" }}>check_circle</span>
+                <CheckCircle2 size={15} />
                 已完成
               </div>
             )}
-            {/* Generate Animation Button removed — use per-codeblock「讲解」 */}
             <div className="flex-1 relative">
               <input
-                className="w-full bg-surface-container-low border-b-2 border-outline-variant focus:border-primary focus:ring-0 text-on-surface py-4 pl-4 pr-12 rounded-t-xl transition-all placeholder:text-slate-600 outline-none"
-                placeholder="向 AI 导师提问..."
+                className="w-full bg-surface-container-low border-b-2 border-outline-variant focus:border-primary focus:ring-0 text-on-surface py-3.5 pl-4 pr-12 rounded-t-xl transition-all placeholder:text-slate-600 outline-none font-body"
+                placeholder={
+                  learnMode === "doc"
+                    ? "针对当前文档阶段提问…（可先选中文中片段）"
+                    : "向 AI 导师提问或探讨当前知识点..."
+                }
                 type="text"
                 value={input}
                 onChange={(e) => setInput(e.target.value)}
@@ -581,11 +746,11 @@ export default function LearningWorkspacePage() {
                 disabled={streaming}
               />
               <button
-                className="absolute right-4 bottom-4 text-primary hover:scale-110 transition-transform disabled:opacity-50"
+                className="absolute right-4 bottom-3.5 text-primary hover:scale-110 transition-transform disabled:opacity-50 p-1 rounded-lg hover:bg-primary/10"
                 onClick={sendMessage}
                 disabled={streaming || !input.trim()}
               >
-                <span className="material-symbols-outlined">send</span>
+                <Send size={18} />
               </button>
             </div>
           </div>
@@ -633,14 +798,18 @@ export default function LearningWorkspacePage() {
               ))}
             </div>
             <button
-              className="flex-shrink-0 flex items-center gap-1 px-3 py-1.5 bg-primary text-on-primary text-xs font-bold rounded-lg hover:brightness-110 transition-all active:scale-95 disabled:opacity-50"
+              className="flex-shrink-0 flex items-center gap-1.5 px-3.5 py-1.5 bg-primary text-on-primary text-xs font-bold font-headline rounded-lg hover:brightness-110 transition-all active:scale-95 disabled:opacity-50 shadow-[0_0_12px_rgba(83,221,252,0.2)]"
               onClick={runCode}
               disabled={running}
             >
               {running ? (
-                <><span className="material-symbols-outlined text-xs animate-spin">progress_activity</span> Running...</>
+                <>
+                  <Loader2 size={13} className="animate-spin" /> Running...
+                </>
               ) : (
-                <><span className="material-symbols-outlined text-xs">play_arrow</span> Run</>
+                <>
+                  <Play size={13} className="fill-current" /> Run
+                </>
               )}
             </button>
           </div>
@@ -708,15 +877,13 @@ export default function LearningWorkspacePage() {
               }}
               title="关闭 (Esc)"
             >
-              <span className="material-symbols-outlined text-xl">close</span>
+              <X size={20} />
             </button>
 
             {generatingAnim && !animationData ? (
               <div className="flex flex-col items-center justify-center gap-4 py-24 px-6">
-                <span className="material-symbols-outlined text-4xl text-primary animate-spin">
-                  progress_activity
-                </span>
-                <p className="text-sm text-on-surface-variant text-center">
+                <Loader2 size={36} className="text-primary animate-spin" />
+                <p className="text-sm text-on-surface-variant text-center font-headline">
                   正在运行代码并生成讲解短片…
                 </p>
               </div>

@@ -7,6 +7,21 @@ import { Header } from "@/components/layout/Header";
 import { AdminGuard } from "@/components/AdminGuard";
 import { useAuth } from "@/hooks/useAuth";
 import { useDialog } from "@/components/DialogProvider";
+import { Card } from "@/components/common/Card";
+import { EmptyState } from "@/components/common/EmptyState";
+import {
+  UploadCloud,
+  FileText,
+  Trash2,
+  AlertCircle,
+  ChevronRight,
+  Database,
+  CheckCircle2,
+  Clock,
+  XCircle,
+  Loader2,
+  FileCode,
+} from "lucide-react";
 import {
   getKnowledgeBase,
   uploadKnowledgeDocument,
@@ -14,11 +29,11 @@ import {
   type KnowledgeBaseDetail,
 } from "@/lib/api";
 
-const STATUS_LABEL: Record<string, { text: string; color: string }> = {
-  pending: { text: "等待中", color: "text-slate-400" },
-  processing: { text: "处理中", color: "text-yellow-400" },
-  ready: { text: "就绪", color: "text-green-400" },
-  failed: { text: "失败", color: "text-red-400" },
+const STATUS_CONFIG: Record<string, { text: string; color: string; icon: React.ComponentType<{ className?: string }> }> = {
+  pending: { text: "等待向量化", color: "text-slate-400 bg-slate-500/10 border-slate-500/20", icon: Clock },
+  processing: { text: "切片索引中", color: "text-amber-400 bg-amber-500/10 border-amber-500/20", icon: Loader2 },
+  ready: { text: "就绪可检索", color: "text-emerald-400 bg-emerald-500/10 border-emerald-500/20", icon: CheckCircle2 },
+  failed: { text: "处理失败", color: "text-rose-400 bg-rose-500/10 border-rose-500/20", icon: XCircle },
 };
 
 const ACCEPT_EXT = new Set([".pdf", ".md", ".markdown", ".txt"]);
@@ -35,11 +50,11 @@ function filterAllowedFiles(list: FileList | File[]) {
   const rejected: string[] = [];
   for (const f of files) {
     if (!ACCEPT_EXT.has(fileExt(f.name))) {
-      rejected.push(`${f.name}（类型不支持）`);
+      rejected.push(`${f.name}（格式不支持，仅支持 PDF/MD/TXT）`);
       continue;
     }
     if (f.size > MAX_BYTES) {
-      rejected.push(`${f.name}（超过 10MB）`);
+      rejected.push(`${f.name}（超过 10MB 限制）`);
       continue;
     }
     if (f.size === 0) {
@@ -100,7 +115,7 @@ export default function KnowledgeDetailPage() {
     try {
       for (let i = 0; i < accepted.length; i++) {
         const file = accepted[i];
-        setUploadProgress(`正在上传 ${i + 1}/${accepted.length}：${file.name}`);
+        setUploadProgress(`正在切片与向量化 (${i + 1}/${accepted.length})：${file.name}`);
         try {
           await uploadKnowledgeDocument(kbId, file);
         } catch (err: unknown) {
@@ -130,7 +145,7 @@ export default function KnowledgeDetailPage() {
   const handleDeleteDoc = async (docId: string, filename: string) => {
     const ok = await confirm({
       title: "删除文档",
-      message: `确定删除文档「${filename}」？相关向量切片将一并删除。`,
+      message: `确定删除文档「${filename}」？对应的高维向量索引切片将同步清理。`,
       confirmText: "删除",
       tone: "danger",
     });
@@ -145,132 +160,197 @@ export default function KnowledgeDetailPage() {
 
   return (
     <AdminGuard>
-      <Header />
-      <main className="min-h-screen pt-24 pb-20 px-6 md:px-10 bg-background">
-        <div className="max-w-4xl mx-auto">
-          <div className="flex items-center gap-2 text-on-surface-variant text-xs mb-6 font-label tracking-widest uppercase">
-            <Link href="/knowledge" className="hover:text-primary transition-colors">知识库</Link>
-            <span className="material-symbols-outlined text-[10px]">chevron_right</span>
-            <span className="text-primary truncate">{kb?.name || "..."}</span>
-          </div>
-
-          {loading ? (
-            <div className="h-40 rounded-2xl bg-surface-container-high animate-pulse" />
-          ) : !kb ? (
-            <div className="text-center py-20">
-              <p className="text-red-400 mb-4">{error || "知识库不存在"}</p>
-              <button
-                className="px-5 py-2 rounded-lg bg-primary text-on-primary-container text-sm font-bold"
-                onClick={() => router.push("/knowledge")}
-              >
-                返回列表
-              </button>
+      <div className="min-h-screen bg-[#070b14] text-slate-100">
+        <Header />
+        <main className="pt-24 pb-20 px-6 md:px-10">
+          <div className="max-w-4xl mx-auto space-y-8">
+            {/* 面包屑导航 */}
+            <div className="flex items-center gap-1.5 text-slate-400 text-xs font-mono">
+              <Link href="/knowledge" className="hover:text-cyan-400 transition-colors">知识库</Link>
+              <ChevronRight className="w-3.5 h-3.5 text-slate-600" />
+              <span className="text-cyan-400 font-medium truncate max-w-xs">{kb?.name || "..."}</span>
             </div>
-          ) : (
-            <>
-              <div className="mb-8">
-                <h1 className="text-3xl md:text-4xl font-bold font-headline mb-2">{kb.name}</h1>
-                <p className="text-on-surface-variant">{kb.description || "暂无描述"}</p>
+
+            {loading ? (
+              <div className="space-y-4">
+                <div className="h-28 rounded-2xl bg-surface-container/50 animate-pulse" />
+                <div className="h-44 rounded-2xl bg-surface-container/50 animate-pulse" />
               </div>
-
-              {error && (
-                <p className="mb-6 text-red-400 text-sm bg-red-500/10 border border-red-500/20 rounded-lg px-4 py-3">
-                  {error}
-                </p>
-              )}
-
-              <div
-                className={`mb-8 p-8 rounded-2xl border border-dashed text-center transition-colors ${
-                  dragOver
-                    ? "border-primary bg-primary/15"
-                    : "border-primary/30 bg-primary/5 hover:border-primary/50"
-                } ${uploading ? "opacity-70 pointer-events-none" : "cursor-pointer"}`}
-                onDragEnter={(e) => {
-                  e.preventDefault();
-                  setDragOver(true);
+            ) : !kb ? (
+              <EmptyState
+                icon={Database}
+                title="知识库不存在或已被删除"
+                description={error || "请确认访问地址是否正确"}
+                action={{
+                  label: "返回知识库列表",
+                  onClick: () => router.push("/knowledge"),
                 }}
-                onDragOver={(e) => {
-                  e.preventDefault();
-                  setDragOver(true);
-                }}
-                onDragLeave={(e) => {
-                  e.preventDefault();
-                  if (e.currentTarget.contains(e.relatedTarget as Node)) return;
-                  setDragOver(false);
-                }}
-                onDrop={onDrop}
-                onClick={() => !uploading && fileRef.current?.click()}
-              >
-                <input
-                  ref={fileRef}
-                  type="file"
-                  multiple
-                  accept=".pdf,.md,.markdown,.txt,application/pdf,text/plain,text/markdown"
-                  className="hidden"
-                  onChange={(e) => handleUploadFiles(e.target.files)}
-                />
-                <span className="material-symbols-outlined text-4xl text-primary mb-3 block">
-                  {dragOver ? "file_download" : "upload_file"}
-                </span>
-                <p className="text-on-surface font-medium mb-2">
-                  {dragOver ? "松开鼠标即可上传" : "拖拽文件到此处，或点击选择"}
-                </p>
-                <p className="text-sm text-on-surface-variant mb-4">
-                  支持多文件 · PDF / Markdown / TXT · 单文件不超过 10MB
-                </p>
-                <button
-                  type="button"
-                  className="px-6 py-2.5 rounded-xl bg-primary text-on-primary-container font-bold text-sm disabled:opacity-50"
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    fileRef.current?.click();
-                  }}
-                  disabled={uploading}
-                >
-                  {uploading ? "上传并向量化中..." : "选择文件上传"}
-                </button>
-                {uploadProgress && (
-                  <p className="mt-4 text-xs text-primary">{uploadProgress}</p>
-                )}
-              </div>
-
-              <h2 className="text-lg font-bold font-headline mb-4">文档列表</h2>
-              {kb.documents.length === 0 ? (
-                <p className="text-on-surface-variant text-sm py-8 text-center">还没有文档</p>
-              ) : (
-                <div className="space-y-3">
-                  {kb.documents.map((doc) => {
-                    const st = STATUS_LABEL[doc.status] || STATUS_LABEL.pending;
-                    return (
-                      <div
-                        key={doc.id}
-                        className="flex items-center justify-between gap-4 p-4 rounded-xl bg-surface-container-high border border-white/5"
-                      >
-                        <div className="min-w-0">
-                          <p className="font-medium truncate">{doc.filename}</p>
-                          <p className="text-xs text-slate-500 mt-1">
-                            {(doc.byte_size / 1024).toFixed(1)} KB · {doc.chunk_count} chunks ·{" "}
-                            <span className={st.color}>{st.text}</span>
-                          </p>
-                          {doc.error_message && (
-                            <p className="text-xs text-red-400 mt-1 line-clamp-2">{doc.error_message}</p>
-                          )}
-                        </div>
-                        <button
-                          className="text-sm text-red-400 hover:bg-red-500/10 px-3 py-1.5 rounded-lg flex-shrink-0"
-                          onClick={() => handleDeleteDoc(doc.id, doc.filename)}
-                        >
-                          删除
-                        </button>
-                      </div>
-                    );
-                  })}
+              />
+            ) : (
+              <>
+                {/* 知识库主信息 */}
+                <div className="flex flex-col md:flex-row md:items-start justify-between gap-4 border-b border-white/5 pb-6">
+                  <div>
+                    <h1 className="text-3xl font-extrabold font-headline tracking-tight text-slate-100 flex items-center gap-3">
+                      <Database className="w-8 h-8 text-cyan-400" />
+                      {kb.name}
+                    </h1>
+                    <p className="text-slate-400 text-sm mt-2 leading-relaxed">
+                      {kb.description || "暂无描述信息"}
+                    </p>
+                  </div>
+                  <span className="self-start px-3 py-1 rounded-full text-xs font-mono bg-cyan-500/10 text-cyan-300 border border-cyan-500/20">
+                    共 {kb.documents.length} 篇文档
+                  </span>
                 </div>
-              )}
-            </>
-          )}
-        </div>
-      </main>
+
+                {error && (
+                  <div className="flex items-center gap-3 text-rose-400 text-sm bg-rose-500/10 border border-rose-500/20 rounded-xl px-4 py-3">
+                    <AlertCircle className="w-4 h-4 shrink-0" />
+                    <span>{error}</span>
+                  </div>
+                )}
+
+                {/* 科技风拖拽上传区域 */}
+                <div
+                  className={`relative p-10 rounded-2xl border-2 border-dashed text-center transition-all duration-300 ${
+                    dragOver
+                      ? "border-cyan-400 bg-cyan-500/10 shadow-[0_0_30px_rgba(6,182,212,0.2)]"
+                      : "border-white/15 bg-surface-container/40 hover:border-cyan-500/40 hover:bg-surface-container/60"
+                  } ${uploading ? "opacity-75 pointer-events-none" : "cursor-pointer"}`}
+                  onDragEnter={(e) => {
+                    e.preventDefault();
+                    setDragOver(true);
+                  }}
+                  onDragOver={(e) => {
+                    e.preventDefault();
+                    setDragOver(true);
+                  }}
+                  onDragLeave={(e) => {
+                    e.preventDefault();
+                    if (e.currentTarget.contains(e.relatedTarget as Node)) return;
+                    setDragOver(false);
+                  }}
+                  onDrop={onDrop}
+                  onClick={() => !uploading && fileRef.current?.click()}
+                >
+                  <input
+                    ref={fileRef}
+                    type="file"
+                    multiple
+                    accept=".pdf,.md,.markdown,.txt,application/pdf,text/plain,text/markdown"
+                    className="hidden"
+                    onChange={(e) => handleUploadFiles(e.target.files)}
+                  />
+
+                  <div className="w-14 h-14 mx-auto mb-4 rounded-2xl bg-cyan-500/10 border border-cyan-500/20 flex items-center justify-center text-cyan-400">
+                    {uploading ? (
+                      <Loader2 className="w-7 h-7 animate-spin" />
+                    ) : (
+                      <UploadCloud className="w-7 h-7" />
+                    )}
+                  </div>
+
+                  <p className="text-base font-semibold text-slate-200 mb-1">
+                    {dragOver ? "松开鼠标即可上传切片" : "点击选择文件，或将文档直接拖拽至此处"}
+                  </p>
+                  <p className="text-xs text-slate-400 mb-5 font-mono">
+                    支持格式：PDF / Markdown (.md) / TXT · 单文件不超过 10MB
+                  </p>
+
+                  <button
+                    type="button"
+                    className="px-6 py-2.5 rounded-xl bg-gradient-to-r from-cyan-500 to-primary text-slate-950 font-bold text-sm shadow-[0_0_20px_rgba(6,182,212,0.25)] hover:opacity-90 transition-all disabled:opacity-50 inline-flex items-center gap-2"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      fileRef.current?.click();
+                    }}
+                    disabled={uploading}
+                  >
+                    {uploading ? (
+                      <>
+                        <Loader2 className="w-4 h-4 animate-spin" />
+                        向量化解析中...
+                      </>
+                    ) : (
+                      <>
+                        <FileCode className="w-4 h-4" />
+                        浏览本地文件
+                      </>
+                    )}
+                  </button>
+
+                  {uploadProgress && (
+                    <div className="mt-4 inline-block bg-cyan-500/10 border border-cyan-500/20 text-cyan-400 px-4 py-1.5 rounded-full text-xs font-mono animate-pulse">
+                      {uploadProgress}
+                    </div>
+                  )}
+                </div>
+
+                {/* 文档管理列表 */}
+                <div className="space-y-4">
+                  <h2 className="text-lg font-bold font-headline text-slate-100 flex items-center gap-2">
+                    <FileText className="w-5 h-5 text-cyan-400" />
+                    已索引文档列表
+                  </h2>
+
+                  {kb.documents.length === 0 ? (
+                    <EmptyState
+                      icon={FileText}
+                      title="知识库暂无文档"
+                      description="上传相关文档后，系统将自动进行语义切片并建立高维向量检索"
+                    />
+                  ) : (
+                    <div className="space-y-3">
+                      {kb.documents.map((doc) => {
+                        const st = STATUS_CONFIG[doc.status] || STATUS_CONFIG.pending;
+                        const StatusIcon = st.icon;
+                        return (
+                          <Card
+                            key={doc.id}
+                            className="p-4 flex items-center justify-between gap-4 hover:border-white/20 transition-colors"
+                          >
+                            <div className="min-w-0 flex items-center gap-3">
+                              <div className="w-10 h-10 rounded-xl bg-slate-900 border border-white/5 flex items-center justify-center text-cyan-400 shrink-0">
+                                <FileText className="w-5 h-5" />
+                              </div>
+                              <div className="min-w-0">
+                                <p className="font-semibold text-slate-200 text-sm truncate">{doc.filename}</p>
+                                <div className="flex flex-wrap items-center gap-3 text-xs text-slate-400 mt-1 font-mono">
+                                  <span>{(doc.byte_size / 1024).toFixed(1)} KB</span>
+                                  <span>·</span>
+                                  <span>{doc.chunk_count} 个语义切片</span>
+                                  <span>·</span>
+                                  <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-md border text-[11px] ${st.color}`}>
+                                    <StatusIcon className={`w-3 h-3 ${doc.status === "processing" ? "animate-spin" : ""}`} />
+                                    {st.text}
+                                  </span>
+                                </div>
+                                {doc.error_message && (
+                                  <p className="text-xs text-rose-400 mt-1 line-clamp-1">{doc.error_message}</p>
+                                )}
+                              </div>
+                            </div>
+
+                            <button
+                              className="text-slate-500 hover:text-rose-400 p-2 rounded-lg hover:bg-rose-500/10 transition-colors shrink-0"
+                              title="删除文档"
+                              onClick={() => handleDeleteDoc(doc.id, doc.filename)}
+                            >
+                              <Trash2 className="w-4 h-4" />
+                            </button>
+                          </Card>
+                        );
+                      })}
+                    </div>
+                  )}
+                </div>
+              </>
+            )}
+          </div>
+        </main>
+      </div>
     </AdminGuard>
   );
 }
+

@@ -2,6 +2,15 @@
 
 import { useEffect, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
+import {
+  GitFork,
+  CheckCircle2,
+  PlayCircle,
+  Lock,
+  BookOpen,
+  ArrowLeft,
+  Sparkles,
+} from "lucide-react";
 
 const API_BASE = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
 
@@ -51,99 +60,102 @@ export function Sidebar() {
   const progressPercent = totalCount > 0 ? Math.round((completedCount / totalCount) * 100) : 0;
   const currentChapter = chapters.find(c => c.status === "unlocked" || c.status === "in_progress");
 
-  const STATUS_ICON: Record<string, { icon: string; style: string }> = {
-    completed: { icon: "check_circle", style: "text-primary" },
-    unlocked: { icon: "play_circle", style: "text-secondary" },
-    in_progress: { icon: "play_circle", style: "text-secondary animate-pulse" },
-    locked: { icon: "lock", style: "text-slate-600" },
-  };
-
   return (
-    <aside className="hidden lg:flex flex-col h-[calc(100vh-64px)] w-64 fixed left-0 top-16 bg-[#091328] border-r border-white/5 py-4 px-4 z-40">
+    <aside className="hidden lg:flex flex-col h-[calc(100vh-64px)] w-64 fixed left-0 top-16 bg-[#070b14]/95 backdrop-blur-xl border-r border-white/5 py-4 px-4 z-40">
       {/* Header */}
-      <div className="mb-6 px-2">
+      <div className="mb-5 px-2">
         <div className="flex items-center gap-3 mb-2">
-          <div className="w-10 h-10 rounded-lg bg-primary/10 flex items-center justify-center text-primary">
-            <span className="material-symbols-outlined" style={{ fontVariationSettings: "'FILL' 1" }}>account_tree</span>
+          <div className="w-9 h-9 rounded-xl bg-cyan-500/10 border border-cyan-500/20 flex items-center justify-center text-cyan-400 shrink-0">
+            <GitFork className="w-4 h-4" />
           </div>
           <div className="min-w-0 flex-1">
-            <h2 className="text-sm font-bold text-cyan-400 font-headline leading-tight truncate">
+            <h2 className="text-sm font-bold text-slate-100 font-headline leading-tight truncate">
               {pathInfo?.topic || "学习路径"}
             </h2>
-            <p className="text-xs text-slate-500">{progressPercent}% · {completedCount}/{totalCount} 章节</p>
+            <p className="text-xs text-slate-500 font-mono mt-0.5">
+              {progressPercent}% · {completedCount}/{totalCount} 章节
+            </p>
           </div>
         </div>
 
         {/* Progress Bar */}
-        <div className="h-1 w-full bg-white/5 rounded-full overflow-hidden mt-3 mb-4">
+        <div className="h-1.5 w-full bg-slate-900 rounded-full overflow-hidden mt-3 mb-3 border border-white/5">
           <div
-            className="h-full bg-primary rounded-full transition-all duration-500"
+            className="h-full bg-gradient-to-r from-cyan-500 to-primary rounded-full transition-all duration-500 shadow-[0_0_8px_rgba(6,182,212,0.4)]"
             style={{ width: `${progressPercent}%` }}
-          ></div>
+          />
         </div>
 
         {currentChapter && (
           <button
-            className="w-full py-2 bg-primary text-on-primary font-medium rounded-lg text-sm transition-all active:scale-95 duration-150"
+            className="w-full py-2 bg-gradient-to-r from-cyan-500 to-primary text-slate-950 font-bold rounded-xl text-xs transition-all active:scale-95 duration-150 shadow-[0_0_12px_rgba(6,182,212,0.2)] hover:opacity-90 flex items-center justify-center gap-1.5"
             onClick={() => router.push(`/learn/${pathId}/${currentChapter.id}`)}
           >
-            继续学习
+            <Sparkles className="w-3.5 h-3.5" />
+            继续学习本章
           </button>
         )}
       </div>
 
       {/* Chapter List */}
-      <nav className="flex-1 space-y-0.5 overflow-y-auto no-scrollbar">
+      <nav className="flex-1 space-y-1 overflow-y-auto no-scrollbar pr-1">
         {chapters.map((ch) => {
           const isActive = ch.id === chapterId;
           const isLocked = ch.status === "locked";
-          const iconInfo = STATUS_ICON[ch.status] || STATUS_ICON.locked;
+          const isCompleted = ch.status === "completed";
+          const isInProgress = ch.status === "in_progress" || ch.status === "unlocked";
 
           return (
             <div
               key={ch.id}
-              className={`flex items-center gap-3 px-3 py-2.5 rounded-lg transition-colors cursor-pointer ${
+              className={`group flex items-center gap-2.5 px-3 py-2 rounded-xl transition-all cursor-pointer text-xs ${
                 isActive
-                  ? "bg-cyan-500/10 text-cyan-400 border-r-2 border-cyan-400 font-medium"
+                  ? "bg-cyan-500/15 text-cyan-300 font-semibold border border-cyan-500/30 shadow-[inset_0_0_12px_rgba(6,182,212,0.15)]"
                   : isLocked
-                  ? "text-slate-600 cursor-not-allowed"
+                  ? "text-slate-600 cursor-not-allowed opacity-60"
                   : "text-slate-400 hover:bg-white/5 hover:text-slate-200"
               }`}
               onClick={() => {
                 if (!isLocked && pathId) router.push(`/learn/${pathId}/${ch.id}`);
               }}
             >
-              <span
-                className={`material-symbols-outlined text-sm ${iconInfo.style}`}
-                style={ch.status === "completed" ? { fontVariationSettings: "'FILL' 1" } : {}}
-              >
-                {iconInfo.icon}
+              <div className="shrink-0">
+                {isCompleted ? (
+                  <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400" />
+                ) : isInProgress ? (
+                  <PlayCircle className="w-3.5 h-3.5 text-cyan-400 animate-pulse" />
+                ) : (
+                  <Lock className="w-3.5 h-3.5 text-slate-600" />
+                )}
+              </div>
+              <span className="truncate">
+                {ch.sort_order}. {ch.title}
               </span>
-              <span className="text-sm truncate">{ch.sort_order}. {ch.title}</span>
             </div>
           );
         })}
 
         {chapters.length === 0 && (
-          <div className="text-center py-8 text-slate-600 text-xs">
-            <span className="material-symbols-outlined text-2xl block mb-2">menu_book</span>
-            选择学习路线后<br />章节将在此显示
+          <div className="text-center py-10 text-slate-600 text-xs">
+            <BookOpen className="w-6 h-6 mx-auto mb-2 opacity-50" />
+            选择学习路线后<br />章节目录将在此显现
           </div>
         )}
       </nav>
 
       {/* Footer: Back to path */}
       {pathId && (
-        <div className="mt-4 pt-4 border-t border-white/5 px-2">
+        <div className="mt-3 pt-3 border-t border-white/5 px-2">
           <button
-            className="flex items-center gap-2 text-xs text-slate-500 hover:text-slate-300 transition-colors w-full"
+            className="flex items-center gap-2 text-xs text-slate-500 hover:text-cyan-400 transition-colors w-full py-1.5"
             onClick={() => router.push(`/learn/${pathId}`)}
           >
-            <span className="material-symbols-outlined text-sm">arrow_back</span>
-            返回路线总览
+            <ArrowLeft className="w-3.5 h-3.5" />
+            <span>返回路线大纲</span>
           </button>
         </div>
       )}
     </aside>
   );
 }
+

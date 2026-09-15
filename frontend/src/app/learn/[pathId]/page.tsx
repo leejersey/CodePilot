@@ -4,17 +4,33 @@ import { useEffect, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import Link from "next/link";
 import {
-  getPath, getPathChapters,
-  getPathKnowledgeBases, rebuildPathFromKb,
-  type LearningPath, type Chapter, type KnowledgeBase,
+  getPath,
+  getPathChapters,
+  getPathKnowledgeBases,
+  rebuildPathFromKb,
+  type LearningPath,
+  type Chapter,
+  type KnowledgeBase,
 } from "@/lib/api";
 import { useAuth } from "@/hooks/useAuth";
 import { useDialog } from "@/components/DialogProvider";
-
-const CHAPTER_ICONS = [
-  "lightbulb", "bolt", "refresh", "database", "architecture",
-  "psychology", "terminal", "code", "rocket_launch", "auto_awesome",
-];
+import { Badge } from "@/components/common/Badge";
+import { Card } from "@/components/common/Card";
+import {
+  ArrowRight,
+  BookOpen,
+  Bot,
+  CheckCircle2,
+  ChevronRight,
+  Clock,
+  Flame,
+  Layers,
+  Lock,
+  Play,
+  RefreshCw,
+  Sparkles,
+  Zap,
+} from "lucide-react";
 
 export default function LearningPathPage() {
   const params = useParams();
@@ -81,10 +97,12 @@ export default function LearningPathPage() {
 
   if (loading) {
     return (
-      <div className="flex items-center justify-center h-full">
-        <div className="text-center">
-          <span className="material-symbols-outlined text-5xl text-primary animate-spin">progress_activity</span>
-          <p className="mt-4 text-on-surface-variant">加载学习路线...</p>
+      <div className="flex items-center justify-center min-h-[70vh]">
+        <div className="text-center space-y-4">
+          <div className="w-12 h-12 rounded-2xl bg-primary/10 border border-primary/20 flex items-center justify-center text-primary mx-auto animate-pulse shadow-[0_0_25px_rgba(83,221,252,0.2)]">
+            <Sparkles size={24} />
+          </div>
+          <p className="text-sm font-medium text-slate-400 font-headline">正在加载知识图谱大纲...</p>
         </div>
       </div>
     );
@@ -92,12 +110,11 @@ export default function LearningPathPage() {
 
   if (error && !path) {
     return (
-      <div className="flex items-center justify-center h-full">
-        <div className="text-center">
-          <span className="material-symbols-outlined text-5xl text-red-400">error</span>
-          <p className="mt-4 text-red-400">{error || "路线不存在"}</p>
+      <div className="flex items-center justify-center min-h-[70vh]">
+        <div className="text-center space-y-4 max-w-sm">
+          <p className="text-rose-400 font-medium text-base">{error || "路线不存在"}</p>
           <button
-            className="mt-6 px-6 py-2.5 rounded-lg bg-primary text-on-primary-container font-medium"
+            className="px-6 py-2.5 rounded-xl bg-primary text-on-primary-container font-medium text-sm hover:bg-primary-dim transition-all"
             onClick={() => router.push("/")}
           >
             返回首页
@@ -114,261 +131,259 @@ export default function LearningPathPage() {
   const progressPercent = totalCount > 0 ? Math.round((completedCount / totalCount) * 100) : 0;
   const currentChapter = chapters.find((c) => c.status === "unlocked" || c.status === "in_progress");
 
+  const rag = path.outline?.rag;
+  const isKb = rag?.source_type === "knowledge_base" || rag?.used;
+
   return (
-    <div className="max-w-6xl mx-auto w-full pb-20 p-6 md:p-10 h-full overflow-y-auto">
-      <div className="mb-10">
-        <div className="flex items-center gap-2 text-on-surface-variant text-xs mb-4 font-label tracking-widest uppercase">
-          <button onClick={() => router.push("/")} className="hover:text-primary transition-colors">首页</button>
-          <span className="material-symbols-outlined text-[10px]">chevron_right</span>
-          <span className="text-primary">{path.topic}</span>
+    <div className="max-w-5xl mx-auto w-full pb-24 px-6 md:px-10 h-full overflow-y-auto">
+      {/* Breadcrumbs & Header */}
+      <div className="pt-6 mb-8">
+        <div className="flex items-center gap-2 text-slate-500 text-xs mb-3 font-mono">
+          <Link href="/" className="hover:text-primary transition-colors">
+            首页
+          </Link>
+          <ChevronRight size={12} />
+          <span className="text-slate-400 truncate max-w-[200px]">{path.topic}</span>
         </div>
-        <h1 className="text-4xl md:text-5xl font-bold font-headline mb-4 tracking-tight">{path.topic}</h1>
-        <div className="flex items-center gap-3 flex-wrap mb-4">
-          {(() => {
-            const rag = path.outline?.rag;
-            const isKb = rag?.source_type === "knowledge_base" || rag?.used;
-            return isKb ? (
-              <span className="text-[10px] font-bold px-3 py-1 rounded-full bg-primary/20 text-primary border border-primary/30 uppercase tracking-wider">
-                知识库课程
-              </span>
-            ) : (
-              <span className="text-[10px] font-bold px-3 py-1 rounded-full bg-slate-500/20 text-slate-300 border border-slate-500/30 uppercase tracking-wider">
-                AI 生成课程
-              </span>
-            );
-          })()}
-          <span className="text-[10px] font-bold px-3 py-1 rounded-full bg-primary/20 text-primary uppercase">
-            {path.difficulty}
-          </span>
-          {path.outline?.prerequisites?.map((p, i) => (
-            <span key={i} className="text-[10px] px-2 py-0.5 rounded bg-surface-container-high text-on-surface-variant">
-              {p}
-            </span>
-          ))}
+
+        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+          <div>
+            <h1 className="text-3xl md:text-5xl font-bold font-headline mb-3 tracking-tight text-white">
+              {path.topic}
+            </h1>
+            <div className="flex items-center gap-2.5 flex-wrap">
+              {isKb ? (
+                <Badge variant="rag">知识库增强课程</Badge>
+              ) : (
+                <span className="px-2.5 py-1 text-xs rounded-full border border-slate-700 bg-slate-800/80 text-slate-300 font-medium">
+                  通用 AI 路线
+                </span>
+              )}
+              <Badge difficulty={path.difficulty} />
+              {path.outline?.prerequisites?.map((p, i) => (
+                <span
+                  key={i}
+                  className="text-[11px] px-2 py-0.5 rounded-md bg-white/5 border border-white/10 text-slate-400"
+                >
+                  {p}
+                </span>
+              ))}
+            </div>
+          </div>
         </div>
       </div>
 
-      {(() => {
-        const rag = path.outline?.rag;
-        const isKb = rag?.source_type === "knowledge_base" || rag?.used;
-        if (isKb) {
-          const names = (rag?.kb_names?.length ? rag.kb_names : boundKbs.map((k) => k.name)).join("、") || "平台知识库";
-          const docCount = rag?.doc_count ?? boundKbs.reduce((s, k) => s + (k.document_count || 0), 0);
-          return (
-            <section className="mb-6 p-4 rounded-xl bg-primary/10 border border-primary/25 text-sm">
-              <div className="flex items-start gap-3">
-                <span className="material-symbols-outlined text-primary mt-0.5">menu_book</span>
-                <div className="flex-1 min-w-0">
-                  <p className="text-on-surface font-medium">
-                    本课程依据知识库「{names}」生成
-                    {docCount > 0 && <span className="text-on-surface-variant font-normal"> · {docCount} 份文档</span>}
-                  </p>
-                  {rag?.uncovered_docs && rag.uncovered_docs.length > 0 && (
-                    <p className="text-yellow-200/90 text-xs mt-2">
-                      有 {rag.uncovered_docs.length} 份文档可能未覆盖进大纲（如 {rag.uncovered_docs[0]}
-                      {rag.uncovered_docs.length > 1 ? " 等" : ""}），可点击下方「根据知识库重建课程」。
-                    </p>
-                  )}
-                </div>
-              </div>
-            </section>
-          );
-        }
-        return (
-          <section className="mb-6 p-4 rounded-xl bg-yellow-500/10 border border-yellow-500/25 text-sm">
-            <div className="flex flex-col sm:flex-row sm:items-center gap-3 justify-between">
-              <div className="flex items-start gap-3">
-                <span className="material-symbols-outlined text-yellow-300 mt-0.5">auto_awesome</span>
-                <div>
-                  <p className="text-yellow-100 font-medium">当前为通用 AI 大纲，未引用知识库</p>
-                  <p className="text-yellow-200/70 text-xs mt-1">
-                    平台有就绪知识库时可一键重建为知识库课程。
-                  </p>
-                </div>
-              </div>
-              <button
-                type="button"
-                className="shrink-0 text-xs px-3 py-1.5 rounded-lg bg-secondary/20 text-secondary border border-secondary/30 hover:bg-secondary/30 disabled:opacity-50"
-                onClick={handleRebuildFromKb}
-                disabled={rebuilding}
-              >
-                {rebuilding ? "重建中..." : "用知识库重建"}
-              </button>
+      {/* RAG Knowledge Base Banner */}
+      {isKb ? (
+        <Card className="mb-8 p-5 border-secondary/30 bg-secondary/10" enableSpotlight={false}>
+          <div className="flex items-start gap-3.5">
+            <div className="p-2 rounded-xl bg-secondary/20 text-secondary shrink-0">
+              <BookOpen size={18} />
             </div>
-          </section>
-        );
-      })()}
-
-      <section className="mb-10 p-5 rounded-xl bg-surface-container-low border border-outline-variant/10">
-        <div className="flex items-center justify-between mb-3 gap-3 flex-wrap">
-          <h2 className="text-sm font-bold font-headline flex items-center gap-2">
-            <span className="material-symbols-outlined text-base text-primary">menu_book</span>
-            关联平台知识库
-          </h2>
-          <button
-            className="text-xs px-3 py-1.5 rounded-lg bg-secondary/20 text-secondary border border-secondary/30 hover:bg-secondary/30 disabled:opacity-50"
-            onClick={handleRebuildFromKb}
-            disabled={rebuilding}
-          >
-            {rebuilding ? "正在根据知识库重建..." : "根据知识库重建课程"}
-          </button>
-        </div>
-
-        {boundKbs.length === 0 ? (
-          <div className="p-3 rounded-lg bg-yellow-500/10 border border-yellow-500/20 text-yellow-200 text-sm">
-            当前课程尚未关联平台知识库。可点击「根据知识库重建课程」自动使用平台资料；若仍失败，请联系管理员上传知识库。
+            <div className="flex-1 min-w-0">
+              <p className="text-on-surface text-sm font-semibold mb-1">
+                依据平台知识库生成
+                {rag?.kb_names?.length ? (
+                  <span className="text-secondary ml-1 font-mono">
+                    「{rag.kb_names.join("、")}」
+                  </span>
+                ) : null}
+              </p>
+              <p className="text-xs text-on-surface-variant/80 leading-relaxed">
+                本课程融合了向量知识库中的真实开发文档，所有案例与练习均贴合企业级场景。
+              </p>
+            </div>
           </div>
-        ) : (
-          <div className="flex flex-wrap gap-2">
-            {boundKbs.map((kb) =>
-              isAdmin ? (
-                <Link
-                  key={kb.id}
-                  href={`/knowledge/${kb.id}`}
-                  className="px-3 py-1.5 rounded-full bg-primary/10 border border-primary/20 text-primary text-sm hover:bg-primary/20"
-                >
-                  {kb.name}
-                  <span className="ml-1 opacity-60 text-xs">({kb.document_count})</span>
-                </Link>
-              ) : (
-                <span
-                  key={kb.id}
-                  className="px-3 py-1.5 rounded-full bg-primary/10 border border-primary/20 text-primary text-sm"
-                >
-                  {kb.name}
-                  <span className="ml-1 opacity-60 text-xs">({kb.document_count})</span>
-                </span>
-              )
-            )}
+        </Card>
+      ) : (
+        <Card className="mb-8 p-5 border-amber-500/20 bg-amber-500/5" enableSpotlight={false}>
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+            <div className="flex items-start gap-3">
+              <div className="p-2 rounded-xl bg-amber-500/15 text-amber-400 shrink-0">
+                <Sparkles size={18} />
+              </div>
+              <div>
+                <p className="text-amber-200 text-sm font-semibold">通用 AI 生成大纲</p>
+                <p className="text-xs text-amber-200/70 mt-0.5">
+                  平台如果上线了该领域的专业技术资料，可随时一键基于知识库重构章节。
+                </p>
+              </div>
+            </div>
+            <button
+              type="button"
+              className="shrink-0 flex items-center gap-1.5 px-4 py-2 rounded-xl bg-amber-500/15 text-amber-300 border border-amber-500/30 text-xs font-medium hover:bg-amber-500/25 transition-all disabled:opacity-50 active:scale-95"
+              onClick={handleRebuildFromKb}
+              disabled={rebuilding}
+            >
+              <RefreshCw size={13} className={rebuilding ? "animate-spin" : ""} />
+              {rebuilding ? "重建中..." : "用知识库重建"}
+            </button>
           </div>
-        )}
-      </section>
+        </Card>
+      )}
 
-      <section className="mb-12 bg-surface-container-low rounded-xl p-6 border border-outline-variant/10 relative overflow-hidden">
-        <div className="absolute top-0 left-0 w-1 h-full bg-primary shadow-[0_0_15px_rgba(83,221,252,0.5)]"></div>
+      {/* Progress Metric Card */}
+      <Card className="mb-12 p-6" enableSpotlight>
         <div className="flex flex-col md:flex-row md:items-center justify-between gap-6">
           <div className="flex-1">
-            <div className="flex justify-between items-end mb-3">
-              <span className="text-sm font-medium text-on-surface">总体进度</span>
-              <span className="text-2xl font-bold font-headline text-primary">{progressPercent}%</span>
+            <div className="flex justify-between items-center mb-2.5">
+              <span className="text-xs font-semibold uppercase tracking-wider text-slate-400 font-headline">
+                技能通关进度
+              </span>
+              <span className="text-2xl font-bold font-headline text-primary font-mono">
+                {progressPercent}%
+              </span>
             </div>
-            <div className="h-2 w-full bg-surface-container-highest rounded-full overflow-hidden">
+            <div className="h-2.5 w-full bg-surface-container-highest rounded-full overflow-hidden p-0.5 border border-white/5">
               <div
-                className="h-full bg-primary shadow-[0_0_10px_rgba(83,221,252,0.3)] transition-all duration-500"
+                className="h-full bg-gradient-to-r from-primary to-secondary rounded-full shadow-[0_0_12px_rgba(83,221,252,0.4)] transition-all duration-700"
                 style={{ width: `${progressPercent}%` }}
-              ></div>
+              />
             </div>
           </div>
-          <div className="flex gap-4">
-            <div className="text-center px-4">
-              <div className="text-xs text-on-surface-variant mb-1 uppercase font-label tracking-tighter">已完成章节</div>
-              <div className="text-xl font-bold font-headline">{completedCount}/{totalCount}</div>
+          <div className="flex items-center gap-6 shrink-0 pt-4 md:pt-0 border-t md:border-t-0 md:border-l border-white/10 md:pl-8">
+            <div>
+              <div className="text-[11px] text-slate-500 font-headline uppercase mb-1">完成章节</div>
+              <div className="text-xl font-bold font-mono text-white">
+                {completedCount} <span className="text-sm font-normal text-slate-500">/ {totalCount}</span>
+              </div>
             </div>
-            <div className="w-px h-10 bg-outline-variant/30 hidden md:block"></div>
-            <div className="text-center px-4">
-              <div className="text-xs text-on-surface-variant mb-1 uppercase font-label tracking-tighter">预计时长</div>
-              <div className="text-xl font-bold font-headline">{path.outline?.estimated_hours || "?"}h</div>
+            <div>
+              <div className="text-[11px] text-slate-500 font-headline uppercase mb-1">预计用时</div>
+              <div className="text-xl font-bold font-mono text-cyan-400 flex items-center gap-1">
+                <Clock size={16} />
+                {path.outline?.estimated_hours || 4}h
+              </div>
             </div>
           </div>
         </div>
-      </section>
+      </Card>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-        {chapters.map((chapter, idx) => {
-          const isCompleted = chapter.status === "completed";
-          const isActive = chapter.status === "unlocked" || chapter.status === "in_progress";
-          const icon = CHAPTER_ICONS[idx % CHAPTER_ICONS.length];
+      {/* Knowledge Tree Roadmap (Spine Timeline) */}
+      <div className="mb-12">
+        <h2 className="text-lg font-bold font-headline text-white mb-8 flex items-center gap-2">
+          <Layers size={18} className="text-primary" />
+          知识演进树
+        </h2>
 
-          if (isActive) {
+        <div className="relative pl-6 md:pl-10 space-y-8 before:absolute before:left-3.5 md:before:left-5 before:top-4 before:bottom-4 before:w-[2px] before:bg-gradient-to-b before:from-primary/60 before:via-secondary/40 before:to-slate-800">
+          {chapters.map((chapter, idx) => {
+            const isCompleted = chapter.status === "completed";
+            const isActive = chapter.status === "unlocked" || chapter.status === "in_progress";
+            const isLocked = !isCompleted && !isActive;
+
             return (
-              <div
-                key={chapter.id}
-                className="group relative col-span-1 md:col-span-2 bg-gradient-to-br from-surface-container-highest to-surface-container-high rounded-xl p-8 border border-secondary/30 shadow-[0_0_20px_rgba(172,138,255,0.05)] cursor-pointer hover:border-secondary/60 transition-colors"
-                onClick={() => router.push(`/learn/${pathId}/${chapter.id}`)}
-              >
-                <div className="flex flex-col md:flex-row gap-8">
-                  <div className="flex-1">
-                    <div className="flex justify-between items-start mb-6">
-                      <div className="w-12 h-12 rounded-xl bg-secondary/20 flex items-center justify-center text-secondary shadow-[0_0_15px_rgba(172,138,255,0.2)]">
-                        <span className="material-symbols-outlined text-3xl" style={{ fontVariationSettings: "'FILL' 1" }}>bolt</span>
-                      </div>
-                      <span className="text-[10px] font-bold px-3 py-1 rounded-full bg-secondary/20 text-secondary uppercase tracking-widest animate-pulse">
-                        {chapter.status === "in_progress" ? "进行中" : "可开始"}
+              <div key={chapter.id} className="relative group">
+                {/* Node on the Timeline Spine */}
+                <div
+                  className={`absolute -left-[30px] md:-left-[46px] top-6 w-7 h-7 rounded-full flex items-center justify-center border z-10 transition-all ${
+                    isCompleted
+                      ? "bg-emerald-500/20 border-emerald-500 text-emerald-400 shadow-[0_0_15px_rgba(16,185,129,0.3)]"
+                      : isActive
+                      ? "bg-primary border-primary text-surface shadow-[0_0_20px_rgba(83,221,252,0.5)] animate-pulse"
+                      : "bg-surface-container-low border-white/10 text-slate-600"
+                  }`}
+                >
+                  {isCompleted ? (
+                    <CheckCircle2 size={15} />
+                  ) : isActive ? (
+                    <Play size={13} className="ml-0.5 fill-current" />
+                  ) : (
+                    <Lock size={12} />
+                  )}
+                </div>
+
+                {/* Chapter Card */}
+                <div
+                  onClick={() => !isLocked && router.push(`/learn/${pathId}/${chapter.id}`)}
+                  className={`p-6 rounded-2xl border transition-all duration-300 ${
+                    isActive
+                      ? "bg-gradient-to-br from-surface-container-highest/90 to-surface-container-high border-secondary/40 shadow-[0_10px_35px_rgba(172,138,255,0.1)] cursor-pointer hover:border-secondary/70 hover:translate-x-1"
+                      : isCompleted
+                      ? "bg-surface-container-high/60 border-emerald-500/20 hover:border-emerald-500/40 cursor-pointer hover:bg-surface-bright/40"
+                      : "bg-surface-container-low/40 border-white/[0.04] opacity-60 cursor-not-allowed"
+                  }`}
+                >
+                  <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-3">
+                    <div className="flex items-center gap-3">
+                      <span className="text-xs font-mono font-bold text-slate-500">
+                        CHAPTER {String(chapter.sort_order).padStart(2, "0")}
                       </span>
+                      <h3
+                        className={`text-lg font-bold font-headline ${
+                          isActive ? "text-white" : isCompleted ? "text-slate-200" : "text-slate-400"
+                        }`}
+                      >
+                        {chapter.title}
+                      </h3>
                     </div>
-                    <h3 className="text-2xl font-bold mb-3 font-headline text-white">
-                      {chapter.sort_order}. {chapter.title}
-                    </h3>
-                    <p className="text-on-surface-variant mb-6 text-base leading-relaxed">
-                      {chapter.summary}
-                    </p>
-                    <button className="bg-secondary text-on-secondary px-8 py-3 rounded-lg font-bold text-sm tracking-wide transition-all active:scale-95 shadow-lg shadow-secondary/10">
-                      开始学习
-                    </button>
+
+                    <div className="flex items-center gap-2">
+                      {isCompleted ? (
+                        <span className="px-2.5 py-0.5 text-xs rounded-full bg-emerald-500/10 text-emerald-400 font-medium border border-emerald-500/20 flex items-center gap-1">
+                          <CheckCircle2 size={12} /> 已通关
+                        </span>
+                      ) : isActive ? (
+                        <span className="px-3 py-1 text-xs rounded-full bg-secondary/20 text-secondary font-bold uppercase tracking-wider animate-pulse border border-secondary/30">
+                          {chapter.status === "in_progress" ? "学习中" : "当前目标"}
+                        </span>
+                      ) : (
+                        <span className="px-2 py-0.5 text-[11px] rounded-full bg-white/5 text-slate-500 border border-white/5 flex items-center gap-1">
+                          <Lock size={11} /> 待解锁
+                        </span>
+                      )}
+                    </div>
+                  </div>
+
+                  <p className="text-sm text-slate-400 leading-relaxed mb-4">{chapter.summary}</p>
+
+                  <div className="flex items-center justify-between pt-3 border-t border-white/[0.04]">
+                    <span className="text-xs text-slate-500 font-mono">
+                      {isCompleted ? "随时可复习" : isActive ? "支持 AI 流式伴学与沙箱实战" : "完成前序章节后开启"}
+                    </span>
+
+                    {!isLocked && (
+                      <button
+                        className={`flex items-center gap-1.5 text-xs font-semibold px-4 py-1.5 rounded-xl transition-all ${
+                          isActive
+                            ? "bg-secondary text-surface font-bold hover:brightness-110 shadow-[0_0_15px_rgba(172,138,255,0.3)]"
+                            : "text-slate-300 hover:text-primary hover:bg-white/5"
+                        }`}
+                      >
+                        {isActive ? "开始学习" : "温故知新"}
+                        <ArrowRight size={13} />
+                      </button>
+                    )}
                   </div>
                 </div>
               </div>
             );
-          }
-
-          if (isCompleted) {
-            return (
-              <div key={chapter.id} className="group relative bg-surface-container-high rounded-xl p-6 border border-primary/20 transition-all hover:bg-surface-bright/50">
-                <div className="flex justify-between items-start mb-6">
-                  <div className="w-10 h-10 rounded-lg bg-primary/20 flex items-center justify-center text-primary">
-                    <span className="material-symbols-outlined" style={{ fontVariationSettings: "'FILL' 1" }}>check_circle</span>
-                  </div>
-                  <span className="text-[10px] font-bold px-2 py-0.5 rounded bg-primary/20 text-primary uppercase tracking-tighter">已完成</span>
-                </div>
-                <h3 className="text-lg font-bold mb-2 font-headline">{chapter.sort_order}. {chapter.title}</h3>
-                <p className="text-sm text-on-surface-variant line-clamp-2 mb-6">{chapter.summary}</p>
-                <div className="flex items-center justify-end mt-auto">
-                  <button
-                    className="text-primary text-sm font-medium flex items-center gap-1 hover:underline"
-                    onClick={() => router.push(`/learn/${pathId}/${chapter.id}`)}
-                  >
-                    回顾内容 <span className="material-symbols-outlined text-xs">arrow_forward</span>
-                  </button>
-                </div>
-              </div>
-            );
-          }
-
-          return (
-            <div key={chapter.id} className="group relative bg-surface-container-low rounded-xl p-6 border border-outline-variant/10 opacity-70">
-              <div className="absolute inset-0 flex items-center justify-center bg-background/40 backdrop-blur-[2px] rounded-xl z-10 group-hover:backdrop-blur-none transition-all">
-                <span className="material-symbols-outlined text-4xl text-outline-variant">lock</span>
-              </div>
-              <div className="mb-6">
-                <div className="w-10 h-10 rounded-lg bg-surface-container-highest flex items-center justify-center text-outline">
-                  <span className="material-symbols-outlined">{icon}</span>
-                </div>
-              </div>
-              <h3 className="text-lg font-bold mb-2 font-headline text-on-surface-variant">{chapter.sort_order}. {chapter.title}</h3>
-              <p className="text-sm text-on-surface-variant line-clamp-2">{chapter.summary}</p>
-            </div>
-          );
-        })}
+          })}
+        </div>
       </div>
 
+      {/* Bottom Floating Next Chapter Tip */}
       {currentChapter && (
-        <div className="mt-16 p-8 rounded-2xl bg-surface-container-high border border-outline-variant/20 flex flex-col md:flex-row items-center gap-8">
-          <div className="w-16 h-16 rounded-full bg-tertiary/10 flex items-center justify-center text-tertiary">
-            <span className="material-symbols-outlined text-3xl">psychology</span>
-          </div>
-          <div className="flex-1 text-center md:text-left">
-            <h4 className="text-lg font-bold font-headline mb-1">AI 学习助手提示</h4>
-            <p className="text-on-surface-variant text-sm">
-              你的下一步是学习「{currentChapter.title}」。准备好了就点击开始吧！
-            </p>
+        <Card className="p-6 border-primary/30 bg-primary/5 mt-8 flex flex-col md:flex-row items-center justify-between gap-6" enableSpotlight>
+          <div className="flex items-center gap-4 text-left">
+            <div className="w-12 h-12 rounded-2xl bg-primary/20 border border-primary/30 flex items-center justify-center text-primary shrink-0 shadow-[0_0_20px_rgba(83,221,252,0.3)]">
+              <Bot size={24} />
+            </div>
+            <div>
+              <h4 className="text-sm font-bold font-headline text-white mb-0.5">AI 导师推进建议</h4>
+              <p className="text-xs text-slate-400">
+                你的下一个学习里程碑是第 {currentChapter.sort_order} 章「{currentChapter.title}」。
+              </p>
+            </div>
           </div>
           <button
-            className="px-6 py-2.5 rounded-lg border border-outline-variant text-sm font-medium hover:bg-white/5 transition-colors"
+            className="shrink-0 flex items-center gap-2 px-6 py-2.5 rounded-xl bg-primary text-on-primary-container font-bold text-sm hover:bg-primary-dim transition-all active:scale-95 shadow-[0_4px_20px_rgba(83,221,252,0.25)]"
             onClick={() => router.push(`/learn/${pathId}/${currentChapter.id}`)}
           >
-            开始学习
+            立即推进
+            <Zap size={15} />
           </button>
-        </div>
+        </Card>
       )}
     </div>
   );

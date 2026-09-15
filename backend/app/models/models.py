@@ -119,6 +119,10 @@ class Exercise(Base):
     starter_code: Mapped[str | None] = mapped_column(Text, nullable=True)
     test_cases: Mapped[dict | None] = mapped_column(JSONB, nullable=True)
     difficulty: Mapped[str] = mapped_column(String(20), default="medium")
+    # 出题所依据的知识库溯源 [{"id": "...", "name": "..."}]
+    source_kbs: Mapped[list | None] = mapped_column(JSONB, nullable=True)
+    # draft | published | archived — 学员端仅展示 published
+    status: Mapped[str] = mapped_column(String(20), default="draft", index=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
 
     chapter = relationship("Chapter", back_populates="exercises")

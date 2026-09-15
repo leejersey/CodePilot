@@ -107,6 +107,25 @@ async def websocket_chat(websocket: WebSocket, conv_id: uuid.UUID):
                 if not user_content:
                     continue
 
+                doc_context = data.get("doc_context")
+                doc_ctx_text = ""
+                if isinstance(doc_context, dict):
+                    parts = ["【文档学习模式 — 当前阅读上下文】"]
+                    src = doc_context.get("source_label") or doc_context.get("source")
+                    if src:
+                        parts.append(f"来源：{src}")
+                    st_title = doc_context.get("stage_title")
+                    if st_title:
+                        parts.append(f"当前阶段：{st_title}")
+                    st_content = (doc_context.get("stage_content") or "").strip()
+                    if st_content:
+                        # 控制长度，避免撑爆上下文
+                        parts.append("阶段正文：\n" + st_content[:6000])
+                    selection = (doc_context.get("selection") or "").strip()
+                    if selection:
+                        parts.append("用户选中的片段：\n" + selection[:2000])
+                    doc_ctx_text = "\n".join(parts)
+
                 user_msg = Message(
                     conversation_id=conv_id,
                     role="user",
@@ -118,18 +137,36 @@ async def websocket_chat(websocket: WebSocket, conv_id: uuid.UUID):
                 history.append({"role": "user", "content": user_content})
 
                 chapter_context = base_context
+                if doc_ctx_text:
+                    chapter_context = (
+                        f"{base_context}\n\n{doc_ctx_text}" if base_context else doc_ctx_text
+                    )
                 if kb_ids:
                     try:
                         # 引导语很长时，用章节主题检索更稳；普通提问拼上章节种子
                         is_guide = len(user_content) > 120 and "学习页面" in user_content
                         query = query_seed if is_guide else f"{query_seed}\n{user_content}"
+                        if doc_context and isinstance(doc_context, dict):
+                            extra = " ".join(
+                                filter(
+                                    None,
+                                    [
+                                        doc_context.get("stage_title"),
+                                        (doc_context.get("selection") or "")[:200],
+                                    ],
+                                )
+                            )
+                            if extra:
+                                query = f"{query}\n{extra}"
                         chunks = await retrieve_chunks(
                             db, kb_ids=kb_ids, query=query, top_k=6
                         )
                         rag_text = format_retrieval_context(chunks)
                         if rag_text:
                             chapter_context = (
-                                f"{base_context}\n\n{rag_text}" if base_context else rag_text
+                                f"{chapter_context}\n\n{rag_text}"
+                                if chapter_context
+                                else rag_text
                             )
                         else:
                             logger.info("RAG returned 0 chunks for conv=%s query=%s", conv_id, query[:80])

@@ -5,7 +5,7 @@
 <h1 align="center">CodePilot — AI 编程学习平台</h1>
 
 <p align="center">
-  <strong>问答式 AI 编程导师 · 知识库 RAG 课程 · 个性化学习路线 · 浏览器代码沙箱 · 实时 AI 判题</strong>
+  <strong>问答式 AI 导师 · 文档学习模式 · 知识库 RAG · 管理员出题 · 浏览器沙箱 · 实时判题</strong>
 </p>
 
 <p align="center">
@@ -23,15 +23,16 @@
 
 | 特性 | 描述 |
 |------|------|
-| 🤖 **AI 驱动** | DeepSeek LLM 实时生成学习路线、知识讲解和编程练习 |
-| 📚 **知识库 RAG** | 管理员上传文档 → 向量检索；主题匹配时生成「知识库课程」，否则走纯 AI 生成 |
-| 🎯 **个性化学习** | 根据用户水平和目标定制学习路径，追踪学习进度；支持删除路线 |
-| 💬 **流式对话** | WebSocket 实时 AI 对话，逐 token 推送；章节对话可续聊 |
-| 🖥️ **代码沙箱** | Monaco Editor + Pyodide 浏览器端 Python 运行；课文代码块可同步到编辑器 |
-| 📝 **AI 判题** | 提交代码即获 AI 评分 + 详细反馈 |
-| 🔐 **用户认证** | JWT 邮箱注册/登录；`ADMIN_EMAILS` 晋升管理员，知识库仅管理员可管 |
-| 📊 **学习仪表盘** | 学习统计、活跃度热力图、技能分布雷达图 |
-| 🎬 **动画引擎** | Remotion 驱动的代码步骤动画可视化 |
+| 🤖 **AI 教学** | DeepSeek 流式讲解；章节对话可续聊；支持个人 LLM 配置覆盖平台默认 |
+| 📖 **文档学习** | 章节页切换「AI 教学 / 文档学习」；讲义摘要 + 知识库原文分阶段阅读；提问带当前阶段上下文 |
+| 📚 **知识库 RAG** | 管理员上传文档 → 向量检索；主题匹配时生成知识库课程，否则纯 AI 生成 |
+| 🎯 **个性化路径** | 按水平与目标定制路线；进度追踪；可删除路线 |
+| 🖥️ **代码沙箱** | Monaco 语法高亮；Pyodide 浏览器跑 Python；代码块可「同步至沙箱」 |
+| 🎬 **知识点讲解** | 代码块旁「动画讲解」：生成 Remotion 短片并含运行结果 |
+| 📝 **练习演练场** | **管理员**基于知识库出题并发布；学员端只浏览/作答已发布题目 |
+| 🔐 **用户认证** | JWT 注册登录；`ADMIN_EMAILS` 晋升管理员；知识库 / 练习管理仅管理员 |
+| 👤 **个人中心** | 多 LLM Profile（平台默认 + 自定义），可切换当前生效配置 |
+| 📊 **学习仪表盘** | 统计、活跃度热力图、技能雷达 |
 
 ## 🏗️ 技术栈
 
@@ -41,13 +42,12 @@
 ├── React 19                    ├── SQLAlchemy 2.0 (async)    ├── Redis 7
 ├── TypeScript                  ├── Pydantic V2               ├── Docker Compose
 ├── TailwindCSS 3               ├── Alembic (数据库迁移)       ├── DeepSeek API (LLM)
-├── Zustand (状态管理)           ├── asyncpg (异步 PG 驱动)     └── 阿里云百炼 Embeddings
-├── SWR (数据请求)               ├── httpx (异步 HTTP)
-├── Monaco Editor (代码编辑)     ├── OpenAI SDK
-├── Pyodide (浏览器 Python)      └── 向量检索 (pgvector)
-├── Remotion (动画引擎)
-├── react-markdown + remark-gfm
-└── Lucide React (图标)
+├── Zustand (状态管理)           ├── asyncpg                   └── 阿里云百炼 Embeddings
+├── Monaco Editor               ├── httpx / OpenAI SDK
+├── Pyodide (浏览器 Python)      └── pgvector 检索
+├── Remotion (讲解动画)
+├── react-markdown + Prism 高亮
+└── Lucide React
 ```
 
 ## 🚀 快速开始
@@ -56,7 +56,7 @@
 
 - **Node.js** ≥ 18
 - **Python** ≥ 3.10
-- **Docker Desktop**（运行 PostgreSQL + Redis）
+- **Docker Desktop**（PostgreSQL + Redis）
 
 ### 1. 克隆项目
 
@@ -67,13 +67,13 @@ cd CodePilot
 
 ### 2. 配置环境变量
 
-配置以 **`backend/.env` 为准**（会覆盖根目录 `.env`）。可从示例复制：
+配置以 **`backend/.env` 为准**（会覆盖根目录 `.env`）：
 
 ```bash
 cp .env.example backend/.env
 ```
 
-编辑 `backend/.env`。本地 Docker 默认端口为 **5433**（Postgres）与 **6380**（Redis）：
+本地 Docker 默认端口：**5433**（Postgres）、**6380**（Redis）：
 
 ```env
 DATABASE_URL=postgresql+asyncpg://codepilot:dev_password@localhost:5433/codepilot
@@ -84,7 +84,7 @@ LLM_API_KEY=your-deepseek-api-key-here
 LLM_MODEL=deepseek-chat
 LLM_BASE_URL=https://api.deepseek.com
 
-# Embeddings — 阿里云百炼 text-embedding-v3（知识库 RAG 需要）
+# Embeddings — 阿里云百炼（知识库 RAG）
 EMBEDDING_API_KEY=your-dashscope-api-key-here
 EMBEDDING_BASE_URL=https://dashscope.aliyuncs.com/compatible-mode/v1
 EMBEDDING_MODEL=text-embedding-v3
@@ -93,7 +93,7 @@ EMBEDDING_DIM=1024
 APP_ENV=development
 APP_DEBUG=true
 
-# 管理员邮箱（逗号分隔）；匹配账号为 admin，可管理知识库
+# 管理员邮箱（逗号分隔）
 ADMIN_EMAILS=you@example.com
 ```
 
@@ -110,16 +110,11 @@ cd backend
 python3 -m venv venv
 source venv/bin/activate   # Windows: venv\Scripts\activate
 pip install -r requirements.txt
-
-# 数据库迁移
 alembic upgrade head
-
-# 启动服务
 uvicorn app.main:app --reload --port 8000
 ```
 
 - API 文档：http://localhost:8000/docs
-- ReDoc：http://localhost:8000/redoc
 
 ### 5. 启动前端
 
@@ -131,132 +126,124 @@ npm run dev
 
 访问：http://localhost:3000
 
-用 `ADMIN_EMAILS` 中的邮箱注册/登录后，顶栏会出现「知识库」入口。
+用 `ADMIN_EMAILS` 中的邮箱注册/登录后，顶栏会出现「知识库」「练习管理」；头像菜单可进「个人中心」。
 
-## 📚 知识库与课程生成（简要）
+## 📚 核心流程
 
-1. **管理员**在「知识库」上传 Markdown 等资料，系统切分并写入向量。
-2. 用户在首页输入主题生成路线时：
-   - 若平台有与主题**语言/领域匹配**的就绪知识库 → **知识库课程**（RAG 大纲 + 关联知识库标签）。
-   - 若不匹配（例如只有 Python 库、主题却是 Node.js）→ **AI 生成课程**，不会误绑无关库。
-3. 学习路线列表可删除整条路线（含章节与相关数据）。
+### 知识库与课程
+
+1. **管理员**在「知识库」上传 Markdown 等资料 → 切分入库向量。
+2. 首页生成路线时：有匹配就绪库 → **知识库课程**；否则 → **AI 课程**（不会误绑无关库）。
+3. 路线可绑定/重建知识库，可删除整条路线。
+
+### 章节学习（双模式）
+
+| 模式 | 说明 |
+|------|------|
+| **AI 教学** | WebSocket 流式导师对话；课文代码可同步沙箱 / 动画讲解 |
+| **文档学习** | 课程讲义（摘要）或知识库原文；按大标题分阶段解锁；提问携带当前阶段与选中文本 |
+
+左右分栏可拖拽调宽。
+
+### 练习演练场
+
+1. **管理员** →「练习管理」：选知识库 + 主题 → RAG 出题（默认草稿）。
+2. 审核后 **发布**；可撤回草稿 / 下架 / 删除。
+3. **学员** →「练习」：只看到已发布题目；Monaco 编辑 + AI 判题。
+4. 无匹配知识库内容时 **拒绝出题**，不会生成无关通用题。
 
 ## 📁 项目结构
 
 ```
 CodePilot/
-├── frontend/                     # Next.js 前端
-│   ├── src/
-│   │   ├── app/                  # 页面路由
-│   │   │   ├── auth/             #   登录 / 注册
-│   │   │   ├── dashboard/        #   学习仪表盘
-│   │   │   ├── exercises/        #   练习中心
-│   │   │   ├── exercise/         #   练习详情
-│   │   │   ├── history/          #   学习历史
-│   │   │   ├── knowledge/        #   知识库管理（管理员）
-│   │   │   └── learn/            #   学习路径 / 章节详情
-│   │   ├── components/           # UI 组件
-│   │   │   ├── layout/           #   Header / Sidebar / Footer
-│   │   │   ├── charts/           #   统计图表
-│   │   │   ├── animations/       #   动画组件
-│   │   │   ├── AuthGuard.tsx     #   登录守卫
-│   │   │   ├── AdminGuard.tsx    #   管理员守卫
-│   │   │   └── MarkdownRenderer.tsx
-│   │   ├── hooks/                # useAuth / usePyodide
-│   │   ├── stores/
-│   │   └── lib/                  # API 封装 + codeBlocks 等
-│   └── package.json
-├── backend/                      # FastAPI 后端
-│   ├── app/
-│   │   ├── main.py               # 入口 + 路由注册
-│   │   ├── api/v1/               # REST 路由
-│   │   │   ├── auth.py
-│   │   │   ├── paths.py          # 路线生成 / 删除 / 知识库绑定
-│   │   │   ├── chapters.py
-│   │   │   ├── conversations.py
-│   │   │   ├── exercises.py
-│   │   │   ├── knowledge.py      # 知识库 CRUD + 文档上传（管理员）
-│   │   │   ├── code.py
-│   │   │   ├── progress.py
-│   │   │   └── animation.py
-│   │   ├── api/ws/chat.py        # 流式 AI 对话（可带 RAG）
-│   │   ├── core/                 # 配置 / 安全 / deps（require_admin）
-│   │   ├── models/
-│   │   ├── schemas/
-│   │   ├── services/             # LLM / chat / exercise / embeddings / kb_*
-│   │   └── db/                   # 数据库 + Redis + Alembic migrations
-│   ├── uploads/kb/               # 知识库文档落盘（本地开发）
-│   ├── Dockerfile
+├── frontend/
+│   ├── src/app/
+│   │   ├── auth/                 # 登录 / 注册
+│   │   ├── dashboard/            # 学习仪表盘
+│   │   ├── exercises/            # 学员演练场（仅已发布）
+│   │   ├── exercise/[id]/        # 练习详情（Markdown 题面 + Monaco）
+│   │   ├── admin/exercises/      # 练习管理（管理员出题 / 发布）
+│   │   ├── knowledge/            # 知识库管理（管理员）
+│   │   ├── learn/                # 学习路径 / 章节（AI + 文档模式）
+│   │   ├── settings/             # 个人中心（LLM Profiles）
+│   │   ├── history/
+│   │   └── …
+│   ├── src/components/
+│   │   ├── DocumentLearningPanel.tsx
+│   │   ├── MarkdownRenderer.tsx
+│   │   ├── DialogProvider.tsx
+│   │   ├── AdminGuard.tsx / AuthGuard.tsx
+│   │   └── layout/               # Header / Sidebar / CommandMenu
+│   └── …
+├── backend/
+│   ├── app/api/v1/
+│   │   ├── paths.py / chapters.py / knowledge.py
+│   │   ├── exercises.py          # 学员列表 + 管理员出题/状态
+│   │   ├── settings.py           # 用户 LLM 偏好
+│   │   └── …
+│   ├── app/api/ws/chat.py        # 流式对话（RAG + doc_context）
+│   ├── app/services/
+│   │   ├── learning_docs.py      # 文档分阶段（忽略代码块内 # 注释）
+│   │   ├── kb_retrieve.py / kb_ingest.py
+│   │   ├── exercise.py / llm.py / embeddings.py
+│   │   └── …
+│   ├── uploads/kb/
 │   └── requirements.txt
 ├── design/                       # UI 设计稿
 ├── docs/
-│   └── ARCHITECTURE.md
 ├── docker-compose.yml
 └── .env.example
 ```
 
-## 🔌 API 接口
+## 🔌 API 接口（摘要）
 
-### 认证
-
-| 方法 | 路径 | 说明 |
-|------|------|------|
-| `POST` | `/api/v1/auth/register` | 邮箱注册 |
-| `POST` | `/api/v1/auth/login` | 邮箱密码登录 |
-| `GET` | `/api/v1/auth/me` | 当前用户（含 `role`: learner / admin） |
-
-### 学习路径
+### 认证 / 设置
 
 | 方法 | 路径 | 说明 |
 |------|------|------|
-| `POST` | `/api/v1/paths/generate` | AI / RAG 生成学习路线 |
-| `GET` | `/api/v1/paths/{id}` | 路线详情 |
-| `DELETE` | `/api/v1/paths/{id}` | 删除路线（本人或管理员） |
-| `GET` | `/api/v1/paths/{id}/chapters` | 章节列表 |
-| `GET` | `/api/v1/paths/{id}/knowledge-bases` | 已关联知识库 |
-| `PUT` | `/api/v1/paths/{id}/knowledge-bases` | 绑定知识库 |
-| `POST` | `/api/v1/paths/{id}/rebuild-from-kb` | 按相关知识库重建大纲 |
-| `PATCH` | `/api/v1/chapters/{id}/status` | 更新章节状态 |
+| `POST` | `/api/v1/auth/register` · `/login` | 注册 / 登录 |
+| `GET` | `/api/v1/auth/me` | 当前用户（含 `role`） |
+| `GET/PUT` | `/api/v1/settings/llm` | LLM Profiles 与当前激活配置 |
+
+### 学习路径 / 章节
+
+| 方法 | 路径 | 说明 |
+|------|------|------|
+| `POST` | `/api/v1/paths/generate` | AI / RAG 生成路线 |
+| `DELETE` | `/api/v1/paths/{id}` | 删除路线 |
+| `GET` | `/api/v1/chapters/{id}/learning-docs` | 文档学习：讲义阶段 + KB 文档列表 |
+| `GET` | `/api/v1/chapters/{id}/learning-docs/kb/{doc_id}` | 知识库原文分阶段 |
+| `WebSocket` | `/ws/chat/{conv_id}` | 流式对话；可带 `doc_context` |
 
 ### 知识库（管理员）
 
 | 方法 | 路径 | 说明 |
 |------|------|------|
-| `GET` | `/api/v1/knowledge-bases/` | 平台知识库列表 |
-| `POST` | `/api/v1/knowledge-bases/` | 创建知识库 |
-| `GET` | `/api/v1/knowledge-bases/{id}` | 详情（含文档） |
-| `PATCH` | `/api/v1/knowledge-bases/{id}` | 更新 |
-| `DELETE` | `/api/v1/knowledge-bases/{id}` | 删除 |
-| `POST` | `/api/v1/knowledge-bases/{id}/documents` | 上传文档并入库向量 |
-| `DELETE` | `/api/v1/knowledge-bases/{id}/documents/{doc_id}` | 删除文档 |
+| `CRUD` | `/api/v1/knowledge-bases/…` | 库与文档上传 / 向量入库 |
 
-### 对话 & 练习
+### 练习
 
 | 方法 | 路径 | 说明 |
 |------|------|------|
-| `POST` | `/api/v1/conversations/` | 创建对话 |
-| `GET` | `/api/v1/conversations/by-chapter/{chapter_id}` | 按章节取已有对话（续聊） |
-| `GET` | `/api/v1/conversations/{id}/messages` | 消息列表 |
-| `WebSocket` | `/ws/chat/{conv_id}` | 流式 AI 对话 |
-| `GET` | `/api/v1/exercises` | 练习列表 |
-| `GET` | `/api/v1/exercises/languages` | 可用语言 |
-| `POST` | `/api/v1/exercises/generate` | AI 生成练习（可参考平台知识库） |
-| `GET` | `/api/v1/exercises/{id}` | 练习详情 |
-| `POST` | `/api/v1/exercises/{id}/submit` | 提交判题 |
-| `GET` | `/api/v1/exercises/{id}/submissions` | 提交记录 |
-| `GET` | `/api/v1/exercises/chapter/{chapter_id}` | 章节关联练习 |
+| `GET` | `/api/v1/exercises` | **仅 published** 列表（学员） |
+| `GET` | `/api/v1/exercises/admin` | 全部状态（管理员） |
+| `GET` | `/api/v1/exercises/ready-knowledge-bases` | 出题可选就绪库（管理员） |
+| `POST` | `/api/v1/exercises/generate` | 基于 KB RAG 出题（管理员；默认可存草稿） |
+| `PATCH` | `/api/v1/exercises/{id}/status` | `draft` / `published` / `archived` |
+| `DELETE` | `/api/v1/exercises/{id}` | 删除（管理员） |
+| `GET` | `/api/v1/exercises/{id}` | 详情（未发布仅管理员） |
+| `POST` | `/api/v1/exercises/{id}/submit` | 提交判题（仅已发布） |
 
-### 进度 & 其他
+### 其他
 
 | 方法 | 路径 | 说明 |
 |------|------|------|
-| `GET` | `/api/v1/progress/stats` | 学习统计概览 |
-| `GET` | `/api/v1/progress/paths` | 路线进度（含 `source_type` / `kb_names`） |
-| `GET` | `/api/v1/progress/activity` | 活跃度 |
-| `GET` | `/api/v1/progress/skill-distribution` | 技能分布 |
+| `GET` | `/api/v1/progress/…` | 统计 / 活跃度 / 技能分布 |
 | `POST` | `/api/v1/code/run` | 运行代码 |
-| `POST` | `/api/v1/animation/generate` | 生成代码动画 |
+| `POST` | `/api/v1/animation/generate-snippet` | 单段代码讲解动画 |
 | `GET` | `/health` | 健康检查 |
+
+完整交互式文档见运行中的 `/docs`。
 
 ## 📸 页面预览
 
@@ -271,44 +258,44 @@ CodePilot/
 <table>
   <tr>
     <td width="50%" align="center"><strong>🗺️ 学习路径 · 知识图谱与 RAG 溯源</strong></td>
-    <td width="50%" align="center"><strong>💬 章节详情 · 流式 AI 伴学与代码沙箱</strong></td>
+    <td width="50%" align="center"><strong>💬 章节详情 · AI / 文档双模式</strong></td>
   </tr>
   <tr>
     <td align="center" valign="top">
       <img src="docs/screenshots/learning_path.png" alt="学习路径" width="100%" />
       <br />
-      <sub>结构化章节大纲 · 学习进度追踪 · 平台知识库关联与重建课程 · 路线管理与删除</sub>
+      <sub>结构化大纲 · 进度追踪 · 知识库关联与重建 · 路线删除</sub>
     </td>
     <td align="center" valign="top">
       <img src="docs/screenshots/learning_detail.png" alt="章节详情" width="100%" />
       <br />
-      <sub>WebSocket 流式实时讲解 · 课文代码一键同步编辑器 · 浏览器 Pyodide 零后端极速运行</sub>
+      <sub>流式讲解 · 文档分阶段阅读 · 代码同步沙箱 · 可调左右分栏</sub>
     </td>
   </tr>
   <tr>
-    <td width="50%" align="center"><strong>🏆 编程演练场 · 多语言实战挑战</strong></td>
-    <td width="50%" align="center"><strong>💻 练习详情 · Monaco 编辑与代码执行</strong></td>
+    <td width="50%" align="center"><strong>🏆 编程演练场 · 已发布挑战</strong></td>
+    <td width="50%" align="center"><strong>💻 练习详情 · Monaco + AI 判题</strong></td>
   </tr>
   <tr>
     <td align="center" valign="top">
       <img src="docs/screenshots/exercises_hub.png" alt="练习中心" width="100%" />
       <br />
-      <sub>多技术栈分类（Python/Go/Rust等） · 难度阶梯筛选 · 知识库融合生成实战场景</sub>
+      <sub>语言 / 难度筛选 · 展示知识库溯源标签 · 题目由管理员发布</sub>
     </td>
     <td align="center" valign="top">
       <img src="docs/screenshots/exercise.png" alt="练习详情" width="100%" />
       <br />
-      <sub>Monaco Editor 编写代码 · 终端输出交互 · 本地安全沙箱执行 · 提交任务与 AI 判题</sub>
+      <sub>Markdown 题面 · Monaco 语法高亮 · 提交与 AI 判题</sub>
     </td>
   </tr>
   <tr>
-    <td colspan="2" align="center"><strong>📚 平台知识库 · RAG 文档管理中心（管理员）</strong></td>
+    <td colspan="2" align="center"><strong>📚 平台知识库 · RAG 文档管理（管理员）</strong></td>
   </tr>
   <tr>
     <td colspan="2" align="center" valign="top">
       <img src="docs/screenshots/knowledge.png" alt="知识库管理" width="850" />
       <br />
-      <sub>文档批量上传（PDF/Markdown/TXT） · 自动化切分与向量入库 · 课程生成与练习出题即时检索绑定</sub>
+      <sub>文档上传与向量入库 · 课程生成与练习出题共用检索</sub>
     </td>
   </tr>
 </table>
@@ -316,11 +303,12 @@ CodePilot/
 ## 📝 开发路线
 
 - [x] **MVP** — 核心对话 + 学习路线 + 代码沙箱 + AI 判题
-- [x] **V1.1** — 邮箱注册/登录 + JWT 认证 + AuthGuard 路由保护
-- [x] **V1.2** — 独立练习中心 + 学习仪表盘 + 进度追踪 + 历史记录
-- [x] **V1.3** — 平台知识库 RAG + 管理员角色 + 主题相关检索 + 路线删除 / 溯源标签
-- [ ] **V2** — Manim 动画引擎 + 代码可视化增强 + 数据统计面板
-- [ ] **V3** — 多语言支持 + 社区功能 + 成就系统
+- [x] **V1.1** — 邮箱注册/登录 + JWT + AuthGuard
+- [x] **V1.2** — 练习中心 + 仪表盘 + 进度 + 历史
+- [x] **V1.3** — 知识库 RAG + 管理员角色 + 主题相关检索 + 路线删除 / 溯源
+- [x] **V1.4** — 文档学习模式 · 知识点 Remotion 讲解 · 个人 LLM Profiles · 管理员出题发布流
+- [ ] **V2** — 练习真实验判 / 沙箱增强 · 数据统计面板
+- [ ] **V3** — 多语言产品化 · 社区 · 成就系统
 
 ## 📄 License
 

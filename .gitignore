@@ -4,71 +4,120 @@ __pycache__/
 *$py.class
 *.so
 *.egg-info/
+*.egg
 dist/
 build/
-*.egg
+wheels/
+pip-wheel-metadata/
 venv/
 .venv/
+.env/
 .python-version
+uv.lock
+poetry.lock
 
-# ── Node.js ──
+# ── Node.js / Next.js ──
 node_modules/
+.pnp
+.pnp.*
+.yarn/*
+!.yarn/patches
+!.yarn/plugins
+!.yarn/releases
+!.yarn/versions
 .next/
 out/
 .turbo/
 .vercel/
+*.tsbuildinfo
+next-env.d.ts
 
-# ── 环境变量 ──
+# ── 环境变量（保留示例） ──
 .env
-.env.local
-.env.*.local
+.env.*
+!.env.example
+!**/.env.example
 backend/.env
 
-# ── IDE ──
+# ── IDE / 编辑器 ──
 .vscode/
+!.vscode/extensions.json
 .idea/
 *.swp
 *.swo
 *~
+*.sublime-project
+*.sublime-workspace
 
-# ── OS ──
-.DS_Store
-Thumbs.db
-
-# ── 日志 ──
-*.log
-npm-debug.log*
-yarn-debug.log*
-yarn-error.log*
-pnpm-debug.log*
-
-# ── 测试 ──
-.coverage
-htmlcov/
-.pytest_cache/
-.mypy_cache/
-.ruff_cache/
-
-# ── 数据库 (本地开发) ──
-*.db
-*.sqlite3
-
-# ── Docker ──
-pgdata/
-
-# ── 临时文件 + 缓存 ──
-*.tmp
-*.bak
-.cache/
-tmp/
-
-# ── 知识库上传 ──
-backend/uploads/
-uploads/
-
-# ── AI Agent ──
+# ── Cursor / Claude / 本地 Agent ──
+.cursor/
+.claude/
+.codex/
 .gemini/
 .agent/
 _agent/
 .agents/
 _agents/
+.superset/
+
+# ── OS ──
+.DS_Store
+.DS_Store?
+._*
+Thumbs.db
+Desktop.ini
+
+# ── 日志 / 调试 ──
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+lerna-debug.log*
+
+# ── 测试 / 覆盖率 / 静态检查 ──
+coverage/
+.nyc_output/
+htmlcov/
+.coverage
+.coverage.*
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.pytype/
+.tox/
+.nox/
+playwright-report/
+test-results/
+*.pem
+
+# ── 数据库 (本地开发) ──
+*.db
+*.sqlite
+*.sqlite3
+
+# ── Docker 本地卷 ──
+pgdata/
+redisdata/
+
+# ── 临时文件 / 缓存 ──
+*.tmp
+*.bak
+*.orig
+.cache/
+.eslintcache
+tmp/
+temp/
+.parcel-cache/
+
+# ── 知识库上传（运行时生成，勿入库） ──
+backend/uploads/
+uploads/
+!backend/uploads/.gitkeep
+
+# ── 媒体 / 导出产物（本地生成） ──
+*.mp4
+*.webm
+*.mov
+out/
+public/remotion/

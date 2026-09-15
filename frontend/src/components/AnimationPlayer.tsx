@@ -2,6 +2,7 @@
 
 import React, { useState } from "react";
 import { Player } from "@remotion/player";
+import { Clapperboard, Maximize2, Minimize2 } from "lucide-react";
 import { SortingAnimation } from "./animations/SortingAnimation";
 import { ConceptAnimation } from "./animations/ConceptAnimation";
 import {
@@ -78,21 +79,19 @@ function LegacyRemotionPlayer({ animationData }: { animationData: LegacyAnimatio
     <div className="my-4 rounded-xl overflow-hidden border border-white/10 bg-[#0a0f1e]">
       <div className="flex items-center justify-between px-4 py-2.5 bg-surface-container-low/50 border-b border-white/5">
         <div className="flex items-center gap-2">
-          <span
-            className="material-symbols-outlined text-primary text-lg"
-            style={{ fontVariationSettings: "'FILL' 1" }}
-          >
-            animation
-          </span>
-          <span className="text-sm font-medium text-on-surface">{title}</span>
+          <Clapperboard className="w-4 h-4 text-cyan-400" />
+          <span className="text-sm font-semibold text-slate-100">{title}</span>
         </div>
         <button
-          className="text-slate-500 hover:text-slate-300 transition-colors"
+          className="text-slate-500 hover:text-slate-300 transition-colors p-1"
           onClick={() => setIsExpanded(!isExpanded)}
+          title={isExpanded ? "收起" : "全屏展开"}
         >
-          <span className="material-symbols-outlined text-sm">
-            {isExpanded ? "close_fullscreen" : "open_in_full"}
-          </span>
+          {isExpanded ? (
+            <Minimize2 className="w-3.5 h-3.5" />
+          ) : (
+            <Maximize2 className="w-3.5 h-3.5" />
+          )}
         </button>
       </div>
       {description && (
