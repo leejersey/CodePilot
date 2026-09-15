@@ -8,6 +8,7 @@ import { AuthGuard } from "@/components/AuthGuard";
 import {
   getProgressStats, getProgressPaths,
   type ProgressStats, type PathProgress,
+  getPathSourceLabel,
 } from "@/lib/api";
 
 const DIFFICULTY_CONFIG: Record<string, { label: string; class: string; icon: string }> = {
@@ -86,7 +87,7 @@ export default function HistoryPage() {
           </Link>
           <Link href="/learn" className="flex items-center gap-3 px-4 py-3 text-slate-400 hover:bg-[#1f2b49] hover:text-cyan-200 transition-all cursor-pointer active:translate-x-1 rounded-lg">
             <span className="material-symbols-outlined">route</span>
-            <span className="font-medium text-sm">Learning Path</span>
+            <span className="font-medium text-sm">学习路径</span>
           </Link>
           {/* Active State Logic: History is Active */}
           <div className="flex items-center gap-3 px-4 py-3 bg-[#141f38] text-cyan-400 border-r-4 border-cyan-400 shadow-[0_0_15px_rgba(83,221,252,0.2)] cursor-pointer active:translate-x-1 rounded-l-lg">
@@ -216,6 +217,19 @@ export default function HistoryPage() {
                       <div className="flex items-center justify-between">
                         <div className="flex items-center gap-3">
                           <h3 className="text-xl font-headline font-semibold text-on-surface">{path.topic}</h3>
+                          {(() => {
+                            const src = getPathSourceLabel(path.source_type);
+                            return src.type === "knowledge_base" ? (
+                              <span className="px-2 py-0.5 rounded text-[10px] font-bold tracking-wider bg-primary/15 text-primary border border-primary/25">
+                                {src.short}
+                                {path.kb_names?.[0] ? ` · ${path.kb_names[0]}` : ""}
+                              </span>
+                            ) : (
+                              <span className="px-2 py-0.5 rounded text-[10px] font-bold tracking-wider bg-slate-500/15 text-slate-300 border border-slate-500/25">
+                                {src.short}
+                              </span>
+                            );
+                          })()}
                           <span className={`px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider ${config.class}`}>
                             {config.label}
                           </span>

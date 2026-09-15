@@ -33,6 +33,7 @@ export interface ExerciseGenerateRequest {
   difficulty: string;
   topic?: string;
   chapter_id?: string;
+  knowledge_base_ids?: string[];
 }
 
 export interface SubmissionResponse {
@@ -47,6 +48,18 @@ export interface ChapterOutline {
   order: number;
   title: string;
   summary: string;
+  covers?: string[];
+}
+
+export interface RagProvenance {
+  used: boolean;
+  source_type: "knowledge_base" | "ai_generated" | string;
+  kb_ids: string[];
+  kb_names: string[];
+  doc_count: number;
+  doc_filenames: string[];
+  uncovered_docs: string[];
+  generated_at: string | null;
 }
 
 export interface PathOutline {
@@ -54,6 +67,7 @@ export interface PathOutline {
   estimated_hours: number;
   prerequisites: string[];
   chapters: ChapterOutline[];
+  rag?: RagProvenance | null;
 }
 
 export interface LearningPath {
@@ -101,8 +115,22 @@ export interface PathProgress {
   total_chapters: number;
   completed_chapters: number;
   progress: number;
+  source_type?: "knowledge_base" | "ai_generated" | string;
+  kb_names?: string[];
   created_at: string;
   updated_at: string;
+}
+
+/** 课程来源：知识库 RAG vs 纯 AI */
+export function getPathSourceLabel(sourceType?: string | null): {
+  type: "knowledge_base" | "ai_generated";
+  label: string;
+  short: string;
+} {
+  if (sourceType === "knowledge_base") {
+    return { type: "knowledge_base", label: "知识库课程", short: "知识库" };
+  }
+  return { type: "ai_generated", label: "AI 生成课程", short: "AI 生成" };
 }
 
 export interface ProgressStats {
@@ -144,15 +172,26 @@ export function getAnonymousId(): string {
   return id;
 }
 
-function getAuthHeaders(): Record<string, string> {
+function getAuthHeaders(json = true): Record<string, string> {
   const token = typeof window !== "undefined" ? localStorage.getItem("codepilot_token") : null;
-  const headers: Record<string, string> = { "Content-Type": "application/json" };
+  const headers: Record<string, string> = {};
+  if (json) headers["Content-Type"] = "application/json";
   if (token) {
     headers["Authorization"] = `Bearer ${token}`;
   } else {
     headers["X-Anonymous-ID"] = getAnonymousId();
   }
   return headers;
+}
+
+function parseErrorDetail(err: unknown): string {
+  if (!err || typeof err !== "object") return "请求失败";
+  const detail = (err as { detail?: unknown }).detail;
+  if (typeof detail === "string") return detail;
+  if (Array.isArray(detail)) {
+    return detail.map((d) => (typeof d === "object" && d && "msg" in d ? String((d as { msg: string }).msg) : String(d))).join("; ");
+  }
+  return "请求失败";
 }
 
 export async function fetchAPI<T>(path: string, options?: RequestInit): Promise<T> {
@@ -162,8 +201,9 @@ export async function fetchAPI<T>(path: string, options?: RequestInit): Promise<
   });
   if (!res.ok) {
     const err = await res.json().catch(() => ({ detail: "请求失败" }));
-    throw new Error(err.detail || `HTTP ${res.status}`);
+    throw new Error(parseErrorDetail(err) || `HTTP ${res.status}`);
   }
+  if (res.status === 204) return undefined as T;
   return res.json();
 }
 
@@ -175,6 +215,7 @@ export async function generatePath(req: {
   topic: string;
   difficulty?: string;
   user_background?: string;
+  knowledge_base_ids?: string[];
 }): Promise<LearningPath> {
   return fetchAPI<LearningPath>("/api/v1/paths/generate", {
     method: "POST",
@@ -182,6 +223,7 @@ export async function generatePath(req: {
       topic: req.topic,
       difficulty: req.difficulty || "intermediate",
       user_background: req.user_background || "",
+      knowledge_base_ids: req.knowledge_base_ids || [],
     }),
   });
 }
@@ -190,8 +232,36 @@ export async function getPath(pathId: string): Promise<LearningPath> {
   return fetchAPI<LearningPath>(`/api/v1/paths/${pathId}`);
 }
 
+export async function deletePath(pathId: string): Promise<void> {
+  await fetchAPI<void>(`/api/v1/paths/${pathId}`, { method: "DELETE" });
+}
+
 export async function getPathChapters(pathId: string): Promise<Chapter[]> {
   return fetchAPI<Chapter[]>(`/api/v1/paths/${pathId}/chapters`);
+}
+
+export async function getPathKnowledgeBases(pathId: string): Promise<KnowledgeBase[]> {
+  return fetchAPI<KnowledgeBase[]>(`/api/v1/paths/${pathId}/knowledge-bases`);
+}
+
+export async function bindPathKnowledgeBases(
+  pathId: string,
+  knowledge_base_ids: string[]
+): Promise<KnowledgeBase[]> {
+  return fetchAPI<KnowledgeBase[]>(`/api/v1/paths/${pathId}/knowledge-bases`, {
+    method: "PUT",
+    body: JSON.stringify({ knowledge_base_ids }),
+  });
+}
+
+export async function rebuildPathFromKb(
+  pathId: string,
+  knowledge_base_ids?: string[]
+): Promise<LearningPath> {
+  return fetchAPI<LearningPath>(`/api/v1/paths/${pathId}/rebuild-from-kb`, {
+    method: "POST",
+    body: JSON.stringify({ knowledge_base_ids: knowledge_base_ids || [] }),
+  });
 }
 
 // ══════════════════════════════════════════
@@ -233,6 +303,19 @@ export async function getConversation(convId: string): Promise<Conversation> {
   return fetchAPI<Conversation>(`/api/v1/conversations/${convId}`);
 }
 
+/** 当前用户在该章节下最近的对话；没有则返回 null */
+export async function getConversationByChapter(
+  chapterId: string
+): Promise<Conversation | null> {
+  try {
+    return await fetchAPI<Conversation>(
+      `/api/v1/conversations/by-chapter/${chapterId}`
+    );
+  } catch {
+    return null;
+  }
+}
+
 export async function getMessages(convId: string): Promise<Message[]> {
   return fetchAPI<Message[]>(`/api/v1/conversations/${convId}/messages`);
 }
@@ -263,7 +346,13 @@ export async function getExercise(id: string): Promise<Exercise> {
 export async function generateExercise(req: ExerciseGenerateRequest): Promise<Exercise> {
   return fetchAPI<Exercise>("/api/v1/exercises/generate", {
     method: "POST",
-    body: JSON.stringify(req),
+    body: JSON.stringify({
+      language: req.language,
+      difficulty: req.difficulty,
+      topic: req.topic || "",
+      chapter_id: req.chapter_id || null,
+      knowledge_base_ids: req.knowledge_base_ids || [],
+    }),
   });
 }
 
@@ -314,5 +403,84 @@ export async function generateAnimation(topic: string): Promise<any> {
   return fetchAPI("/api/v1/animation/generate", {
     method: "POST",
     body: JSON.stringify({ topic }),
+  });
+}
+
+// ══════════════════════════════════════════
+//  Knowledge Base API
+// ══════════════════════════════════════════
+
+export interface KnowledgeDocument {
+  id: string;
+  kb_id: string;
+  filename: string;
+  mime_type: string | null;
+  byte_size: number;
+  status: string;
+  error_message: string | null;
+  chunk_count: number;
+  created_at: string;
+}
+
+export interface KnowledgeBase {
+  id: string;
+  name: string;
+  description: string | null;
+  status: string;
+  created_at: string;
+  updated_at: string;
+  document_count: number;
+}
+
+export interface KnowledgeBaseDetail extends KnowledgeBase {
+  documents: KnowledgeDocument[];
+}
+
+export async function listKnowledgeBases(): Promise<KnowledgeBase[]> {
+  return fetchAPI<KnowledgeBase[]>("/api/v1/knowledge-bases/");
+}
+
+export async function createKnowledgeBase(req: {
+  name: string;
+  description?: string;
+}): Promise<KnowledgeBase> {
+  return fetchAPI<KnowledgeBase>("/api/v1/knowledge-bases/", {
+    method: "POST",
+    body: JSON.stringify({
+      name: req.name,
+      description: req.description || "",
+    }),
+  });
+}
+
+export async function getKnowledgeBase(kbId: string): Promise<KnowledgeBaseDetail> {
+  return fetchAPI<KnowledgeBaseDetail>(`/api/v1/knowledge-bases/${kbId}`);
+}
+
+export async function deleteKnowledgeBase(kbId: string): Promise<void> {
+  await fetchAPI<void>(`/api/v1/knowledge-bases/${kbId}`, { method: "DELETE" });
+}
+
+export async function uploadKnowledgeDocument(
+  kbId: string,
+  file: File
+): Promise<KnowledgeDocument> {
+  const form = new FormData();
+  form.append("file", file);
+  const res = await fetch(`${API_BASE}/api/v1/knowledge-bases/${kbId}/documents`, {
+    method: "POST",
+    headers: getAuthHeaders(false),
+    body: form,
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({ detail: "上传失败" }));
+    throw new Error(parseErrorDetail(err) || `HTTP ${res.status}`);
+  }
+  return res.json();
+}
+
+export async function deleteKnowledgeDocument(kbId: string, docId: string): Promise<void> {
+  await fetchAPI<void>(`/api/v1/knowledge-bases/${kbId}/documents/${docId}`, {
+    method: "DELETE",
   });
 }

@@ -62,6 +62,10 @@ pgdata/
 .cache/
 tmp/
 
+# ── 知识库上传 ──
+backend/uploads/
+uploads/
+
 # ── AI Agent ──
 .gemini/
 .agent/

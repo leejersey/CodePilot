@@ -5,7 +5,7 @@ import { useAuth } from "@/hooks/useAuth";
 import Link from "next/link";
 
 export function Header() {
-  const { user, init, logout, loading } = useAuth();
+  const { user, init, logout, loading, isAdmin } = useAuth();
   const [menuOpen, setMenuOpen] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
   const initDone = useRef(false);
@@ -34,9 +34,12 @@ export function Header() {
           CodePilot
         </Link>
         <nav className="hidden md:flex items-center gap-6 font-headline text-sm tracking-wide">
-          <Link className="text-slate-400 hover:text-cyan-300 transition-colors hover:bg-white/5 duration-200 px-3 py-1.5 rounded-md" href="/learn">Learning Path</Link>
-          <Link className="text-slate-400 hover:text-cyan-300 transition-colors hover:bg-white/5 duration-200 px-3 py-1.5 rounded-md" href="/exercises">Exercises</Link>
-          <Link className="text-slate-400 hover:text-cyan-300 transition-colors hover:bg-white/5 duration-200 px-3 py-1.5 rounded-md" href="/dashboard">Dashboard</Link>
+          <Link className="text-slate-400 hover:text-cyan-300 transition-colors hover:bg-white/5 duration-200 px-3 py-1.5 rounded-md" href="/learn">学习路径</Link>
+          {isAdmin && (
+            <Link className="text-slate-400 hover:text-cyan-300 transition-colors hover:bg-white/5 duration-200 px-3 py-1.5 rounded-md" href="/knowledge">知识库</Link>
+          )}
+          <Link className="text-slate-400 hover:text-cyan-300 transition-colors hover:bg-white/5 duration-200 px-3 py-1.5 rounded-md" href="/exercises">练习</Link>
+          <Link className="text-slate-400 hover:text-cyan-300 transition-colors hover:bg-white/5 duration-200 px-3 py-1.5 rounded-md" href="/dashboard">仪表盘</Link>
         </nav>
       </div>
       <div className="flex items-center gap-6">
@@ -74,7 +77,16 @@ export function Header() {
                 <div className="px-4 py-2 border-b border-white/5">
                   <p className="text-sm font-medium text-on-surface truncate">{user.nickname}</p>
                   <p className="text-xs text-slate-500 truncate">{user.email}</p>
+                  {isAdmin && (
+                    <p className="text-[10px] text-primary mt-1 uppercase tracking-widest">Admin</p>
+                  )}
                 </div>
+                {isAdmin && (
+                  <a href="/knowledge" className="flex items-center gap-3 px-4 py-2.5 text-sm text-on-surface-variant hover:bg-white/5 transition-colors">
+                    <span className="material-symbols-outlined text-base">menu_book</span>
+                    知识库管理
+                  </a>
+                )}
                 <a href="/dashboard" className="flex items-center gap-3 px-4 py-2.5 text-sm text-on-surface-variant hover:bg-white/5 transition-colors">
                   <span className="material-symbols-outlined text-base">dashboard</span>
                   学习仪表盘

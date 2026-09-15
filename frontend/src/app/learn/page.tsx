@@ -1,9 +1,9 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, type MouseEvent } from "react";
 import { useAuth } from "@/hooks/useAuth";
 import Link from "next/link";
-import { getProgressPaths, type PathProgress } from "@/lib/api";
+import { getProgressPaths, deletePath, type PathProgress, getPathSourceLabel } from "@/lib/api";
 import { AuthGuard } from "@/components/AuthGuard";
 
 const DIFFICULTY_LABEL: Record<string, { text: string; color: string; icon: string }> = {
@@ -16,6 +16,7 @@ export default function LearnPage() {
   const { init } = useAuth();
   const [paths, setPaths] = useState<PathProgress[]>([]);
   const [loading, setLoading] = useState(true);
+  const [deletingId, setDeletingId] = useState<string | null>(null);
 
   useEffect(() => { init(); }, [init]);
 
@@ -28,6 +29,21 @@ export default function LearnPage() {
     }
     fetchPaths();
   }, []);
+
+  async function handleDelete(e: MouseEvent, path: PathProgress) {
+    e.preventDefault();
+    e.stopPropagation();
+    if (!confirm(`确定删除学习路线「${path.topic}」？章节与相关进度将一并删除。`)) return;
+    setDeletingId(path.id);
+    try {
+      await deletePath(path.id);
+      setPaths((prev) => prev.filter((p) => p.id !== path.id));
+    } catch (err) {
+      alert(err instanceof Error ? err.message : "删除失败");
+    } finally {
+      setDeletingId(null);
+    }
+  }
 
   return (
     <AuthGuard>
@@ -94,6 +110,19 @@ export default function LearnPage() {
                       <h3 className="text-lg font-bold font-headline text-on-surface group-hover:text-primary transition-colors truncate">
                         {path.topic}
                       </h3>
+                      {(() => {
+                        const src = getPathSourceLabel(path.source_type);
+                        return src.type === "knowledge_base" ? (
+                          <span className="text-[10px] font-bold px-2.5 py-0.5 rounded-full bg-primary/15 text-primary border border-primary/25 shrink-0">
+                            {src.short}
+                            {path.kb_names?.[0] ? ` · ${path.kb_names[0]}` : ""}
+                          </span>
+                        ) : (
+                          <span className="text-[10px] font-bold px-2.5 py-0.5 rounded-full bg-slate-500/15 text-slate-300 border border-slate-500/25 shrink-0">
+                            {src.short}
+                          </span>
+                        );
+                      })()}
                       <span className={`text-[10px] font-bold px-2.5 py-0.5 rounded-full border shrink-0 ${diff.color}`}>
                         {diff.text}
                       </span>
@@ -119,10 +148,22 @@ export default function LearnPage() {
                     </div>
                   </div>
 
-                  {/* Arrow */}
-                  <span className="material-symbols-outlined text-on-surface-variant group-hover:text-primary group-hover:translate-x-1 transition-all shrink-0">
-                    arrow_forward
-                  </span>
+                  <div className="flex items-center gap-1 shrink-0">
+                    <button
+                      type="button"
+                      title="删除路线"
+                      disabled={deletingId === path.id}
+                      onClick={(e) => handleDelete(e, path)}
+                      className="p-2 rounded-lg text-on-surface-variant hover:text-red-400 hover:bg-red-500/10 transition-colors disabled:opacity-50"
+                    >
+                      <span className="material-symbols-outlined text-xl">
+                        {deletingId === path.id ? "hourglass_empty" : "delete"}
+                      </span>
+                    </button>
+                    <span className="material-symbols-outlined text-on-surface-variant group-hover:text-primary group-hover:translate-x-1 transition-all">
+                      arrow_forward
+                    </span>
+                  </div>
                 </div>
               </Link>
             );

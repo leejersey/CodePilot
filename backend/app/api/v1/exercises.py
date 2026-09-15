@@ -1,18 +1,33 @@
+import logging
 import uuid
 from typing import Optional
 from fastapi import APIRouter, Depends, HTTPException, Query
-from sqlalchemy import select, func as sa_func
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import selectinload
 
 from app.db.database import get_db
 from app.core.deps import get_current_user
-from app.models.models import Exercise, ExerciseSubmission, User, Chapter
+from app.models.models import (
+    Chapter,
+    Exercise,
+    ExerciseSubmission,
+    LearningPath,
+    User,
+)
 from app.schemas.schemas import (
     ExerciseGenerateRequest, ExerciseResponse,
     ExerciseSubmitRequest, SubmissionResponse,
 )
 from app.services.exercise import generate_exercise, judge_submission
+from app.services.kb_retrieve import (
+    filter_kbs_relevant_to_topic,
+    get_kb_snippets_for_outline,
+    list_platform_ready_kb_ids,
+    load_kbs_by_ids,
+)
 
+logger = logging.getLogger(__name__)
 router = APIRouter()
 
 
@@ -56,12 +71,50 @@ async def generate_exercise_endpoint(
     db: AsyncSession = Depends(get_db),
     user: User = Depends(get_current_user),
 ):
-    """调用 LLM 生成练习题（支持按语言/主题独立出题）"""
+    """调用 LLM 生成练习题；仅使用与语言/主题相关的平台知识库"""
+    chapter_hint = ""
+
+    if req.chapter_id:
+        ch_result = await db.execute(
+            select(Chapter)
+            .options(
+                selectinload(Chapter.path).selectinload(LearningPath.knowledge_bases)
+            )
+            .where(Chapter.id == req.chapter_id)
+        )
+        chapter = ch_result.scalar_one_or_none()
+        if not chapter:
+            raise HTTPException(status_code=404, detail="章节不存在")
+        chapter_hint = f"{chapter.title}" + (f" — {chapter.summary}" if chapter.summary else "")
+
+    relevance_topic = " ".join(
+        part for part in [req.topic, req.language, chapter_hint] if part
+    ).strip() or req.language
+
+    all_ids = await list_platform_ready_kb_ids(db)
+    all_kbs = await load_kbs_by_ids(db, all_ids)
+    kbs, _filenames = await filter_kbs_relevant_to_topic(
+        db, topic=relevance_topic, kbs=all_kbs
+    )
+
+    kb_context = ""
+    if kbs:
+        try:
+            kb_context = await get_kb_snippets_for_outline(
+                db,
+                kb_ids=[kb.id for kb in kbs],
+                topic=relevance_topic,
+                top_k=8,
+            )
+        except Exception as e:
+            logger.warning("KB retrieval for exercise failed: %s", e)
+
     exercise_data = await generate_exercise(
         language=req.language,
         difficulty=req.difficulty,
         topic=req.topic,
-        chapter_id=str(req.chapter_id) if req.chapter_id else None,
+        chapter_hint=chapter_hint,
+        kb_context=kb_context,
     )
 
     exercise = Exercise(

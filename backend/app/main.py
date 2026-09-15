@@ -1,23 +1,46 @@
 from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from sqlalchemy import select
 
 from app.core.config import get_settings
-from app.api.v1 import paths, chapters, conversations, exercises, code, auth, progress, animation
+from app.api.v1 import paths, chapters, conversations, exercises, code, auth, progress, animation, knowledge
 from app.api.ws import chat
 
 from app.db.redis import get_redis, close_redis
+from app.db.database import AsyncSessionLocal
+from app.models.models import User
 
 settings = get_settings()
+
+
+async def _sync_admin_roles() -> None:
+    """启动时根据 ADMIN_EMAILS 同步已有用户角色。"""
+    emails = settings.admin_email_set
+    if not emails:
+        return
+    try:
+        async with AsyncSessionLocal() as db:
+            result = await db.execute(select(User).where(User.email.in_(emails)))
+            users = list(result.scalars().all())
+            changed = False
+            for u in users:
+                if u.role != "admin":
+                    u.role = "admin"
+                    changed = True
+            if changed:
+                await db.commit()
+    except Exception:
+        # 启动期失败不阻断服务（例如尚未 migrate）
+        pass
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     """应用生命周期管理"""
-    # 启动时：初始化 Redis 连接
     await get_redis()
+    await _sync_admin_roles()
     yield
-    # 关闭时：释放 Redis 连接
     await close_redis()
 
 
@@ -48,6 +71,7 @@ app.include_router(code.router, prefix="/api/v1/code", tags=["Code"])
 app.include_router(auth.router, prefix="/api/v1/auth", tags=["Auth"])
 app.include_router(progress.router, prefix="/api/v1/progress", tags=["Progress"])
 app.include_router(animation.router, prefix="/api/v1/animation", tags=["Animation"])
+app.include_router(knowledge.router, prefix="/api/v1/knowledge-bases", tags=["Knowledge Bases"])
 
 # WebSocket 路由
 app.include_router(chat.router, prefix="/ws", tags=["WebSocket"])

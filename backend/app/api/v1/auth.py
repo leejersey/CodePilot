@@ -11,8 +11,17 @@ from app.schemas.schemas import (
 )
 from app.core.security import hash_password, verify_password, create_access_token
 from app.core.deps import get_current_user
+from app.core.config import is_admin_email
 
 router = APIRouter()
+
+
+def _apply_admin_role(user: User) -> bool:
+    """若邮箱在 ADMIN_EMAILS 中则晋升为 admin。返回是否发生变更。"""
+    if is_admin_email(user.email) and user.role != "admin":
+        user.role = "admin"
+        return True
+    return False
 
 
 @router.post("/register", response_model=TokenResponse, status_code=201)
@@ -27,6 +36,7 @@ async def register(req: RegisterRequest, db: AsyncSession = Depends(get_db)):
         nickname=req.nickname,
         hashed_password=hash_password(req.password),
         auth_provider="email",
+        role="admin" if is_admin_email(req.email) else "learner",
     )
     db.add(user)
     await db.commit()
@@ -48,11 +58,21 @@ async def login(req: LoginRequest, db: AsyncSession = Depends(get_db)):
     if not verify_password(req.password, user.hashed_password):
         raise HTTPException(status_code=401, detail="邮箱或密码错误")
 
+    if _apply_admin_role(user):
+        await db.commit()
+        await db.refresh(user)
+
     token = create_access_token({"sub": str(user.id)})
     return TokenResponse(access_token=token, user=UserResponse.model_validate(user))
 
 
 @router.get("/me", response_model=UserResponse)
-async def get_me(user: User = Depends(get_current_user)):
-    """获取当前用户信息"""
+async def get_me(
+    db: AsyncSession = Depends(get_db),
+    user: User = Depends(get_current_user),
+):
+    """获取当前用户信息（顺带同步 ADMIN_EMAILS 晋升）"""
+    if _apply_admin_role(user):
+        await db.commit()
+        await db.refresh(user)
     return user

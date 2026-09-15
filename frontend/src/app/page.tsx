@@ -21,7 +21,9 @@ export default function Home() {
     setLoading(true);
 
     try {
-      const data = await generatePath({ topic: finalTopic.trim() });
+      const data = await generatePath({
+        topic: finalTopic.trim(),
+      });
       router.push(`/learn/${data.id}`);
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : "生成失败，请重试");
@@ -52,22 +54,22 @@ export default function Home() {
           </p>
 
           {/* Massive Tech Search Bar */}
-          <div className="relative group max-w-3xl mx-auto mb-16">
+          <div className="relative group max-w-3xl mx-auto mb-8">
             <div className="absolute -inset-1 bg-gradient-to-r from-primary/30 to-secondary/30 rounded-xl blur-xl opacity-50 group-hover:opacity-100 transition duration-500"></div>
             <div className="relative glass-card border border-white/10 rounded-xl p-2 flex items-center shadow-2xl">
               <div className="flex-shrink-0 ml-4 mr-2">
                 <span className="material-symbols-outlined text-primary text-3xl" style={{ fontVariationSettings: "'FILL' 1" }}>terminal</span>
               </div>
-              <input 
-                className="w-full bg-transparent border-none text-on-surface placeholder:text-slate-500 text-lg md:text-xl py-4 focus:ring-0 font-body outline-none" 
-                placeholder="你想学习什么编程主题？（例如：Python 异步编程、React 状态管理...）" 
+              <input
+                className="w-full bg-transparent border-none text-on-surface placeholder:text-slate-500 text-lg md:text-xl py-4 focus:ring-0 font-body outline-none"
+                placeholder="你想学习什么编程主题？（例如：Python 异步编程、React 状态管理...）"
                 type="text"
                 value={topic}
                 onChange={(e) => { setTopic(e.target.value); setError(""); }}
                 onKeyDown={(e) => e.key === "Enter" && !loading && handleGenerate()}
                 disabled={loading}
               />
-              <button 
+              <button
                 className="ml-2 bg-primary text-on-primary-container px-8 py-4 rounded-lg font-bold hover:bg-primary-dim transition-all active:scale-95 flex items-center gap-2 whitespace-nowrap disabled:opacity-50 disabled:cursor-not-allowed"
                 onClick={() => handleGenerate()}
                 disabled={loading}
@@ -109,7 +111,7 @@ export default function Home() {
                   <span className={`w-2 h-2 rounded-full ${t.color}`}></span> {t.name}
                 </button>
               ))}
-              <button 
+              <button
                 className="px-6 py-2.5 rounded-full bg-surface-container-high border border-secondary/30 text-secondary hover:bg-secondary/10 transition-all duration-300 flex items-center gap-2"
                 onClick={() => { setTopic("AI 原生开发"); handleGenerate("AI 原生开发"); }}
                 disabled={loading}
@@ -162,4 +164,3 @@ export default function Home() {
     </>
   );
 }
-

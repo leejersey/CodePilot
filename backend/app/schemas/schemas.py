@@ -9,12 +9,26 @@ class PathGenerateRequest(BaseModel):
     topic: str = Field(..., min_length=2, max_length=200, examples=["Python 异步编程"])
     difficulty: str = Field("intermediate", pattern="^(beginner|intermediate|advanced)$")
     user_background: str = Field("", max_length=500)
+    knowledge_base_ids: list[uuid.UUID] = Field(default_factory=list)
 
 
 class ChapterOutline(BaseModel):
     order: int
     title: str
     summary: str
+    covers: list[str] = []
+
+
+class RagProvenance(BaseModel):
+    """课程生成溯源：区分知识库 RAG 课 vs 纯 AI 课"""
+    used: bool = False
+    source_type: str = "ai_generated"  # knowledge_base | ai_generated
+    kb_ids: list[str] = []
+    kb_names: list[str] = []
+    doc_count: int = 0
+    doc_filenames: list[str] = []
+    uncovered_docs: list[str] = []
+    generated_at: str | None = None
 
 
 class PathOutline(BaseModel):
@@ -22,6 +36,7 @@ class PathOutline(BaseModel):
     estimated_hours: float
     prerequisites: list[str] = []
     chapters: list[ChapterOutline]
+    rag: RagProvenance | None = None
 
 
 class PathResponse(BaseModel):
@@ -87,6 +102,7 @@ class ExerciseGenerateRequest(BaseModel):
     language: str = Field("python", max_length=50, examples=["python", "javascript", "go"])
     topic: str = Field("", max_length=200, examples=["并发编程", "数据结构"])
     difficulty: str = Field("medium", pattern="^(easy|medium|hard)$")
+    knowledge_base_ids: list[uuid.UUID] = Field(default_factory=list)
 
 
 class TestCase(BaseModel):
@@ -158,7 +174,54 @@ class UserResponse(BaseModel):
     nickname: str
     avatar_url: str | None
     auth_provider: str
+    role: str = "learner"
     created_at: datetime
 
     model_config = {"from_attributes": True}
+
+
+# ── Knowledge Base ──
+
+class KnowledgeBaseCreate(BaseModel):
+    name: str = Field(..., min_length=1, max_length=255)
+    description: str = Field("", max_length=2000)
+
+
+class KnowledgeBaseUpdate(BaseModel):
+    name: str | None = Field(None, min_length=1, max_length=255)
+    description: str | None = Field(None, max_length=2000)
+
+
+class KnowledgeDocumentResponse(BaseModel):
+    id: uuid.UUID
+    kb_id: uuid.UUID
+    filename: str
+    mime_type: str | None
+    byte_size: int
+    status: str
+    error_message: str | None
+    chunk_count: int
+    created_at: datetime
+
+    model_config = {"from_attributes": True}
+
+
+class KnowledgeBaseResponse(BaseModel):
+    id: uuid.UUID
+    name: str
+    description: str | None
+    status: str
+    created_at: datetime
+    updated_at: datetime
+    document_count: int = 0
+
+    model_config = {"from_attributes": True}
+
+
+class KnowledgeBaseDetailResponse(KnowledgeBaseResponse):
+    documents: list[KnowledgeDocumentResponse] = []
+
+
+class PathKnowledgeBindRequest(BaseModel):
+    knowledge_base_ids: list[uuid.UUID] = Field(default_factory=list)
 

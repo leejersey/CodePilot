@@ -2,10 +2,13 @@
 
 import { useEffect, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
+import Link from "next/link";
 import {
   getPath, getPathChapters,
-  type LearningPath, type Chapter,
+  getPathKnowledgeBases, rebuildPathFromKb,
+  type LearningPath, type Chapter, type KnowledgeBase,
 } from "@/lib/api";
+import { useAuth } from "@/hooks/useAuth";
 
 const CHAPTER_ICONS = [
   "lightbulb", "bolt", "refresh", "database", "architecture",
@@ -16,21 +19,26 @@ export default function LearningPathPage() {
   const params = useParams();
   const router = useRouter();
   const pathId = params.pathId as string;
+  const { isAdmin } = useAuth();
 
   const [path, setPath] = useState<LearningPath | null>(null);
   const [chapters, setChapters] = useState<Chapter[]>([]);
+  const [boundKbs, setBoundKbs] = useState<KnowledgeBase[]>([]);
+  const [rebuilding, setRebuilding] = useState(false);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
 
   useEffect(() => {
     async function fetchData() {
       try {
-        const [pathData, chaptersData] = await Promise.all([
+        const [pathData, chaptersData, pathKbs] = await Promise.all([
           getPath(pathId),
           getPathChapters(pathId),
+          getPathKnowledgeBases(pathId).catch(() => [] as KnowledgeBase[]),
         ]);
         setPath(pathData);
         setChapters(chaptersData);
+        setBoundKbs(pathKbs);
       } catch (err: unknown) {
         setError(err instanceof Error ? err.message : "加载失败");
       } finally {
@@ -40,6 +48,33 @@ export default function LearningPathPage() {
 
     if (pathId) fetchData();
   }, [pathId]);
+
+  const handleRebuildFromKb = async () => {
+    if (
+      !confirm(
+        "将根据平台知识库重新生成章节大纲（替换现有章节，学习进度会重置）。是否继续？"
+      )
+    ) {
+      return;
+    }
+    setRebuilding(true);
+    setError("");
+    try {
+      const updated = await rebuildPathFromKb(pathId);
+      setPath(updated);
+      const [chaptersData, pathKbs] = await Promise.all([
+        getPathChapters(pathId),
+        getPathKnowledgeBases(pathId),
+      ]);
+      setChapters(chaptersData);
+      setBoundKbs(pathKbs);
+      window.dispatchEvent(new Event("chapter-status-changed"));
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : "重建课程失败");
+    } finally {
+      setRebuilding(false);
+    }
+  };
 
   if (loading) {
     return (
@@ -52,7 +87,7 @@ export default function LearningPathPage() {
     );
   }
 
-  if (error || !path) {
+  if (error && !path) {
     return (
       <div className="flex items-center justify-center h-full">
         <div className="text-center">
@@ -69,6 +104,8 @@ export default function LearningPathPage() {
     );
   }
 
+  if (!path) return null;
+
   const completedCount = chapters.filter((c) => c.status === "completed").length;
   const totalCount = chapters.length;
   const progressPercent = totalCount > 0 ? Math.round((completedCount / totalCount) * 100) : 0;
@@ -76,7 +113,6 @@ export default function LearningPathPage() {
 
   return (
     <div className="max-w-6xl mx-auto w-full pb-20 p-6 md:p-10 h-full overflow-y-auto">
-      {/* Breadcrumbs & Header */}
       <div className="mb-10">
         <div className="flex items-center gap-2 text-on-surface-variant text-xs mb-4 font-label tracking-widest uppercase">
           <button onClick={() => router.push("/")} className="hover:text-primary transition-colors">首页</button>
@@ -84,7 +120,20 @@ export default function LearningPathPage() {
           <span className="text-primary">{path.topic}</span>
         </div>
         <h1 className="text-4xl md:text-5xl font-bold font-headline mb-4 tracking-tight">{path.topic}</h1>
-        <div className="flex items-center gap-3 flex-wrap">
+        <div className="flex items-center gap-3 flex-wrap mb-4">
+          {(() => {
+            const rag = path.outline?.rag;
+            const isKb = rag?.source_type === "knowledge_base" || rag?.used;
+            return isKb ? (
+              <span className="text-[10px] font-bold px-3 py-1 rounded-full bg-primary/20 text-primary border border-primary/30 uppercase tracking-wider">
+                知识库课程
+              </span>
+            ) : (
+              <span className="text-[10px] font-bold px-3 py-1 rounded-full bg-slate-500/20 text-slate-300 border border-slate-500/30 uppercase tracking-wider">
+                AI 生成课程
+              </span>
+            );
+          })()}
           <span className="text-[10px] font-bold px-3 py-1 rounded-full bg-primary/20 text-primary uppercase">
             {path.difficulty}
           </span>
@@ -96,7 +145,102 @@ export default function LearningPathPage() {
         </div>
       </div>
 
-      {/* Overall Progress Section */}
+      {(() => {
+        const rag = path.outline?.rag;
+        const isKb = rag?.source_type === "knowledge_base" || rag?.used;
+        if (isKb) {
+          const names = (rag?.kb_names?.length ? rag.kb_names : boundKbs.map((k) => k.name)).join("、") || "平台知识库";
+          const docCount = rag?.doc_count ?? boundKbs.reduce((s, k) => s + (k.document_count || 0), 0);
+          return (
+            <section className="mb-6 p-4 rounded-xl bg-primary/10 border border-primary/25 text-sm">
+              <div className="flex items-start gap-3">
+                <span className="material-symbols-outlined text-primary mt-0.5">menu_book</span>
+                <div className="flex-1 min-w-0">
+                  <p className="text-on-surface font-medium">
+                    本课程依据知识库「{names}」生成
+                    {docCount > 0 && <span className="text-on-surface-variant font-normal"> · {docCount} 份文档</span>}
+                  </p>
+                  {rag?.uncovered_docs && rag.uncovered_docs.length > 0 && (
+                    <p className="text-yellow-200/90 text-xs mt-2">
+                      有 {rag.uncovered_docs.length} 份文档可能未覆盖进大纲（如 {rag.uncovered_docs[0]}
+                      {rag.uncovered_docs.length > 1 ? " 等" : ""}），可点击下方「根据知识库重建课程」。
+                    </p>
+                  )}
+                </div>
+              </div>
+            </section>
+          );
+        }
+        return (
+          <section className="mb-6 p-4 rounded-xl bg-yellow-500/10 border border-yellow-500/25 text-sm">
+            <div className="flex flex-col sm:flex-row sm:items-center gap-3 justify-between">
+              <div className="flex items-start gap-3">
+                <span className="material-symbols-outlined text-yellow-300 mt-0.5">auto_awesome</span>
+                <div>
+                  <p className="text-yellow-100 font-medium">当前为通用 AI 大纲，未引用知识库</p>
+                  <p className="text-yellow-200/70 text-xs mt-1">
+                    平台有就绪知识库时可一键重建为知识库课程。
+                  </p>
+                </div>
+              </div>
+              <button
+                type="button"
+                className="shrink-0 text-xs px-3 py-1.5 rounded-lg bg-secondary/20 text-secondary border border-secondary/30 hover:bg-secondary/30 disabled:opacity-50"
+                onClick={handleRebuildFromKb}
+                disabled={rebuilding}
+              >
+                {rebuilding ? "重建中..." : "用知识库重建"}
+              </button>
+            </div>
+          </section>
+        );
+      })()}
+
+      <section className="mb-10 p-5 rounded-xl bg-surface-container-low border border-outline-variant/10">
+        <div className="flex items-center justify-between mb-3 gap-3 flex-wrap">
+          <h2 className="text-sm font-bold font-headline flex items-center gap-2">
+            <span className="material-symbols-outlined text-base text-primary">menu_book</span>
+            关联平台知识库
+          </h2>
+          <button
+            className="text-xs px-3 py-1.5 rounded-lg bg-secondary/20 text-secondary border border-secondary/30 hover:bg-secondary/30 disabled:opacity-50"
+            onClick={handleRebuildFromKb}
+            disabled={rebuilding}
+          >
+            {rebuilding ? "正在根据知识库重建..." : "根据知识库重建课程"}
+          </button>
+        </div>
+
+        {boundKbs.length === 0 ? (
+          <div className="p-3 rounded-lg bg-yellow-500/10 border border-yellow-500/20 text-yellow-200 text-sm">
+            当前课程尚未关联平台知识库。可点击「根据知识库重建课程」自动使用平台资料；若仍失败，请联系管理员上传知识库。
+          </div>
+        ) : (
+          <div className="flex flex-wrap gap-2">
+            {boundKbs.map((kb) =>
+              isAdmin ? (
+                <Link
+                  key={kb.id}
+                  href={`/knowledge/${kb.id}`}
+                  className="px-3 py-1.5 rounded-full bg-primary/10 border border-primary/20 text-primary text-sm hover:bg-primary/20"
+                >
+                  {kb.name}
+                  <span className="ml-1 opacity-60 text-xs">({kb.document_count})</span>
+                </Link>
+              ) : (
+                <span
+                  key={kb.id}
+                  className="px-3 py-1.5 rounded-full bg-primary/10 border border-primary/20 text-primary text-sm"
+                >
+                  {kb.name}
+                  <span className="ml-1 opacity-60 text-xs">({kb.document_count})</span>
+                </span>
+              )
+            )}
+          </div>
+        )}
+      </section>
+
       <section className="mb-12 bg-surface-container-low rounded-xl p-6 border border-outline-variant/10 relative overflow-hidden">
         <div className="absolute top-0 left-0 w-1 h-full bg-primary shadow-[0_0_15px_rgba(83,221,252,0.5)]"></div>
         <div className="flex flex-col md:flex-row md:items-center justify-between gap-6">
@@ -126,15 +270,12 @@ export default function LearningPathPage() {
         </div>
       </section>
 
-      {/* Learning Path Cards - Bento Style Layout */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
         {chapters.map((chapter, idx) => {
           const isCompleted = chapter.status === "completed";
           const isActive = chapter.status === "unlocked" || chapter.status === "in_progress";
-          const isLocked = chapter.status === "locked";
           const icon = CHAPTER_ICONS[idx % CHAPTER_ICONS.length];
 
-          // Active chapter: large card spanning 2 columns
           if (isActive) {
             return (
               <div
@@ -167,7 +308,6 @@ export default function LearningPathPage() {
             );
           }
 
-          // Completed chapter
           if (isCompleted) {
             return (
               <div key={chapter.id} className="group relative bg-surface-container-high rounded-xl p-6 border border-primary/20 transition-all hover:bg-surface-bright/50">
@@ -191,7 +331,6 @@ export default function LearningPathPage() {
             );
           }
 
-          // Locked chapter
           return (
             <div key={chapter.id} className="group relative bg-surface-container-low rounded-xl p-6 border border-outline-variant/10 opacity-70">
               <div className="absolute inset-0 flex items-center justify-center bg-background/40 backdrop-blur-[2px] rounded-xl z-10 group-hover:backdrop-blur-none transition-all">
@@ -209,7 +348,6 @@ export default function LearningPathPage() {
         })}
       </div>
 
-      {/* Footer AI Hint */}
       {currentChapter && (
         <div className="mt-16 p-8 rounded-2xl bg-surface-container-high border border-outline-variant/20 flex flex-col md:flex-row items-center gap-8">
           <div className="w-16 h-16 rounded-full bg-tertiary/10 flex items-center justify-center text-tertiary">

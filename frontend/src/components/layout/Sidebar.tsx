@@ -68,7 +68,7 @@ export function Sidebar() {
           </div>
           <div className="min-w-0 flex-1">
             <h2 className="text-sm font-bold text-cyan-400 font-headline leading-tight truncate">
-              {pathInfo?.topic || "Learning Path"}
+              {pathInfo?.topic || "学习路径"}
             </h2>
             <p className="text-xs text-slate-500">{progressPercent}% · {completedCount}/{totalCount} 章节</p>
           </div>

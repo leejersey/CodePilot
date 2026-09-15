@@ -30,8 +30,8 @@ export function TrendChart({ data }: { data: ActivityItem[] }) {
   // 填充区域
   const areaPath = `${linePath} L ${points[points.length - 1].x} ${padding.top + chartH} L ${points[0].x} ${padding.top + chartH} Z`;
 
-  // Y 轴刻度
-  const yTicks = [0, Math.round(maxVal / 2), maxVal];
+  // Y 轴刻度（去重，避免 max=1 时出现 [0,1,1] 导致 key 冲突）
+  const yTicks = [...new Set([0, Math.round(maxVal / 2), maxVal])];
 
   return (
     <div className="glass-panel bg-surface-container/50 rounded-2xl p-5 border border-white/5">
@@ -42,10 +42,10 @@ export function TrendChart({ data }: { data: ActivityItem[] }) {
 
       <svg viewBox={`0 0 ${width} ${height}`} className="w-full" preserveAspectRatio="xMidYMid meet">
         {/* 网格线 */}
-        {yTicks.map(val => {
+        {yTicks.map((val, i) => {
           const y = padding.top + chartH - (val / maxVal) * chartH;
           return (
-            <g key={val}>
+            <g key={`y-${i}-${val}`}>
               <line x1={padding.left} x2={width - padding.right} y1={y} y2={y} stroke="rgba(100,116,139,0.15)" strokeDasharray="4 4" />
               <text x={padding.left - 8} y={y + 3} textAnchor="end" fontSize={10} fill="#64748b">{val}</text>
             </g>

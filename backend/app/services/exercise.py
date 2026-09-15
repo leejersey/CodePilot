@@ -8,17 +8,32 @@ async def generate_exercise(
     language: str = "python",
     difficulty: str = "medium",
     topic: str = "",
-    chapter_id: str | None = None,
+    chapter_hint: str = "",
+    kb_context: str = "",
 ) -> dict:
-    """调用 LLM 生成编程练习题（支持按语言/主题独立出题）"""
+    """调用 LLM 生成编程练习题（支持按语言/主题/知识库出题）"""
 
     topic_hint = f"\n主题方向: {topic}" if topic else ""
-    chapter_hint = f"\n关联章节ID: {chapter_id}" if chapter_id else ""
+    chapter_section = f"\n关联章节: {chapter_hint}" if chapter_hint else ""
+
+    kb_section = ""
+    if kb_context:
+        kb_section = f"""
+
+【重要】用户已绑定知识库。你必须依据知识库资料出题，而不是出一套与资料无关的通用题。
+要求：
+1. 题目场景、知识点、变量/函数命名尽量来自知识库内容
+2. description 中可点名相关概念或阶段（如文档中的章节名）
+3. starter_code 与 test_cases 要贴合知识库中的写法与难度，不要另起一套无关考题
+
+知识库资料如下：
+{kb_context}
+"""
 
     prompt = f"""你是一位编程教育专家。请生成一道 {language} 语言的编程练习题。
 
-难度: {difficulty}{topic_hint}{chapter_hint}
-
+难度: {difficulty}{topic_hint}{chapter_section}
+{kb_section}
 要求：
 1. 题目应当有真实场景背景，不要出过于抽象的题。
 2. starter_code 里要体现 {language} 语言的特征和最佳实践。

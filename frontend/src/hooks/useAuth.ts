@@ -10,12 +10,14 @@ interface User {
   nickname: string;
   avatar_url: string | null;
   auth_provider: string;
+  role: "learner" | "admin" | string;
 }
 
 interface AuthState {
   token: string | null;
   user: User | null;
   loading: boolean;
+  isAdmin: boolean;
 
   /** 初始化：从 localStorage 恢复 token 并获取用户信息 */
   init: () => Promise<void>;
@@ -33,11 +35,12 @@ export const useAuth = create<AuthState>((set, get) => ({
   token: null,
   user: null,
   loading: true,
+  isAdmin: false,
 
   init: async () => {
     const saved = typeof window !== "undefined" ? localStorage.getItem("codepilot_token") : null;
     if (!saved) {
-      set({ loading: false });
+      set({ loading: false, isAdmin: false });
       return;
     }
     set({ token: saved });
@@ -47,11 +50,11 @@ export const useAuth = create<AuthState>((set, get) => ({
       });
       if (res.ok) {
         const user = await res.json();
-        set({ user, token: saved, loading: false });
+        set({ user, token: saved, loading: false, isAdmin: user.role === "admin" });
       } else {
         // Token 过期或无效
         localStorage.removeItem("codepilot_token");
-        set({ token: null, user: null, loading: false });
+        set({ token: null, user: null, loading: false, isAdmin: false });
       }
     } catch {
       set({ loading: false });
@@ -70,7 +73,12 @@ export const useAuth = create<AuthState>((set, get) => ({
     }
     const data = await res.json();
     localStorage.setItem("codepilot_token", data.access_token);
-    set({ token: data.access_token, user: data.user, loading: false });
+    set({
+      token: data.access_token,
+      user: data.user,
+      loading: false,
+      isAdmin: data.user?.role === "admin",
+    });
   },
 
   login: async (email, password) => {
@@ -85,17 +93,22 @@ export const useAuth = create<AuthState>((set, get) => ({
     }
     const data = await res.json();
     localStorage.setItem("codepilot_token", data.access_token);
-    set({ token: data.access_token, user: data.user, loading: false });
+    set({
+      token: data.access_token,
+      user: data.user,
+      loading: false,
+      isAdmin: data.user?.role === "admin",
+    });
   },
 
   logout: () => {
     localStorage.removeItem("codepilot_token");
-    set({ token: null, user: null });
+    set({ token: null, user: null, isAdmin: false });
   },
 
   authHeader: () => {
     const { token } = get();
     if (token) return { Authorization: `Bearer ${token}` };
-    return {};
+    return {} as Record<string, string>;
   },
 }));

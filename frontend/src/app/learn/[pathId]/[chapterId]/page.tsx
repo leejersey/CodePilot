@@ -9,18 +9,30 @@ import { usePyodide } from "@/hooks/usePyodide";
 import { StepAnimator } from "@/components/StepAnimator";
 import { AnimationPlayer } from "@/components/AnimationPlayer";
 import {
-  WS_BASE, getAnonymousId,
+  WS_BASE,
   getPath as fetchPath, getChapter as fetchChapter,
   createConversation as apiCreateConversation,
+  getConversationByChapter,
+  getMessages,
   runCode as apiRunCode,
   generateAnimation as apiGenerateAnimation,
   updateChapterStatus,
 } from "@/lib/api";
+import { defaultFilename, extractCodeBlocks, fingerprintCode } from "@/lib/codeBlocks";
 
 interface ChatMessage {
   id?: string;
   role: "user" | "assistant" | "system";
   content: string;
+}
+
+interface EditorTab {
+  id: string;
+  label: string;
+  language: string;
+  originCode: string;
+  code: string;
+  fingerprint: string;
 }
 
 // 根据主题推断编辑器语言
@@ -57,7 +69,17 @@ export default function LearningWorkspacePage() {
   const [streaming, setStreaming] = useState(false);
   const [convId, setConvId] = useState<string | null>(null);
   const [editorInfo, setEditorInfo] = useState({ lang: "python", file: "main.py", comment: "#", runtime: "Python 3.12 environment ready." });
-  const [code, setCode] = useState(`# 在这里编写代码\n`);
+  const [tabs, setTabs] = useState<EditorTab[]>([
+    {
+      id: "scratch",
+      label: "草稿.py",
+      language: "python",
+      originCode: "# 在这里编写代码\n",
+      code: "# 在这里编写代码\n",
+      fingerprint: "scratch",
+    },
+  ]);
+  const [activeTabId, setActiveTabId] = useState("scratch");
   const [consoleOutput, setConsoleOutput] = useState<string[]>(["环境加载中..."]);
   const [running, setRunning] = useState(false);
   const [chapterCompleted, setChapterCompleted] = useState(false);
@@ -75,6 +97,100 @@ export default function LearningWorkspacePage() {
   }, []);
 
   useEffect(() => { scrollToBottom(); }, [messages, scrollToBottom]);
+
+  const activeTab = tabs.find((t) => t.id === activeTabId) || tabs[0];
+  const activeCode = activeTab?.code ?? "";
+  const activeLang = activeTab?.language || editorInfo.lang;
+
+  // 从课程消息同步代码 Tab（保留用户已修改内容）
+  useEffect(() => {
+    if (streaming) return;
+    const assistantText = messages
+      .filter((m) => m.role === "assistant")
+      .map((m) => m.content)
+      .join("\n\n");
+    const blocks = extractCodeBlocks(assistantText);
+    if (blocks.length === 0) return;
+
+    setTabs((prev) => {
+      const scratch = prev.find((t) => t.id === "scratch");
+      const byFp = new Map(prev.map((t) => [t.fingerprint, t]));
+      const nextLessonTabs: EditorTab[] = blocks.map((b, i) => {
+        const existing = byFp.get(b.fingerprint);
+        if (existing) {
+          const edited = existing.code !== existing.originCode;
+          return {
+            ...existing,
+            label: defaultFilename(b.language, i),
+            language: b.language,
+            originCode: b.code,
+            code: edited ? existing.code : b.code,
+          };
+        }
+        return {
+          id: `lesson-${b.fingerprint}`,
+          label: defaultFilename(b.language, i),
+          language: b.language,
+          originCode: b.code,
+          code: b.code,
+          fingerprint: b.fingerprint,
+        };
+      });
+
+      const merged = [
+        ...(scratch
+          ? [scratch]
+          : [
+              {
+                id: "scratch",
+                label: "草稿.py",
+                language: editorInfo.lang,
+                originCode: `${editorInfo.comment} 在这里编写代码\n`,
+                code: `${editorInfo.comment} 在这里编写代码\n`,
+                fingerprint: "scratch",
+              } as EditorTab,
+            ]),
+        ...nextLessonTabs,
+      ];
+      return merged;
+    });
+
+    setActiveTabId((curr) => {
+      if (curr === "scratch") {
+        const first = blocks[0];
+        return first ? `lesson-${first.fingerprint}` : curr;
+      }
+      return curr;
+    });
+  }, [messages, streaming, editorInfo.lang, editorInfo.comment]);
+
+  const openInEditor = useCallback((code: string, language: string) => {
+    const lang = language.toLowerCase();
+    const fp = fingerprintCode(lang, code);
+    setTabs((prev) => {
+      const existing = prev.find((t) => t.fingerprint === fp || t.id === `lesson-${fp}`);
+      if (existing) return prev;
+      const lessonCount = prev.filter((t) => t.id.startsWith("lesson-")).length;
+      return [
+        ...prev,
+        {
+          id: `lesson-${fp}`,
+          label: defaultFilename(lang, lessonCount),
+          language: lang,
+          originCode: code,
+          code,
+          fingerprint: fp,
+        },
+      ];
+    });
+    setActiveTabId(`lesson-${fp}`);
+  }, []);
+
+  const updateActiveCode = (value: string) => {
+    setTabs((prev) =>
+      prev.map((t) => (t.id === activeTabId ? { ...t, code: value } : t))
+    );
+  };
 
   // 1. 创建对话
   const createConversation = useCallback(async () => {
@@ -116,62 +232,125 @@ export default function LearningWorkspacePage() {
     });
   }, []);
 
-  // 3. 页面加载时自动引导
-  const initDone = useRef(false);
+  // 3. 页面加载：复用章节对话（有历史则恢复，否则新建并引导）
   useEffect(() => {
-    if (initDone.current) return;
-    initDone.current = true;
+    let cancelled = false;
 
-    async function autoGuide() {
+    async function initWorkspace() {
       // 获取路线信息推断语言
+      let langLabel = "Python";
       try {
         const p = await fetchPath(pathId);
+        if (cancelled) return;
         const info = detectLang(p.topic || "");
         setEditorInfo(info);
-        setCode(`${info.comment} 在这里编写代码\n`);
+        const scratchCode = `${info.comment} 在这里编写代码\n`;
+        setTabs([
+          {
+            id: "scratch",
+            label: info.file.replace("main", "草稿").replace("Main", "草稿").replace("index", "草稿"),
+            language: info.lang,
+            originCode: scratchCode,
+            code: scratchCode,
+            fingerprint: "scratch",
+          },
+        ]);
+        setActiveTabId("scratch");
         setConsoleOutput([info.runtime]);
+        langLabel = info.lang === "cpp" ? "C++" : info.lang.charAt(0).toUpperCase() + info.lang.slice(1);
       } catch { /* ignore */ }
+
+      if (cancelled) return;
 
       // 获取章节信息
       let chapterTitle = "本章内容";
       try {
         const ch = await fetchChapter(chapterId);
+        if (cancelled) return;
         chapterTitle = ch.title || chapterTitle;
       } catch { /* ignore */ }
 
-      // 创建对话
-      const newConvId = await createConversation();
-      if (!newConvId) return;
-
-      // 连接 WebSocket 并发送引导消息
-      setStreaming(true);
+      // 优先恢复该章节已有对话
+      let conversationId: string | null = null;
+      let hasHistory = false;
       try {
-        const ws = await connectWs(newConvId);
-        ws.send(JSON.stringify({
-          type: "message",
-          content: `我刚进入「${chapterTitle}」章节的学习页面。请你作为 AI 编程导师，先简要介绍一下这个章节会学到什么，然后问问我有没有相关基础、想从哪个方面开始学起。用友好亲切的语气。`,
-        }));
-      } catch { setStreaming(false); }
+        const existing = await getConversationByChapter(chapterId);
+        if (cancelled) return;
+        if (existing) {
+          conversationId = existing.id;
+          const history = await getMessages(existing.id);
+          if (cancelled) return;
+          const restored = history
+            .filter((m) => m.role === "user" || m.role === "assistant" || m.role === "system")
+            .map((m) => ({
+              id: m.id,
+              role: m.role as ChatMessage["role"],
+              content: m.content,
+            }));
+          if (restored.length > 0) {
+            setMessages(restored);
+            hasHistory = true;
+          }
+        }
+      } catch { /* ignore */ }
+
+      if (!conversationId) {
+        conversationId = await createConversation();
+      } else {
+        setConvId(conversationId);
+      }
+      if (cancelled || !conversationId) return;
+
+      try {
+        await connectWs(conversationId);
+        if (cancelled) return;
+        // 无历史才发送自动引导；有历史则直接续聊
+        if (!hasHistory) {
+          setStreaming(true);
+          const ws = wsRef.current;
+          if (!ws) {
+            setStreaming(false);
+            return;
+          }
+          ws.send(JSON.stringify({
+            type: "message",
+            content: `我刚进入「${chapterTitle}」章节的学习页面。我当前的学习路径语言是 ${langLabel}。请你作为 AI 编程导师，全程用 ${langLabel} 讲解并给代码示例，不要询问或切换其他语言。先简要介绍本章会学到什么，然后问问我有没有相关基础、想从哪个方面开始学起。用友好亲切的语气。`,
+          }));
+        }
+      } catch {
+        setStreaming(false);
+      }
     }
 
-    autoGuide();
+    setMessages([]);
+    setConvId(null);
+    setStreaming(false);
+    initWorkspace();
+
+    return () => {
+      cancelled = true;
+      if (wsRef.current) {
+        wsRef.current.close();
+        wsRef.current = null;
+      }
+    };
   }, [chapterId, pathId, createConversation, connectWs]);
 
   // 5. 运行代码
   const { runPython, loading: pyodideLoading, ready: pyodideReady } = usePyodide();
 
   const runCode = async () => {
-    if (running || !code.trim()) return;
+    if (running || !activeCode.trim()) return;
     setRunning(true);
     setConsoleOutput(prev => [...prev, "▶ Running..."]);
 
     try {
-      if (editorInfo.lang === "python") {
+      if (activeLang === "python") {
         // Python → Pyodide 浏览器端真实执行
         if (!pyodideReady) {
           setConsoleOutput(prev => [...prev, "⚙️ 正在加载 Python 环境 (Pyodide)..."]);
         }
-        const result = await runPython(code);
+        const result = await runPython(activeCode);
         setConsoleOutput(prev => [
           ...prev,
           result.output,
@@ -179,7 +358,7 @@ export default function LearningWorkspacePage() {
         ]);
       } else {
         // 非 Python → AI 模拟执行
-        const data = await apiRunCode(code, editorInfo.lang);
+        const data = await apiRunCode(activeCode, activeLang);
         setConsoleOutput(prev => [...prev, data.output, "Program finished."]);
       }
     } catch {
@@ -243,7 +422,12 @@ export default function LearningWorkspacePage() {
                   <span className="material-symbols-outlined text-secondary text-sm" style={{ fontVariationSettings: "'FILL' 1" }}>smart_toy</span>
                 </div>
                 <div className="glass-panel bg-surface-container-high/40 p-5 rounded-2xl rounded-tl-none border border-white/5 shadow-xl text-on-surface-variant">
-                  <StepAnimator content={msg.content} isStreaming={streaming && i === messages.length - 1} />
+                  <StepAnimator
+                    content={msg.content}
+                    isStreaming={streaming && i === messages.length - 1}
+                    onOpenInEditor={openInEditor}
+                    activeFingerprint={activeTab?.fingerprint}
+                  />
                 </div>
               </div>
             )
@@ -351,13 +535,26 @@ export default function LearningWorkspacePage() {
       {/* Right: Code Sandbox */}
       <section className="w-[450px] hidden lg:flex flex-col bg-surface-container-low overflow-hidden">
         <div className="flex-1 flex flex-col min-h-0 border-b border-white/5">
-          <div className="flex items-center justify-between px-4 py-3 bg-surface-container-high/50">
-            <div className="flex items-center gap-2">
-              <span className="material-symbols-outlined text-secondary text-sm">code</span>
-              <span className="text-xs font-bold tracking-tight text-slate-300 font-headline">{editorInfo.file}</span>
+          <div className="flex items-center justify-between gap-2 px-2 py-2 bg-surface-container-high/50 border-b border-white/5">
+            <div className="flex items-center gap-1 overflow-x-auto min-w-0 flex-1 scrollbar-none">
+              {tabs.map((tab) => (
+                <button
+                  key={tab.id}
+                  type="button"
+                  onClick={() => setActiveTabId(tab.id)}
+                  className={`flex-shrink-0 px-2.5 py-1.5 rounded-md text-[11px] font-mono transition-colors ${
+                    tab.id === activeTabId
+                      ? "bg-primary/20 text-primary border border-primary/30"
+                      : "text-slate-400 hover:text-slate-200 hover:bg-white/5"
+                  }`}
+                  title={tab.label}
+                >
+                  {tab.label}
+                </button>
+              ))}
             </div>
             <button
-              className="flex items-center gap-1 px-3 py-1.5 bg-primary text-on-primary text-xs font-bold rounded-lg hover:brightness-110 transition-all active:scale-95 disabled:opacity-50"
+              className="flex-shrink-0 flex items-center gap-1 px-3 py-1.5 bg-primary text-on-primary text-xs font-bold rounded-lg hover:brightness-110 transition-all active:scale-95 disabled:opacity-50"
               onClick={runCode}
               disabled={running}
             >
@@ -371,10 +568,11 @@ export default function LearningWorkspacePage() {
           <div className="flex-1 relative overflow-hidden">
             <Editor
               height="100%"
-              defaultLanguage={editorInfo.lang}
+              language={activeLang}
+              path={activeTab?.id || "scratch"}
               theme="vs-dark"
-              value={code}
-              onChange={(v) => setCode(v || "")}
+              value={activeCode}
+              onChange={(v) => updateActiveCode(v || "")}
               options={{
                 minimap: { enabled: false },
                 fontSize: 14,

@@ -51,8 +51,20 @@ async def get_current_user(
     user = result.scalar_one_or_none()
 
     if not user:
-        user = User(id=anon_uuid, nickname="Learner", auth_provider="anonymous")
+        user = User(
+            id=anon_uuid,
+            nickname="Learner",
+            auth_provider="anonymous",
+            role="learner",
+        )
         db.add(user)
         await db.flush()
 
+    return user
+
+
+async def require_admin(user: User = Depends(get_current_user)) -> User:
+    """仅管理员可访问。"""
+    if getattr(user, "role", None) != "admin":
+        raise HTTPException(status_code=403, detail="需要管理员权限")
     return user

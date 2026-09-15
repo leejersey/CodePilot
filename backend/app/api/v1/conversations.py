@@ -1,6 +1,6 @@
 import uuid
 from fastapi import APIRouter, Depends, HTTPException
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.db.database import get_db
@@ -28,9 +28,46 @@ async def create_conversation(
     return conv
 
 
+@router.get("/by-chapter/{chapter_id}", response_model=ConversationResponse)
+async def get_conversation_by_chapter(
+    chapter_id: uuid.UUID,
+    db: AsyncSession = Depends(get_db),
+    user: User = Depends(get_current_user),
+):
+    """返回当前用户在该章节下最值得恢复的对话（优先有消息的）。"""
+    msg_count = (
+        select(Message.conversation_id, func.count(Message.id).label("cnt"))
+        .group_by(Message.conversation_id)
+        .subquery()
+    )
+    result = await db.execute(
+        select(Conversation)
+        .outerjoin(msg_count, Conversation.id == msg_count.c.conversation_id)
+        .where(Conversation.user_id == user.id)
+        .where(Conversation.chapter_id == chapter_id)
+        .order_by(
+            func.coalesce(msg_count.c.cnt, 0).desc(),
+            Conversation.updated_at.desc(),
+        )
+        .limit(1)
+    )
+    conv = result.scalar_one_or_none()
+    if not conv:
+        raise HTTPException(status_code=404, detail="该章节暂无对话")
+    return conv
+
+
 @router.get("/{conv_id}", response_model=ConversationResponse)
-async def get_conversation(conv_id: uuid.UUID, db: AsyncSession = Depends(get_db)):
-    result = await db.execute(select(Conversation).where(Conversation.id == conv_id))
+async def get_conversation(
+    conv_id: uuid.UUID,
+    db: AsyncSession = Depends(get_db),
+    user: User = Depends(get_current_user),
+):
+    result = await db.execute(
+        select(Conversation)
+        .where(Conversation.id == conv_id)
+        .where(Conversation.user_id == user.id)
+    )
     conv = result.scalar_one_or_none()
     if not conv:
         raise HTTPException(status_code=404, detail="对话不存在")
@@ -38,7 +75,19 @@ async def get_conversation(conv_id: uuid.UUID, db: AsyncSession = Depends(get_db
 
 
 @router.get("/{conv_id}/messages", response_model=list[MessageResponse])
-async def get_messages(conv_id: uuid.UUID, db: AsyncSession = Depends(get_db)):
+async def get_messages(
+    conv_id: uuid.UUID,
+    db: AsyncSession = Depends(get_db),
+    user: User = Depends(get_current_user),
+):
+    owned = await db.execute(
+        select(Conversation.id)
+        .where(Conversation.id == conv_id)
+        .where(Conversation.user_id == user.id)
+    )
+    if not owned.scalar_one_or_none():
+        raise HTTPException(status_code=404, detail="对话不存在")
+
     result = await db.execute(
         select(Message).where(Message.conversation_id == conv_id).order_by(Message.created_at)
     )

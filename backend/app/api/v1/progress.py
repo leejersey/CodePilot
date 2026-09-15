@@ -112,6 +112,16 @@ async def get_user_paths(
             .where(Chapter.path_id == path.id)
         )
         ch = ch_result.one()
+        rag = path.outline.get("rag") if isinstance(path.outline, dict) else None
+        if isinstance(rag, dict) and rag.get("source_type"):
+            source_type = rag["source_type"]
+            kb_names = rag.get("kb_names") or []
+        elif isinstance(rag, dict) and rag.get("used"):
+            source_type = "knowledge_base"
+            kb_names = rag.get("kb_names") or []
+        else:
+            source_type = "ai_generated"
+            kb_names = []
         result.append({
             "id": str(path.id),
             "topic": path.topic,
@@ -120,6 +130,8 @@ async def get_user_paths(
             "total_chapters": ch.total,
             "completed_chapters": ch.completed,
             "progress": round(ch.completed / ch.total * 100) if ch.total > 0 else 0,
+            "source_type": source_type,
+            "kb_names": kb_names,
             "created_at": path.created_at.isoformat() if path.created_at else None,
             "updated_at": path.updated_at.isoformat() if path.updated_at else None,
         })

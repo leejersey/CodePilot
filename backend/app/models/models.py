@@ -1,12 +1,22 @@
 import uuid
 from datetime import datetime
-from sqlalchemy import String, Text, Integer, ForeignKey, DateTime, func
+from sqlalchemy import String, Text, Integer, ForeignKey, DateTime, Table, Column, func
 from sqlalchemy.dialects.postgresql import UUID, JSONB
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, relationship
+from app.db.types import AsyncpgVector
 
 
 class Base(DeclarativeBase):
     pass
+
+
+# 学习路径 ↔ 知识库 多对多
+path_knowledge_bases = Table(
+    "path_knowledge_bases",
+    Base.metadata,
+    Column("path_id", UUID(as_uuid=True), ForeignKey("learning_paths.id", ondelete="CASCADE"), primary_key=True),
+    Column("kb_id", UUID(as_uuid=True), ForeignKey("knowledge_bases.id", ondelete="CASCADE"), primary_key=True),
+)
 
 
 class User(Base):
@@ -18,6 +28,7 @@ class User(Base):
     hashed_password: Mapped[str | None] = mapped_column(String(255), nullable=True)
     avatar_url: Mapped[str | None] = mapped_column(String(512), nullable=True)
     auth_provider: Mapped[str] = mapped_column(String(20), default="anonymous")
+    role: Mapped[str] = mapped_column(String(20), default="learner")  # learner | admin
     preferences: Mapped[dict | None] = mapped_column(JSONB, nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
@@ -25,6 +36,7 @@ class User(Base):
     learning_paths = relationship("LearningPath", back_populates="user")
     conversations = relationship("Conversation", back_populates="user")
     submissions = relationship("ExerciseSubmission", back_populates="user")
+    knowledge_bases = relationship("KnowledgeBase", back_populates="user")
 
 
 class LearningPath(Base):
@@ -41,6 +53,11 @@ class LearningPath(Base):
 
     user = relationship("User", back_populates="learning_paths")
     chapters = relationship("Chapter", back_populates="path", order_by="Chapter.sort_order")
+    knowledge_bases = relationship(
+        "KnowledgeBase",
+        secondary=path_knowledge_bases,
+        back_populates="paths",
+    )
 
 
 class Chapter(Base):
@@ -122,3 +139,63 @@ class ExerciseSubmission(Base):
 
     exercise = relationship("Exercise", back_populates="submissions")
     user = relationship("User", back_populates="submissions")
+
+
+class KnowledgeBase(Base):
+    __tablename__ = "knowledge_bases"
+
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    user_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("users.id"), index=True)
+    name: Mapped[str] = mapped_column(String(255))
+    description: Mapped[str | None] = mapped_column(Text, nullable=True)
+    status: Mapped[str] = mapped_column(String(20), default="active")
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
+
+    user = relationship("User", back_populates="knowledge_bases")
+    documents = relationship("KnowledgeDocument", back_populates="knowledge_base", cascade="all, delete-orphan")
+    chunks = relationship("KnowledgeChunk", back_populates="knowledge_base", cascade="all, delete-orphan")
+    paths = relationship(
+        "LearningPath",
+        secondary=path_knowledge_bases,
+        back_populates="knowledge_bases",
+    )
+
+
+class KnowledgeDocument(Base):
+    __tablename__ = "knowledge_documents"
+
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    kb_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("knowledge_bases.id", ondelete="CASCADE"), index=True)
+    filename: Mapped[str] = mapped_column(String(512))
+    mime_type: Mapped[str | None] = mapped_column(String(128), nullable=True)
+    byte_size: Mapped[int] = mapped_column(Integer, default=0)
+    storage_path: Mapped[str] = mapped_column(String(1024))
+    status: Mapped[str] = mapped_column(String(20), default="pending")  # pending/processing/ready/failed
+    error_message: Mapped[str | None] = mapped_column(Text, nullable=True)
+    chunk_count: Mapped[int] = mapped_column(Integer, default=0)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
+
+    knowledge_base = relationship("KnowledgeBase", back_populates="documents")
+    chunks = relationship("KnowledgeChunk", back_populates="document", cascade="all, delete-orphan")
+
+
+class KnowledgeChunk(Base):
+    __tablename__ = "knowledge_chunks"
+
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    document_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("knowledge_documents.id", ondelete="CASCADE"), index=True
+    )
+    kb_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("knowledge_bases.id", ondelete="CASCADE"), index=True
+    )
+    chunk_index: Mapped[int] = mapped_column(Integer)
+    content: Mapped[str] = mapped_column(Text)
+    embedding = mapped_column(AsyncpgVector(1024), nullable=True)
+    token_count: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+
+    document = relationship("KnowledgeDocument", back_populates="chunks")
+    knowledge_base = relationship("KnowledgeBase", back_populates="chunks")

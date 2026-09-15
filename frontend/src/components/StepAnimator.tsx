@@ -7,13 +7,20 @@ interface Props {
   content: string;
   /** 是否正在流式接收中 */
   isStreaming?: boolean;
+  onOpenInEditor?: (code: string, language: string) => void;
+  activeFingerprint?: string | null;
 }
 
 /**
  * 步骤式动画组件
  * 将 AI 消息按段落拆分，每个段落带延迟的 fade-slide-in 动画
  */
-export function StepAnimator({ content, isStreaming = false }: Props) {
+export function StepAnimator({
+  content,
+  isStreaming = false,
+  onOpenInEditor,
+  activeFingerprint,
+}: Props) {
   const [visibleCount, setVisibleCount] = useState(0);
   const prevBlockCount = useRef(0);
 
@@ -54,7 +61,11 @@ export function StepAnimator({ content, isStreaming = false }: Props) {
               transitionDelay: isVisible ? "0ms" : "0ms",
             }}
           >
-            <MarkdownRenderer content={block} />
+            <MarkdownRenderer
+              content={block}
+              onOpenInEditor={onOpenInEditor}
+              activeFingerprint={activeFingerprint}
+            />
           </div>
         );
       })}

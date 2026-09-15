@@ -1,14 +1,70 @@
 """WebSocket 流式对话端点"""
 
+import logging
 import uuid
+from datetime import datetime, timezone
 from fastapi import APIRouter, WebSocket, WebSocketDisconnect
 from sqlalchemy import select
+from sqlalchemy.orm import selectinload
 
 from app.db.database import AsyncSessionLocal
-from app.models.models import Conversation, Message
-from app.services.chat import stream_chat_response
+from app.models.models import Chapter, Conversation, LearningPath, Message
+from app.services.chat import detect_language_from_topic, stream_chat_response
+from app.services.kb_retrieve import (
+    format_retrieval_context,
+    list_platform_ready_kb_ids,
+    retrieve_chunks,
+)
 
+logger = logging.getLogger(__name__)
 router = APIRouter()
+
+
+async def _build_chapter_context(
+    db, conv: Conversation
+) -> tuple[str | None, list[uuid.UUID], str]:
+    """返回 (章节上下文, 知识库IDs, 检索查询种子)。"""
+    if not conv.chapter_id:
+        return None, [], ""
+
+    result = await db.execute(
+        select(Chapter)
+        .options(
+            selectinload(Chapter.path).selectinload(LearningPath.knowledge_bases)
+        )
+        .where(Chapter.id == conv.chapter_id)
+    )
+    chapter = result.scalar_one_or_none()
+    if not chapter:
+        return None, [], ""
+
+    path: LearningPath | None = chapter.path
+    topic = path.topic if path else ""
+    language = detect_language_from_topic(topic)
+    parts = [
+        f"学习路径主题：{topic or '未指定'}",
+        f"编程语言：{language}（所有代码示例必须使用此语言）",
+        f"当前章节：{chapter.title}",
+    ]
+    if chapter.summary:
+        parts.append(f"章节摘要：{chapter.summary}")
+    if path and path.difficulty:
+        parts.append(f"难度：{path.difficulty}")
+
+    kb_ids: list[uuid.UUID] = []
+    if path and path.knowledge_bases:
+        kb_ids = [kb.id for kb in path.knowledge_bases]
+        parts.append(f"已绑定知识库数量：{len(kb_ids)}")
+        parts.append("本课程依赖知识库资料，请严格按资料讲解。")
+    else:
+        # 路径未绑定时回退到平台已就绪知识库
+        kb_ids = await list_platform_ready_kb_ids(db)
+        if kb_ids:
+            parts.append(f"路径未显式绑定知识库，已自动使用平台知识库 {len(kb_ids)} 个。")
+            parts.append("本课程应依赖这些知识库资料讲解。")
+
+    query_seed = f"{topic} {chapter.title} {chapter.summary or ''}".strip()
+    return "\n".join(parts), kb_ids, query_seed
 
 
 @router.websocket("/chat/{conv_id}")
@@ -17,7 +73,6 @@ async def websocket_chat(websocket: WebSocket, conv_id: uuid.UUID):
 
     try:
         async with AsyncSessionLocal() as db:
-            # 验证对话是否存在
             result = await db.execute(select(Conversation).where(Conversation.id == conv_id))
             conv = result.scalar_one_or_none()
             if not conv:
@@ -25,20 +80,21 @@ async def websocket_chat(websocket: WebSocket, conv_id: uuid.UUID):
                 await websocket.close()
                 return
 
-            # 加载历史消息
+            base_context, kb_ids, query_seed = await _build_chapter_context(db, conv)
+
+            # 取最近 20 条，保证长对话续聊时模型仍有近期上下文
             msg_result = await db.execute(
                 select(Message)
                 .where(Message.conversation_id == conv_id)
-                .order_by(Message.created_at)
+                .order_by(Message.created_at.desc())
                 .limit(20)
             )
             history = [
                 {"role": m.role, "content": m.content}
-                for m in msg_result.scalars().all()
+                for m in reversed(list(msg_result.scalars().all()))
             ]
 
             while True:
-                # 接收用户消息
                 data = await websocket.receive_json()
                 if data.get("type") != "message":
                     continue
@@ -47,7 +103,6 @@ async def websocket_chat(websocket: WebSocket, conv_id: uuid.UUID):
                 if not user_content:
                     continue
 
-                # 保存用户消息
                 user_msg = Message(
                     conversation_id=conv_id,
                     role="user",
@@ -58,13 +113,30 @@ async def websocket_chat(websocket: WebSocket, conv_id: uuid.UUID):
 
                 history.append({"role": "user", "content": user_content})
 
-                # 流式生成 AI 响应
+                chapter_context = base_context
+                if kb_ids:
+                    try:
+                        # 引导语很长时，用章节主题检索更稳；普通提问拼上章节种子
+                        is_guide = len(user_content) > 120 and "学习页面" in user_content
+                        query = query_seed if is_guide else f"{query_seed}\n{user_content}"
+                        chunks = await retrieve_chunks(
+                            db, kb_ids=kb_ids, query=query, top_k=6
+                        )
+                        rag_text = format_retrieval_context(chunks)
+                        if rag_text:
+                            chapter_context = (
+                                f"{base_context}\n\n{rag_text}" if base_context else rag_text
+                            )
+                        else:
+                            logger.info("RAG returned 0 chunks for conv=%s query=%s", conv_id, query[:80])
+                    except Exception as e:
+                        logger.warning("RAG retrieve failed: %s", e)
+
                 full_response = ""
-                async for token in stream_chat_response(history):
+                async for token in stream_chat_response(history, chapter_context=chapter_context):
                     full_response += token
                     await websocket.send_json({"type": "token", "content": token})
 
-                # 保存 AI 响应
                 ai_msg = Message(
                     conversation_id=conv_id,
                     role="assistant",
@@ -72,11 +144,11 @@ async def websocket_chat(websocket: WebSocket, conv_id: uuid.UUID):
                     token_count=len(full_response) // 4,
                 )
                 db.add(ai_msg)
+                conv.updated_at = datetime.now(timezone.utc)
                 await db.commit()
 
                 history.append({"role": "assistant", "content": full_response})
 
-                # 发送完成标记
                 await websocket.send_json({
                     "type": "done",
                     "message_id": str(ai_msg.id),

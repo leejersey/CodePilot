@@ -1,3 +1,4 @@
+from sqlalchemy import event
 from sqlalchemy.ext.asyncio import create_async_engine, async_sessionmaker, AsyncSession
 from app.core.config import get_settings
 
@@ -9,6 +10,15 @@ engine = create_async_engine(
     pool_size=10,
     max_overflow=20,
 )
+
+
+@event.listens_for(engine.sync_engine, "connect")
+def _register_vector(dbapi_connection, connection_record):
+    """为 asyncpg 连接注册 pgvector 二进制编解码（需配合不 stringify 的 Vector 类型）。"""
+    from pgvector.asyncpg import register_vector
+
+    dbapi_connection.run_async(register_vector)
+
 
 AsyncSessionLocal = async_sessionmaker(engine, class_=AsyncSession, expire_on_commit=False)
 
