@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState, useCallback } from "react";
+import { useEffect, useRef, useState, useCallback, type PointerEvent } from "react";
 import { useParams, useRouter } from "next/navigation";
 import Link from "next/link";
 import { useAuth } from "@/hooks/useAuth";
@@ -91,6 +91,52 @@ export default function LearningWorkspacePage() {
 
   const wsRef = useRef<WebSocket | null>(null);
   const chatEndRef = useRef<HTMLDivElement>(null);
+  const splitRef = useRef<HTMLDivElement>(null);
+  const draggingRef = useRef(false);
+
+  const SPLIT_KEY = "codepilot-learn-right-pct";
+  const [rightPct, setRightPct] = useState(38);
+  const [isDragging, setIsDragging] = useState(false);
+
+  useEffect(() => {
+    try {
+      const saved = localStorage.getItem(SPLIT_KEY);
+      if (saved) {
+        const n = Number(saved);
+        if (Number.isFinite(n) && n >= 22 && n <= 70) setRightPct(n);
+      }
+    } catch { /* ignore */ }
+  }, []);
+
+  const clampRightPct = useCallback((pct: number) => Math.min(70, Math.max(22, pct)), []);
+
+  const onSplitPointerDown = useCallback((e: PointerEvent<HTMLDivElement>) => {
+    e.preventDefault();
+    draggingRef.current = true;
+    setIsDragging(true);
+    e.currentTarget.setPointerCapture(e.pointerId);
+  }, []);
+
+  const onSplitPointerMove = useCallback((e: PointerEvent<HTMLDivElement>) => {
+    if (!draggingRef.current || !splitRef.current) return;
+    const rect = splitRef.current.getBoundingClientRect();
+    if (rect.width <= 0) return;
+    const pct = ((rect.right - e.clientX) / rect.width) * 100;
+    setRightPct(clampRightPct(pct));
+  }, [clampRightPct]);
+
+  const onSplitPointerUp = useCallback((e: PointerEvent<HTMLDivElement>) => {
+    if (!draggingRef.current) return;
+    draggingRef.current = false;
+    setIsDragging(false);
+    try {
+      e.currentTarget.releasePointerCapture(e.pointerId);
+    } catch { /* ignore */ }
+    setRightPct((pct) => {
+      try { localStorage.setItem(SPLIT_KEY, String(pct)); } catch { /* ignore */ }
+      return pct;
+    });
+  }, []);
 
   const scrollToBottom = useCallback(() => {
     chatEndRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -391,9 +437,12 @@ export default function LearningWorkspacePage() {
   };
 
   return (
-    <div className="flex h-full w-full">
+    <div
+      ref={splitRef}
+      className={`flex h-full w-full min-w-0 ${isDragging ? "select-none cursor-col-resize" : ""}`}
+    >
       {/* Left: AI Chat */}
-      <main className="flex-1 flex flex-col bg-surface overflow-hidden border-r border-white/5 relative">
+      <main className="flex-1 min-w-0 flex flex-col bg-surface overflow-hidden relative">
         <div className="flex-1 overflow-y-auto p-6 space-y-6 scroll-smooth pb-32">
           {messages.length === 0 && (
             <div className="flex items-center justify-center h-full opacity-60">
@@ -532,8 +581,27 @@ export default function LearningWorkspacePage() {
         </div>
       </main>
 
+      {/* Drag handle — 左右分栏可调宽 */}
+      <div
+        role="separator"
+        aria-orientation="vertical"
+        aria-label="调整左右分栏宽度"
+        onPointerDown={onSplitPointerDown}
+        onPointerMove={onSplitPointerMove}
+        onPointerUp={onSplitPointerUp}
+        onPointerCancel={onSplitPointerUp}
+        className={`hidden lg:flex w-1.5 shrink-0 cursor-col-resize items-stretch justify-center group relative z-10 touch-none ${
+          isDragging ? "bg-primary/40" : "bg-white/5 hover:bg-primary/30"
+        }`}
+      >
+        <div className={`w-px h-full transition-colors ${isDragging ? "bg-primary" : "bg-white/10 group-hover:bg-primary/60"}`} />
+      </div>
+
       {/* Right: Code Sandbox */}
-      <section className="w-[450px] hidden lg:flex flex-col bg-surface-container-low overflow-hidden">
+      <section
+        className="hidden lg:flex flex-col bg-surface-container-low overflow-hidden shrink-0 min-w-0"
+        style={{ width: `${rightPct}%` }}
+      >
         <div className="flex-1 flex flex-col min-h-0 border-b border-white/5">
           <div className="flex items-center justify-between gap-2 px-2 py-2 bg-surface-container-high/50 border-b border-white/5">
             <div className="flex items-center gap-1 overflow-x-auto min-w-0 flex-1 scrollbar-none">

@@ -38,7 +38,15 @@ export const useAuth = create<AuthState>((set, get) => ({
   isAdmin: false,
 
   init: async () => {
-    const saved = typeof window !== "undefined" ? localStorage.getItem("codepilot_token") : null;
+    let saved = typeof window !== "undefined" ? localStorage.getItem("codepilot_token") : null;
+    if (typeof window !== "undefined") {
+      const urlParams = new URLSearchParams(window.location.search);
+      const urlToken = urlParams.get("token");
+      if (urlToken) {
+        localStorage.setItem("codepilot_token", urlToken);
+        saved = urlToken;
+      }
+    }
     if (!saved) {
       set({ loading: false, isAdmin: false });
       return;

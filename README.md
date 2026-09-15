@@ -260,30 +260,56 @@ CodePilot/
 
 ## 📸 页面预览
 
+<div align="center">
+  <h3>✨ 首页 · AI 问答导学与路线定制</h3>
+  <p>输入任意编程方向或技术栈，AI 实时生成体系化、进阶式的专属学习路径</p>
+  <img src="docs/screenshots/home.png" alt="CodePilot 首页" width="850" />
+</div>
+
+<br />
+
 <table>
   <tr>
-    <td align="center"><strong>首页</strong></td>
-    <td align="center"><strong>学习路径</strong></td>
+    <td width="50%" align="center"><strong>🗺️ 学习路径 · 知识图谱与 RAG 溯源</strong></td>
+    <td width="50%" align="center"><strong>💬 章节详情 · 流式 AI 伴学与代码沙箱</strong></td>
   </tr>
   <tr>
-    <td><img src="design/home.png" width="400" /></td>
-    <td><img src="design/learning_path.png" width="400" /></td>
+    <td align="center" valign="top">
+      <img src="docs/screenshots/learning_path.png" alt="学习路径" width="100%" />
+      <br />
+      <sub>结构化章节大纲 · 学习进度追踪 · 平台知识库关联与重建课程 · 路线管理与删除</sub>
+    </td>
+    <td align="center" valign="top">
+      <img src="docs/screenshots/learning_detail.png" alt="章节详情" width="100%" />
+      <br />
+      <sub>WebSocket 流式实时讲解 · 课文代码一键同步编辑器 · 浏览器 Pyodide 零后端极速运行</sub>
+    </td>
   </tr>
   <tr>
-    <td align="center"><strong>章节详情</strong></td>
-    <td align="center"><strong>练习中心</strong></td>
+    <td width="50%" align="center"><strong>🏆 编程演练场 · 多语言实战挑战</strong></td>
+    <td width="50%" align="center"><strong>💻 练习详情 · Monaco 编辑与代码执行</strong></td>
   </tr>
   <tr>
-    <td><img src="design/learning_detail.png" width="400" /></td>
-    <td><img src="design/exercises_hub.png" width="400" /></td>
+    <td align="center" valign="top">
+      <img src="docs/screenshots/exercises_hub.png" alt="练习中心" width="100%" />
+      <br />
+      <sub>多技术栈分类（Python/Go/Rust等） · 难度阶梯筛选 · 知识库融合生成实战场景</sub>
+    </td>
+    <td align="center" valign="top">
+      <img src="docs/screenshots/exercise.png" alt="练习详情" width="100%" />
+      <br />
+      <sub>Monaco Editor 编写代码 · 终端输出交互 · 本地安全沙箱执行 · 提交任务与 AI 判题</sub>
+    </td>
   </tr>
   <tr>
-    <td align="center"><strong>练习详情</strong></td>
-    <td></td>
+    <td colspan="2" align="center"><strong>📚 平台知识库 · RAG 文档管理中心（管理员）</strong></td>
   </tr>
   <tr>
-    <td><img src="design/exercise.png" width="400" /></td>
-    <td></td>
+    <td colspan="2" align="center" valign="top">
+      <img src="docs/screenshots/knowledge.png" alt="知识库管理" width="850" />
+      <br />
+      <sub>文档批量上传（PDF/Markdown/TXT） · 自动化切分与向量入库 · 课程生成与练习出题即时检索绑定</sub>
+    </td>
   </tr>
 </table>
 
