@@ -6,6 +6,7 @@ import { useParams, useRouter } from "next/navigation";
 import { Header } from "@/components/layout/Header";
 import { AdminGuard } from "@/components/AdminGuard";
 import { useAuth } from "@/hooks/useAuth";
+import { useDialog } from "@/components/DialogProvider";
 import {
   getKnowledgeBase,
   uploadKnowledgeDocument,
@@ -55,6 +56,7 @@ export default function KnowledgeDetailPage() {
   const router = useRouter();
   const kbId = params.kbId as string;
   const { init } = useAuth();
+  const { confirm } = useDialog();
   const fileRef = useRef<HTMLInputElement>(null);
 
   const [kb, setKb] = useState<KnowledgeBaseDetail | null>(null);
@@ -126,7 +128,13 @@ export default function KnowledgeDetailPage() {
   };
 
   const handleDeleteDoc = async (docId: string, filename: string) => {
-    if (!confirm(`删除文档「${filename}」？`)) return;
+    const ok = await confirm({
+      title: "删除文档",
+      message: `确定删除文档「${filename}」？相关向量切片将一并删除。`,
+      confirmText: "删除",
+      tone: "danger",
+    });
+    if (!ok) return;
     try {
       await deleteKnowledgeDocument(kbId, docId);
       await refresh();

@@ -10,6 +10,7 @@ import {
   generateExercise,
   Exercise,
 } from "@/lib/api";
+import { useDialog } from "@/components/DialogProvider";
 
 const getLangTheme = (lang: string) => {
   const l = lang.toLowerCase();
@@ -30,6 +31,7 @@ const getDiffTheme = (diff: string) => {
 
 export default function ExercisesHub() {
   const router = useRouter();
+  const { alert } = useDialog();
   const [activeLang, setActiveLang] = useState("全部");
   const [activeDifficulty, setActiveDifficulty] = useState("所有难度");
   const [isGenerating, setIsGenerating] = useState(false);
@@ -78,7 +80,10 @@ export default function ExercisesHub() {
     } catch (err) {
       console.error("生成失败:", err);
       setIsGenerating(false);
-      alert(err instanceof Error ? err.message : "生成练习题失败，请检查网络或后端配置");
+      await alert({
+        title: "生成失败",
+        message: err instanceof Error ? err.message : "生成练习题失败，请检查网络或后端配置",
+      });
     }
   };
 

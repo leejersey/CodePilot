@@ -1,9 +1,11 @@
 """代码模拟运行 — 通过 LLM 预测代码输出"""
 
-from fastapi import APIRouter
+from fastapi import APIRouter, Depends
 from pydantic import BaseModel, Field
 
-from app.services.llm import call_llm_stream
+from app.core.deps import get_current_user
+from app.models.models import User
+from app.services.llm import call_llm_stream, llm_user_context
 
 router = APIRouter()
 
@@ -19,7 +21,10 @@ class CodeRunResponse(BaseModel):
 
 
 @router.post("/run", response_model=CodeRunResponse)
-async def run_code(body: CodeRunRequest):
+async def run_code(
+    body: CodeRunRequest,
+    user: User = Depends(get_current_user),
+):
     """通过 AI 模拟执行代码，返回预测输出"""
     prompt = f"""你是一个代码执行环境。请执行以下 {body.language} 代码，只返回控制台输出结果。
 如果代码有语法错误或运行时错误，返回错误信息。
@@ -37,8 +42,9 @@ async def run_code(body: CodeRunRequest):
     ]
 
     output = ""
-    async for token in call_llm_stream(messages):
-        output += token
+    with llm_user_context(user):
+        async for token in call_llm_stream(messages):
+            output += token
 
     has_error = any(kw in output.lower() for kw in ["error", "traceback", "exception", "syntaxerror"])
 

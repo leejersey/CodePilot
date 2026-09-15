@@ -5,6 +5,7 @@ import { useAuth } from "@/hooks/useAuth";
 import Link from "next/link";
 import { getProgressPaths, deletePath, type PathProgress, getPathSourceLabel } from "@/lib/api";
 import { AuthGuard } from "@/components/AuthGuard";
+import { useDialog } from "@/components/DialogProvider";
 
 const DIFFICULTY_LABEL: Record<string, { text: string; color: string; icon: string }> = {
   beginner: { text: "入门", color: "bg-green-500/15 text-green-400 border-green-500/20", icon: "school" },
@@ -14,6 +15,7 @@ const DIFFICULTY_LABEL: Record<string, { text: string; color: string; icon: stri
 
 export default function LearnPage() {
   const { init } = useAuth();
+  const { confirm, alert } = useDialog();
   const [paths, setPaths] = useState<PathProgress[]>([]);
   const [loading, setLoading] = useState(true);
   const [deletingId, setDeletingId] = useState<string | null>(null);
@@ -33,13 +35,22 @@ export default function LearnPage() {
   async function handleDelete(e: MouseEvent, path: PathProgress) {
     e.preventDefault();
     e.stopPropagation();
-    if (!confirm(`确定删除学习路线「${path.topic}」？章节与相关进度将一并删除。`)) return;
+    const ok = await confirm({
+      title: "删除学习路线",
+      message: `确定删除学习路线「${path.topic}」？章节与相关进度将一并删除。`,
+      confirmText: "删除",
+      tone: "danger",
+    });
+    if (!ok) return;
     setDeletingId(path.id);
     try {
       await deletePath(path.id);
       setPaths((prev) => prev.filter((p) => p.id !== path.id));
     } catch (err) {
-      alert(err instanceof Error ? err.message : "删除失败");
+      await alert({
+        title: "删除失败",
+        message: err instanceof Error ? err.message : "删除失败",
+      });
     } finally {
       setDeletingId(null);
     }

@@ -4,22 +4,51 @@ import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import { Prism as SyntaxHighlighter } from "react-syntax-highlighter";
 import { oneDark } from "react-syntax-highlighter/dist/esm/styles/prism";
-import { useState } from "react";
+import { useState, type CSSProperties } from "react";
 import { fingerprintCode } from "@/lib/codeBlocks";
+
+const codeTheme = {
+  ...(oneDark as Record<string, CSSProperties>),
+  'pre[class*="language-"]': {
+    ...(oneDark as Record<string, CSSProperties>)['pre[class*="language-"]'],
+    background: "#0d1117",
+    textShadow: "none",
+  },
+  'code[class*="language-"]': {
+    ...(oneDark as Record<string, CSSProperties>)['code[class*="language-"]'],
+    background: "transparent",
+    textShadow: "none",
+  },
+};
 
 interface Props {
   content: string;
   /** 将代码块发送到右侧编辑器 */
   onOpenInEditor?: (code: string, language: string) => void;
+  /** 单知识点讲解（代码块旁「讲解」） */
+  onExplainSnippet?: (payload: {
+    code: string;
+    language: string;
+    context: string;
+  }) => void;
+  explaining?: boolean;
   /** 当前激活的编辑器代码指纹，用于高亮「已打开」 */
   activeFingerprint?: string | null;
 }
 
-export function MarkdownRenderer({ content, onOpenInEditor, activeFingerprint }: Props) {
+export function MarkdownRenderer({
+  content,
+  onOpenInEditor,
+  onExplainSnippet,
+  explaining,
+  activeFingerprint,
+}: Props) {
   return (
     <ReactMarkdown
       remarkPlugins={[remarkGfm]}
       components={{
+        // fenced code 已由 code 组件渲染完整卡片，去掉外层 pre 默认底色
+        pre: ({ children }) => <>{children}</>,
         code({ className, children, ...props }) {
           const match = /language-(\w+)/.exec(className || "");
           const codeStr = String(children).replace(/\n$/, "");
@@ -37,6 +66,26 @@ export function MarkdownRenderer({ content, onOpenInEditor, activeFingerprint }:
                 <div className="flex items-center justify-between px-4 py-1.5 bg-[#1a1a2e] text-xs text-slate-400 border-b border-white/5">
                   <span className="font-mono">{lang}</span>
                   <div className="flex items-center gap-2">
+                    {onExplainSnippet && (
+                      <button
+                        type="button"
+                        disabled={explaining}
+                        className="flex items-center gap-1 text-[10px] text-violet-300/90 hover:text-violet-200 transition-colors disabled:opacity-50"
+                        onClick={() =>
+                          onExplainSnippet({
+                            code: codeStr,
+                            language: lang,
+                            context: content,
+                          })
+                        }
+                        title="生成该知识点讲解短片（含运行结果）"
+                      >
+                        <span className="material-symbols-outlined text-[12px]">
+                          {explaining ? "progress_activity" : "movie"}
+                        </span>
+                        {explaining ? "生成中" : "讲解"}
+                      </button>
+                    )}
                     {onOpenInEditor && (
                       <button
                         className={`flex items-center gap-1 text-[10px] transition-colors ${
@@ -54,16 +103,23 @@ export function MarkdownRenderer({ content, onOpenInEditor, activeFingerprint }:
                   </div>
                 </div>
                 <SyntaxHighlighter
-                  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-                  style={oneDark as any}
+                  style={codeTheme}
                   language={lang}
                   PreTag="div"
+                  codeTagProps={{
+                    style: {
+                      background: "transparent",
+                      textShadow: "none",
+                      fontFamily: "JetBrains Mono, ui-monospace, monospace",
+                    },
+                  }}
                   customStyle={{
                     margin: 0,
                     borderRadius: 0,
                     background: "#0d1117",
                     fontSize: "13px",
                     padding: "16px",
+                    textShadow: "none",
                   }}
                 >
                   {codeStr}

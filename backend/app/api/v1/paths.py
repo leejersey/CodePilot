@@ -25,7 +25,7 @@ from app.schemas.schemas import (
     KnowledgeBaseResponse,
     PathKnowledgeBindRequest,
 )
-from app.services.llm import call_llm_json
+from app.services.llm import call_llm_json, llm_user_context
 from app.services.kb_retrieve import (
     count_ready_documents,
     filter_kbs_relevant_to_topic,
@@ -191,13 +191,14 @@ async def generate_path(
             doc_filenames = []
             kb_context = ""
 
-    outline = await _generate_outline(
-        req.topic,
-        req.difficulty,
-        req.user_background,
-        kb_context=kb_context,
-        doc_count=doc_count,
-    )
+    with llm_user_context(user):
+        outline = await _generate_outline(
+            req.topic,
+            req.difficulty,
+            req.user_background,
+            kb_context=kb_context,
+            doc_count=doc_count,
+        )
     outline = _attach_rag_provenance(
         outline,
         kbs=kbs,
@@ -366,13 +367,14 @@ async def rebuild_path_from_kb(
     if not kb_context.strip():
         raise HTTPException(status_code=400, detail="知识库暂无可用于生成的文档（需 status=ready）")
 
-    outline = await _generate_outline(
-        path.topic,
-        path.difficulty,
-        "",
-        kb_context=kb_context,
-        doc_count=doc_count,
-    )
+    with llm_user_context(user):
+        outline = await _generate_outline(
+            path.topic,
+            path.difficulty,
+            "",
+            kb_context=kb_context,
+            doc_count=doc_count,
+        )
     outline = _attach_rag_provenance(
         outline,
         kbs=kbs,

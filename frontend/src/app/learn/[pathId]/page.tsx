@@ -9,6 +9,7 @@ import {
   type LearningPath, type Chapter, type KnowledgeBase,
 } from "@/lib/api";
 import { useAuth } from "@/hooks/useAuth";
+import { useDialog } from "@/components/DialogProvider";
 
 const CHAPTER_ICONS = [
   "lightbulb", "bolt", "refresh", "database", "architecture",
@@ -20,6 +21,7 @@ export default function LearningPathPage() {
   const router = useRouter();
   const pathId = params.pathId as string;
   const { isAdmin } = useAuth();
+  const { confirm } = useDialog();
 
   const [path, setPath] = useState<LearningPath | null>(null);
   const [chapters, setChapters] = useState<Chapter[]>([]);
@@ -50,13 +52,14 @@ export default function LearningPathPage() {
   }, [pathId]);
 
   const handleRebuildFromKb = async () => {
-    if (
-      !confirm(
-        "将根据平台知识库重新生成章节大纲（替换现有章节，学习进度会重置）。是否继续？"
-      )
-    ) {
-      return;
-    }
+    const ok = await confirm({
+      title: "重建课程大纲",
+      message:
+        "将根据平台知识库重新生成章节大纲（替换现有章节，学习进度会重置）。是否继续？",
+      confirmText: "继续重建",
+      tone: "danger",
+    });
+    if (!ok) return;
     setRebuilding(true);
     setError("");
     try {

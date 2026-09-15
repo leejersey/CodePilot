@@ -11,9 +11,11 @@ import {
   deleteKnowledgeBase,
   type KnowledgeBase,
 } from "@/lib/api";
+import { useDialog } from "@/components/DialogProvider";
 
 export default function KnowledgePage() {
   const { init } = useAuth();
+  const { confirm } = useDialog();
   const [items, setItems] = useState<KnowledgeBase[]>([]);
   const [loading, setLoading] = useState(true);
   const [creating, setCreating] = useState(false);
@@ -61,7 +63,13 @@ export default function KnowledgePage() {
   };
 
   const handleDelete = async (kb: KnowledgeBase) => {
-    if (!confirm(`确定删除知识库「${kb.name}」？文档与向量将一并删除。`)) return;
+    const ok = await confirm({
+      title: "删除知识库",
+      message: `确定删除知识库「${kb.name}」？文档与向量将一并删除。`,
+      confirmText: "删除",
+      tone: "danger",
+    });
+    if (!ok) return;
     try {
       await deleteKnowledgeBase(kb.id);
       await refresh();

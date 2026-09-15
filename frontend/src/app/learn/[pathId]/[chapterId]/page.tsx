@@ -15,7 +15,7 @@ import {
   getConversationByChapter,
   getMessages,
   runCode as apiRunCode,
-  generateAnimation as apiGenerateAnimation,
+  generateSnippetExplain as apiGenerateSnippetExplain,
   updateChapterStatus,
 } from "@/lib/api";
 import { defaultFilename, extractCodeBlocks, fingerprintCode } from "@/lib/codeBlocks";
@@ -231,6 +231,42 @@ export default function LearningWorkspacePage() {
     });
     setActiveTabId(`lesson-${fp}`);
   }, []);
+
+  const explainSnippet = useCallback(
+    async (payload: { code: string; language: string; context: string }) => {
+      if (generatingAnim) return;
+      setGeneratingAnim(true);
+      setAnimationData(null);
+      try {
+        const data = await apiGenerateSnippetExplain({
+          code: payload.code,
+          language: payload.language,
+          context: payload.context,
+        });
+        setAnimationData(data);
+      } catch {
+        setMessages((prev) => [
+          ...prev,
+          { role: "system", content: "知识点讲解生成失败，请稍后重试" },
+        ]);
+      } finally {
+        setGeneratingAnim(false);
+      }
+    },
+    [generatingAnim]
+  );
+
+  useEffect(() => {
+    if (!animationData && !generatingAnim) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") {
+        setAnimationData(null);
+        setGeneratingAnim(false);
+      }
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [animationData, generatingAnim]);
 
   const updateActiveCode = (value: string) => {
     setTabs((prev) =>
@@ -475,19 +511,14 @@ export default function LearningWorkspacePage() {
                     content={msg.content}
                     isStreaming={streaming && i === messages.length - 1}
                     onOpenInEditor={openInEditor}
+                    onExplainSnippet={explainSnippet}
+                    explaining={generatingAnim}
                     activeFingerprint={activeTab?.fingerprint}
                   />
                 </div>
               </div>
             )
           ))}
-
-          {/* Animation Player */}
-          {animationData && (
-            <div className="max-w-3xl">
-              <AnimationPlayer animationData={animationData} />
-            </div>
-          )}
 
           {streaming && messages[messages.length - 1]?.role !== "assistant" && (
             <div className="flex gap-4 max-w-3xl">
@@ -538,27 +569,7 @@ export default function LearningWorkspacePage() {
                 已完成
               </div>
             )}
-            {/* Generate Animation Button */}
-            <button
-              className="flex-shrink-0 flex items-center gap-1.5 px-3 py-3 bg-purple-500/15 hover:bg-purple-500/25 text-purple-400 border border-purple-500/25 rounded-xl text-sm font-bold transition-all active:scale-95 disabled:opacity-50"
-              onClick={async () => {
-                if (generatingAnim) return;
-                setGeneratingAnim(true);
-                setAnimationData(null);
-                try {
-                  const topic = input.trim() || messages.filter(m => m.role === "assistant").pop()?.content?.slice(0, 100) || "冒泡排序";
-                  const data = await apiGenerateAnimation(topic);
-                  setAnimationData(data);
-                } catch { /* ignore */ }
-                setGeneratingAnim(false);
-              }}
-              disabled={generatingAnim}
-            >
-              <span className="material-symbols-outlined text-sm" style={{ fontVariationSettings: "'FILL' 1" }}>
-                {generatingAnim ? "progress_activity" : "animation"}
-              </span>
-              {generatingAnim ? "生成中" : "动画"}
-            </button>
+            {/* Generate Animation Button removed — use per-codeblock「讲解」 */}
             <div className="flex-1 relative">
               <input
                 className="w-full bg-surface-container-low border-b-2 border-outline-variant focus:border-primary focus:ring-0 text-on-surface py-4 pl-4 pr-12 rounded-t-xl transition-all placeholder:text-slate-600 outline-none"
@@ -669,6 +680,59 @@ export default function LearningWorkspacePage() {
           </div>
         </div>
       </section>
+
+      {/* 知识点讲解弹窗 */}
+      {(generatingAnim || animationData) && (
+        <div
+          className="fixed inset-0 z-[80] flex items-center justify-center p-4 md:p-8"
+          role="dialog"
+          aria-modal="true"
+          aria-label="知识点讲解"
+        >
+          <button
+            type="button"
+            className="absolute inset-0 bg-black/70 backdrop-blur-sm"
+            aria-label="关闭讲解"
+            onClick={() => {
+              setAnimationData(null);
+              setGeneratingAnim(false);
+            }}
+          />
+          <div className="relative w-full max-w-4xl max-h-[90vh] overflow-y-auto rounded-2xl border border-primary/25 bg-[#050a16] shadow-[0_0_60px_rgba(83,221,252,0.15)]">
+            <button
+              type="button"
+              className="absolute top-3 right-3 z-10 p-2 rounded-lg text-slate-400 hover:text-on-surface hover:bg-white/10 transition-colors"
+              onClick={() => {
+                setAnimationData(null);
+                setGeneratingAnim(false);
+              }}
+              title="关闭 (Esc)"
+            >
+              <span className="material-symbols-outlined text-xl">close</span>
+            </button>
+
+            {generatingAnim && !animationData ? (
+              <div className="flex flex-col items-center justify-center gap-4 py-24 px-6">
+                <span className="material-symbols-outlined text-4xl text-primary animate-spin">
+                  progress_activity
+                </span>
+                <p className="text-sm text-on-surface-variant text-center">
+                  正在运行代码并生成讲解短片…
+                </p>
+              </div>
+            ) : (
+              animationData && (
+                <div className="p-2 pt-10 md:p-4 md:pt-12">
+                  <AnimationPlayer
+                    animationData={animationData}
+                    onClose={() => setAnimationData(null)}
+                  />
+                </div>
+              )
+            )}
+          </div>
+        </div>
+      )}
     </div>
   );
 }

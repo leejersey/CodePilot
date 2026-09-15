@@ -8,6 +8,12 @@ interface Props {
   /** 是否正在流式接收中 */
   isStreaming?: boolean;
   onOpenInEditor?: (code: string, language: string) => void;
+  onExplainSnippet?: (payload: {
+    code: string;
+    language: string;
+    context: string;
+  }) => void;
+  explaining?: boolean;
   activeFingerprint?: string | null;
 }
 
@@ -19,6 +25,8 @@ export function StepAnimator({
   content,
   isStreaming = false,
   onOpenInEditor,
+  onExplainSnippet,
+  explaining,
   activeFingerprint,
 }: Props) {
   const [visibleCount, setVisibleCount] = useState(0);
@@ -64,6 +72,8 @@ export function StepAnimator({
             <MarkdownRenderer
               content={block}
               onOpenInEditor={onOpenInEditor}
+              onExplainSnippet={onExplainSnippet}
+              explaining={explaining}
               activeFingerprint={activeFingerprint}
             />
           </div>

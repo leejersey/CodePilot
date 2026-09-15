@@ -81,6 +81,10 @@ export function Header() {
                     <p className="text-[10px] text-primary mt-1 uppercase tracking-widest">Admin</p>
                   )}
                 </div>
+                <a href="/settings" className="flex items-center gap-3 px-4 py-2.5 text-sm text-on-surface-variant hover:bg-white/5 transition-colors">
+                  <span className="material-symbols-outlined text-base">manage_accounts</span>
+                  个人中心
+                </a>
                 {isAdmin && (
                   <a href="/knowledge" className="flex items-center gap-3 px-4 py-2.5 text-sm text-on-surface-variant hover:bg-white/5 transition-colors">
                     <span className="material-symbols-outlined text-base">menu_book</span>

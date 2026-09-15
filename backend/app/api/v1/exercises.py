@@ -20,6 +20,7 @@ from app.schemas.schemas import (
     ExerciseSubmitRequest, SubmissionResponse,
 )
 from app.services.exercise import generate_exercise, judge_submission
+from app.services.llm import llm_user_context
 from app.services.kb_retrieve import (
     filter_kbs_relevant_to_topic,
     get_kb_snippets_for_outline,
@@ -109,13 +110,14 @@ async def generate_exercise_endpoint(
         except Exception as e:
             logger.warning("KB retrieval for exercise failed: %s", e)
 
-    exercise_data = await generate_exercise(
-        language=req.language,
-        difficulty=req.difficulty,
-        topic=req.topic,
-        chapter_hint=chapter_hint,
-        kb_context=kb_context,
-    )
+    with llm_user_context(user):
+        exercise_data = await generate_exercise(
+            language=req.language,
+            difficulty=req.difficulty,
+            topic=req.topic,
+            chapter_hint=chapter_hint,
+            kb_context=kb_context,
+        )
 
     exercise = Exercise(
         chapter_id=req.chapter_id,
@@ -160,12 +162,13 @@ async def submit_code(
     if not exercise:
         raise HTTPException(status_code=404, detail="练习不存在")
 
-    judgement = await judge_submission(
-        exercise.description,
-        exercise.test_cases,
-        body.code,
-        language=exercise.language,
-    )
+    with llm_user_context(user):
+        judgement = await judge_submission(
+            exercise.description,
+            exercise.test_cases,
+            body.code,
+            language=exercise.language,
+        )
 
     submission = ExerciseSubmission(
         exercise_id=exercise_id,

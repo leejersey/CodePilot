@@ -8,8 +8,9 @@ from sqlalchemy import select
 from sqlalchemy.orm import selectinload
 
 from app.db.database import AsyncSessionLocal
-from app.models.models import Chapter, Conversation, LearningPath, Message
+from app.models.models import Chapter, Conversation, LearningPath, Message, User
 from app.services.chat import detect_language_from_topic, stream_chat_response
+from app.services.llm import llm_user_context
 from app.services.kb_retrieve import (
     format_retrieval_context,
     list_platform_ready_kb_ids,
@@ -80,6 +81,9 @@ async def websocket_chat(websocket: WebSocket, conv_id: uuid.UUID):
                 await websocket.close()
                 return
 
+            user_result = await db.execute(select(User).where(User.id == conv.user_id))
+            chat_user = user_result.scalar_one_or_none()
+
             base_context, kb_ids, query_seed = await _build_chapter_context(db, conv)
 
             # 取最近 20 条，保证长对话续聊时模型仍有近期上下文
@@ -133,9 +137,10 @@ async def websocket_chat(websocket: WebSocket, conv_id: uuid.UUID):
                         logger.warning("RAG retrieve failed: %s", e)
 
                 full_response = ""
-                async for token in stream_chat_response(history, chapter_context=chapter_context):
-                    full_response += token
-                    await websocket.send_json({"type": "token", "content": token})
+                with llm_user_context(chat_user):
+                    async for token in stream_chat_response(history, chapter_context=chapter_context):
+                        full_response += token
+                        await websocket.send_json({"type": "token", "content": token})
 
                 ai_msg = Message(
                     conversation_id=conv_id,

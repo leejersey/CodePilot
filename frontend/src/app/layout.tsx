@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import "./globals.css";
+import { AppProviders } from "@/components/AppProviders";
 
 export const metadata: Metadata = {
   title: "CodePilot - AI 编程学习平台",
@@ -20,7 +21,7 @@ export default function RootLayout({
         <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&display=swap" rel="stylesheet" />
       </head>
       <body className="bg-background text-on-background min-h-screen selection:bg-primary/30 font-body">
-        {children}
+        <AppProviders>{children}</AppProviders>
       </body>
     </html>
   );

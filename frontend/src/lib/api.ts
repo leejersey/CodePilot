@@ -399,10 +399,37 @@ export async function runCode(code: string, language: string = "python"): Promis
 // ══════════════════════════════════════════
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
-export async function generateAnimation(topic: string): Promise<any> {
+export async function generateAnimation(req: {
+  topic: string;
+  chapter_title?: string;
+  chapter_summary?: string;
+  lesson_content?: string;
+}): Promise<any> {
   return fetchAPI("/api/v1/animation/generate", {
     method: "POST",
-    body: JSON.stringify({ topic }),
+    body: JSON.stringify({
+      topic: req.topic,
+      chapter_title: req.chapter_title || "",
+      chapter_summary: req.chapter_summary || "",
+      lesson_content: req.lesson_content || "",
+    }),
+  });
+}
+
+/** 单知识点讲解（代码块旁「讲解」） */
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+export async function generateSnippetExplain(req: {
+  code: string;
+  language: string;
+  context?: string;
+}): Promise<any> {
+  return fetchAPI("/api/v1/animation/generate-snippet", {
+    method: "POST",
+    body: JSON.stringify({
+      code: req.code,
+      language: req.language || "python",
+      context: req.context || "",
+    }),
   });
 }
 
@@ -484,3 +511,96 @@ export async function deleteKnowledgeDocument(kbId: string, docId: string): Prom
     method: "DELETE",
   });
 }
+
+// ══════════════════════════════════════════
+//  User LLM Settings（多档案）
+// ══════════════════════════════════════════
+
+export interface LlmPreset {
+  id: string;
+  label: string;
+  base_url: string;
+  default_model: string;
+  hint: string;
+}
+
+export interface LlmProfile {
+  id: string;
+  name: string;
+  provider: string;
+  api_key_masked: string | null;
+  has_api_key: boolean;
+  base_url: string;
+  model: string;
+}
+
+export interface LlmSettings {
+  active_id: string | null;
+  profiles: LlmProfile[];
+  active_source: "platform" | "user" | string;
+  active_provider: string;
+  active_model: string;
+  active_base_url: string;
+  platform_model: string;
+  platform_base_url: string;
+  presets: LlmPreset[];
+}
+
+export async function getLlmSettings(): Promise<LlmSettings> {
+  return fetchAPI<LlmSettings>("/api/v1/settings/llm");
+}
+
+export async function setActiveLlmProfile(activeId: string | null): Promise<LlmSettings> {
+  return fetchAPI<LlmSettings>("/api/v1/settings/llm/active", {
+    method: "PUT",
+    body: JSON.stringify({ active_id: activeId }),
+  });
+}
+
+export async function createLlmProfile(body: {
+  name: string;
+  provider: string;
+  api_key: string;
+  base_url?: string;
+  model?: string;
+  set_active?: boolean;
+}): Promise<LlmSettings> {
+  return fetchAPI<LlmSettings>("/api/v1/settings/llm/profiles", {
+    method: "POST",
+    body: JSON.stringify(body),
+  });
+}
+
+export async function updateLlmProfile(
+  profileId: string,
+  body: {
+    name?: string;
+    provider?: string;
+    api_key?: string;
+    base_url?: string;
+    model?: string;
+    keep_api_key?: boolean;
+  }
+): Promise<LlmSettings> {
+  return fetchAPI<LlmSettings>(`/api/v1/settings/llm/profiles/${profileId}`, {
+    method: "PUT",
+    body: JSON.stringify(body),
+  });
+}
+
+export async function deleteLlmProfile(profileId: string): Promise<LlmSettings> {
+  return fetchAPI<LlmSettings>(`/api/v1/settings/llm/profiles/${profileId}`, {
+    method: "DELETE",
+  });
+}
+
+export async function testLlmSettings(): Promise<{
+  ok: boolean;
+  source: string;
+  provider: string;
+  model: string;
+  reply: string;
+}> {
+  return fetchAPI("/api/v1/settings/llm/test", { method: "POST", body: "{}" });
+}
+
