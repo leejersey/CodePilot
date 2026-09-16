@@ -1,6 +1,6 @@
 import uuid
 from datetime import datetime
-from sqlalchemy import String, Text, Integer, ForeignKey, DateTime, Table, Column, func
+from sqlalchemy import Boolean, String, Text, Integer, ForeignKey, DateTime, Table, Column, func
 from sqlalchemy.dialects.postgresql import UUID, JSONB
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, relationship
 from app.db.types import AsyncpgVector
@@ -39,6 +39,25 @@ class User(Base):
     conversations = relationship("Conversation", back_populates="user")
     submissions = relationship("ExerciseSubmission", back_populates="user")
     knowledge_bases = relationship("KnowledgeBase", back_populates="user")
+
+
+class BackgroundJob(Base):
+    __tablename__ = "background_jobs"
+
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    user_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("users.id"), index=True)
+    job_type: Mapped[str] = mapped_column(String(40), index=True)
+    status: Mapped[str] = mapped_column(String(20), default="queued", index=True)
+    progress: Mapped[int] = mapped_column(Integer, default=0)
+    payload: Mapped[dict | None] = mapped_column(JSONB, nullable=True)
+    result_resource_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True), nullable=True)
+    error_message: Mapped[str | None] = mapped_column(Text, nullable=True)
+    attempts: Mapped[int] = mapped_column(Integer, default=0)
+    arq_job_id: Mapped[str | None] = mapped_column(String(100), nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    started_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    finished_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
 
 
 class LearningPath(Base):
@@ -125,6 +144,11 @@ class Exercise(Base):
     source_kbs: Mapped[list | None] = mapped_column(JSONB, nullable=True)
     # draft | published | archived — 学员端仅展示 published
     status: Mapped[str] = mapped_column(String(20), default="draft", index=True)
+    reference_solution: Mapped[str | None] = mapped_column(Text, nullable=True)
+    judge_mode: Mapped[str] = mapped_column(String(20), default="judge0")
+    validation_status: Mapped[str] = mapped_column(String(20), default="unverified", index=True)
+    validation_hash: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    validated_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
 
     chapter = relationship("Chapter", back_populates="exercises")
@@ -141,6 +165,11 @@ class ExerciseSubmission(Base):
     result: Mapped[str] = mapped_column(String(20))  # pass / fail / error
     ai_feedback: Mapped[str | None] = mapped_column(Text, nullable=True)
     score: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    test_results: Mapped[list | None] = mapped_column(JSONB, nullable=True)
+    execution_time: Mapped[str | None] = mapped_column(String(32), nullable=True)
+    memory: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    judge_source: Mapped[str] = mapped_column(String(20), default="judge0")
+    trusted: Mapped[bool] = mapped_column(Boolean, default=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
 
     exercise = relationship("Exercise", back_populates="submissions")

@@ -7,7 +7,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.db.database import get_db
 from app.models.models import User
 from app.schemas.schemas import (
-    RegisterRequest, LoginRequest, TokenResponse, UserResponse,
+    ChangePasswordRequest, RegisterRequest, LoginRequest, TokenResponse, UserResponse,
 )
 from app.core.security import hash_password, verify_password, create_access_token
 from app.core.deps import get_current_user
@@ -89,3 +89,28 @@ async def get_me(
         await db.commit()
         await db.refresh(user)
     return user
+
+
+@router.post("/change-password", response_model=TokenResponse)
+async def change_password(
+    req: ChangePasswordRequest,
+    db: AsyncSession = Depends(get_db),
+    user: User = Depends(get_current_user),
+):
+    """校验当前密码后更新密码，并签发新 Token。"""
+    if user.auth_provider != "email" or not user.hashed_password:
+        raise HTTPException(status_code=400, detail="当前账号不支持密码修改")
+    if not verify_password(req.current_password, user.hashed_password):
+        raise HTTPException(status_code=400, detail="当前密码错误")
+    if verify_password(req.new_password, user.hashed_password):
+        raise HTTPException(status_code=400, detail="新密码不能与当前密码相同")
+
+    user.hashed_password = hash_password(req.new_password)
+    user.auth_version = (user.auth_version or 1) + 1
+    await db.commit()
+    await db.refresh(user)
+
+    return TokenResponse(
+        access_token=_issue_token(user),
+        user=UserResponse.model_validate(user),
+    )

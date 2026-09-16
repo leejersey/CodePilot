@@ -27,6 +27,8 @@ interface AuthState {
   register: (email: string, password: string, nickname: string) => Promise<void>;
   /** 登录 */
   login: (email: string, password: string) => Promise<void>;
+  /** 修改密码并刷新当前 Token */
+  changePassword: (currentPassword: string, newPassword: string) => Promise<void>;
   /** 退出 */
   logout: () => void;
   /** 获取 Authorization Header */
@@ -115,6 +117,34 @@ export const useAuth = create<AuthState>((set, get) => ({
       token: data.access_token,
       user: data.user,
       loading: false,
+      isAdmin: data.user?.role === "admin" || data.user?.role === "super_admin",
+      isSuperAdmin: data.user?.role === "super_admin",
+    });
+  },
+
+  changePassword: async (currentPassword, newPassword) => {
+    const { token } = get();
+    if (!token) throw new Error("请先登录");
+    const res = await fetch(`${API_BASE}/api/v1/auth/change-password`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${token}`,
+      },
+      body: JSON.stringify({
+        current_password: currentPassword,
+        new_password: newPassword,
+      }),
+    });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      throw new Error(err.detail || "修改密码失败");
+    }
+    const data = await res.json();
+    localStorage.setItem("codepilot_token", data.access_token);
+    set({
+      token: data.access_token,
+      user: data.user,
       isAdmin: data.user?.role === "admin" || data.user?.role === "super_admin",
       isSuperAdmin: data.user?.role === "super_admin",
     });

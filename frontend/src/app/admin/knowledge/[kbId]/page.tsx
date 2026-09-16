@@ -18,6 +18,7 @@ import {
   FileCode,
   FileText,
   Loader2,
+  RotateCcw,
   Trash2,
   UploadCloud,
   XCircle,
@@ -28,7 +29,10 @@ import { useDialog } from "@/components/DialogProvider";
 import {
   deleteKnowledgeDocument,
   getKnowledgeBase,
+  listBackgroundJobs,
+  retryBackgroundJob,
   uploadKnowledgeDocument,
+  type BackgroundJob,
   type KnowledgeBaseDetail,
 } from "@/lib/api";
 
@@ -99,10 +103,16 @@ export default function AdminKnowledgeDetailPage() {
   const [uploadProgress, setUploadProgress] = useState("");
   const [dragOver, setDragOver] = useState(false);
   const [error, setError] = useState("");
+  const [jobs, setJobs] = useState<BackgroundJob[]>([]);
 
   const refresh = useCallback(async () => {
     try {
-      setKb(await getKnowledgeBase(kbId));
+      const [detail, taskList] = await Promise.all([
+        getKnowledgeBase(kbId),
+        listBackgroundJobs({ jobType: "document_ingest" }),
+      ]);
+      setKb(detail);
+      setJobs(taskList.filter((job) => job.payload?.kb_id === kbId));
       setError("");
     } catch (err) {
       setError(err instanceof Error ? err.message : "加载失败");
@@ -114,6 +124,21 @@ export default function AdminKnowledgeDetailPage() {
   useEffect(() => {
     if (kbId) void refresh();
   }, [kbId, refresh]);
+
+  useEffect(() => {
+    if (!jobs.some((job) => ["queued", "processing", "retrying"].includes(job.status))) return;
+    let cancelled = false;
+    let timer: number;
+    const poll = async () => {
+      await refresh();
+      if (!cancelled) timer = window.setTimeout(poll, 2000);
+    };
+    timer = window.setTimeout(poll, 2000);
+    return () => {
+      cancelled = true;
+      window.clearTimeout(timer);
+    };
+  }, [jobs, refresh]);
 
   const uploadFiles = async (list: FileList | File[] | null) => {
     if (!list || uploading) return;
@@ -129,7 +154,7 @@ export default function AdminKnowledgeDetailPage() {
       for (let index = 0; index < accepted.length; index += 1) {
         const file = accepted[index];
         setUploadProgress(
-          `正在切片与向量化 (${index + 1}/${accepted.length})：${file.name}`
+          `正在上传并加入处理队列 (${index + 1}/${accepted.length})：${file.name}`
         );
         try {
           await uploadKnowledgeDocument(kbId, file);
@@ -285,6 +310,7 @@ export default function AdminKnowledgeDetailPage() {
                 {kb.documents.map((doc) => {
                   const status = STATUS_CONFIG[doc.status] || STATUS_CONFIG.pending;
                   const StatusIcon = status.icon;
+                  const job = jobs.find((item) => item.payload?.document_id === doc.id);
                   return (
                     <Card
                       key={doc.id}
@@ -317,16 +343,31 @@ export default function AdminKnowledgeDetailPage() {
                               {doc.error_message}
                             </p>
                           )}
+                          {job?.status === "retrying" && (
+                            <p className="mt-1 text-xs text-amber-300">自动重试中（第 {job.attempts} 次）</p>
+                          )}
                         </div>
                       </div>
-                      <button
-                        type="button"
-                        title="删除文档"
-                        onClick={() => deleteDocument(doc.id, doc.filename)}
-                        className="shrink-0 rounded-lg p-2 text-slate-500 hover:bg-rose-500/10 hover:text-rose-400"
-                      >
-                        <Trash2 size={16} />
-                      </button>
+                      <div className="flex items-center gap-1">
+                        {job?.status === "failed" && (
+                          <button
+                            type="button"
+                            title="重试处理"
+                            onClick={async () => { await retryBackgroundJob(job.id); await refresh(); }}
+                            className="rounded-lg p-2 text-amber-300 hover:bg-amber-500/10"
+                          >
+                            <RotateCcw size={16} />
+                          </button>
+                        )}
+                        <button
+                          type="button"
+                          title="删除文档"
+                          onClick={() => deleteDocument(doc.id, doc.filename)}
+                          className="shrink-0 rounded-lg p-2 text-slate-500 hover:bg-rose-500/10 hover:text-rose-400"
+                        >
+                          <Trash2 size={16} />
+                        </button>
+                      </div>
                     </Card>
                   );
                 })}

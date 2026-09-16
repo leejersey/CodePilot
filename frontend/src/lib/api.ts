@@ -32,6 +32,10 @@ export interface Exercise {
   difficulty: string;
   source_kbs?: ExerciseSourceKb[] | null;
   status?: "draft" | "published" | "archived" | string;
+  judge_mode?: string;
+  validation_status?: "unverified" | "verified" | "failed" | string;
+  validated_at?: string | null;
+  reference_solution?: string | null;
   created_at: string;
 }
 
@@ -67,12 +71,42 @@ export interface AdminUserList {
   stats: Record<"total" | "super_admin" | "admin" | "learner" | "active" | "disabled", number>;
 }
 
+export interface BackgroundJob {
+  id: string;
+  job_type: "document_ingest" | "exercise_generate" | string;
+  status: "queued" | "processing" | "retrying" | "completed" | "failed" | "cancelled";
+  progress: number;
+  result_resource_id: string | null;
+  error_message: string | null;
+  attempts: number;
+  payload?: Record<string, string> | null;
+  created_at: string;
+  started_at: string | null;
+  finished_at: string | null;
+  updated_at: string;
+}
+
 export interface SubmissionResponse {
   submission_id: string;
   result: "pass" | "fail" | "error";
   score: number | null;
   ai_feedback: string | null;
-  test_results: { case: number; passed: boolean }[] | null;
+  test_results: {
+    case: number;
+    passed: boolean;
+    hidden?: boolean;
+    status?: string;
+    time?: string | null;
+    memory?: number | null;
+    input?: string;
+    expected?: string;
+    actual?: string;
+    stderr?: string | null;
+  }[] | null;
+  execution_time?: string | null;
+  memory?: number | null;
+  trusted: boolean;
+  judge_source: "judge0" | "llm" | string;
 }
 
 export interface ChapterOutline {
@@ -186,6 +220,13 @@ export interface SkillItem {
 export interface CodeRunResponse {
   output: string;
   has_error: boolean;
+  status: string;
+  stderr?: string | null;
+  compile_output?: string | null;
+  time?: string | null;
+  memory?: number | null;
+  trusted: boolean;
+  judge_source: "judge0" | "llm" | string;
 }
 
 // ══════════════════════════════════════════
@@ -391,6 +432,38 @@ export async function adminListExercises(params?: {
   return fetchAPI<Exercise[]>(`/api/v1/exercises/admin${qs ? `?${qs}` : ""}`);
 }
 
+export async function adminGetExercise(id: string): Promise<Exercise> {
+  return fetchAPI<Exercise>(`/api/v1/exercises/admin/${id}`);
+}
+
+export async function adminUpdateExercise(
+  id: string,
+  body: {
+    title: string;
+    description: string;
+    language: string;
+    difficulty: string;
+    tags: string[];
+    starter_code: string;
+    reference_solution: string;
+    test_cases: TestCase[];
+  }
+): Promise<Exercise> {
+  return fetchAPI<Exercise>(`/api/v1/exercises/admin/${id}`, {
+    method: "PUT",
+    body: JSON.stringify(body),
+  });
+}
+
+export async function adminValidateExercise(id: string): Promise<{
+  valid: boolean;
+  result: string;
+  score: number;
+  test_results: SubmissionResponse["test_results"];
+}> {
+  return fetchAPI(`/api/v1/exercises/admin/${id}/validate`, { method: "POST" });
+}
+
 export async function updateExerciseStatus(
   id: string,
   status: "draft" | "published" | "archived"
@@ -409,8 +482,8 @@ export async function getExercise(id: string): Promise<Exercise> {
   return fetchAPI<Exercise>(`/api/v1/exercises/${id}`);
 }
 
-export async function generateExercise(req: ExerciseGenerateRequest): Promise<Exercise> {
-  return fetchAPI<Exercise>("/api/v1/exercises/generate", {
+export async function generateExercise(req: ExerciseGenerateRequest): Promise<BackgroundJob> {
+  return fetchAPI<BackgroundJob>("/api/v1/exercises/generate", {
     method: "POST",
     body: JSON.stringify({
       language: req.language,
@@ -465,13 +538,12 @@ export async function runCode(code: string, language: string = "python"): Promis
 //  Animation API
 // ══════════════════════════════════════════
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
 export async function generateAnimation(req: {
   topic: string;
   chapter_title?: string;
   chapter_summary?: string;
   lesson_content?: string;
-}): Promise<any> {
+}): Promise<unknown> {
   return fetchAPI("/api/v1/animation/generate", {
     method: "POST",
     body: JSON.stringify({
@@ -484,12 +556,11 @@ export async function generateAnimation(req: {
 }
 
 /** 单知识点讲解（代码块旁「讲解」） */
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
 export async function generateSnippetExplain(req: {
   code: string;
   language: string;
   context?: string;
-}): Promise<any> {
+}): Promise<unknown> {
   return fetchAPI("/api/v1/animation/generate-snippet", {
     method: "POST",
     body: JSON.stringify({
@@ -558,7 +629,7 @@ export async function deleteKnowledgeBase(kbId: string): Promise<void> {
 export async function uploadKnowledgeDocument(
   kbId: string,
   file: File
-): Promise<KnowledgeDocument> {
+): Promise<BackgroundJob> {
   const form = new FormData();
   form.append("file", file);
   const res = await fetch(`${API_BASE}/api/v1/knowledge-bases/${kbId}/documents`, {
@@ -577,6 +648,22 @@ export async function deleteKnowledgeDocument(kbId: string, docId: string): Prom
   await fetchAPI<void>(`/api/v1/knowledge-bases/${kbId}/documents/${docId}`, {
     method: "DELETE",
   });
+}
+
+export async function getBackgroundJob(jobId: string): Promise<BackgroundJob> {
+  return fetchAPI<BackgroundJob>(`/api/v1/jobs/${jobId}`);
+}
+
+export async function listBackgroundJobs(params: { jobType?: string; status?: string } = {}): Promise<BackgroundJob[]> {
+  const query = new URLSearchParams();
+  if (params.jobType) query.set("job_type", params.jobType);
+  if (params.status) query.set("status", params.status);
+  const suffix = query.toString();
+  return fetchAPI<BackgroundJob[]>(`/api/v1/jobs${suffix ? `?${suffix}` : ""}`);
+}
+
+export async function retryBackgroundJob(jobId: string): Promise<BackgroundJob> {
+  return fetchAPI<BackgroundJob>(`/api/v1/jobs/${jobId}/retry`, { method: "POST" });
 }
 
 // ══════════════════════════════════════════

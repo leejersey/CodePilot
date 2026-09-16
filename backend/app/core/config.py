@@ -13,6 +13,19 @@ class Settings(BaseSettings):
     # Redis
     REDIS_URL: str = "redis://localhost:6379/0"
 
+    # Judge0 — self-hosted code execution
+    JUDGE0_URL: str = ""
+    JUDGE0_AUTH_HEADER: str = "X-Auth-Token"
+    JUDGE0_AUTH_TOKEN: str = ""
+    JUDGE0_RAPIDAPI_HOST: str = ""
+    JUDGE0_RAPIDAPI_KEY: str = ""
+    JUDGE0_TIMEOUT_SECONDS: float = 20.0
+    JUDGE0_FAILURE_THRESHOLD: int = 3
+    JUDGE0_COOLDOWN_SECONDS: float = 30.0
+    JUDGE0_CPU_TIME_LIMIT: float = 3.0
+    JUDGE0_WALL_TIME_LIMIT: float = 8.0
+    JUDGE0_MEMORY_LIMIT_KB: int = 128000
+
     # LLM — DeepSeek (OpenAI 兼容)
     LLM_API_KEY: str = ""
     LLM_MODEL: str = "deepseek-chat"

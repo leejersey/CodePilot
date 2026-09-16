@@ -1,7 +1,7 @@
 import uuid
 from datetime import datetime
 from typing import Literal
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, model_validator
 
 
 # ── Learning Path ──
@@ -110,8 +110,8 @@ class ExerciseGenerateRequest(BaseModel):
 
 
 class TestCase(BaseModel):
-    input: str
-    expected: str
+    input: str = Field("", max_length=100_000)
+    expected: str = Field("", max_length=100_000)
     hidden: bool = False
 
 
@@ -136,13 +136,48 @@ class ExerciseResponse(BaseModel):
     difficulty: str
     source_kbs: list[ExerciseSourceKb] | None = None
     status: str = "draft"
+    judge_mode: str = "judge0"
+    validation_status: str = "unverified"
+    validated_at: datetime | None = None
     created_at: datetime
 
     model_config = {"from_attributes": True}
 
 
 class ExerciseSubmitRequest(BaseModel):
-    code: str = Field(..., min_length=1)
+    code: str = Field(..., min_length=1, max_length=100_000)
+
+
+class AdminExerciseResponse(ExerciseResponse):
+    reference_solution: str | None = None
+
+
+class ExerciseUpdateRequest(BaseModel):
+    title: str = Field(..., min_length=1, max_length=255)
+    description: str = Field(..., min_length=1)
+    language: str = Field(..., min_length=1, max_length=50)
+    difficulty: str = Field(..., pattern="^(easy|medium|hard)$")
+    tags: list[str] = Field(default_factory=list, max_length=20)
+    starter_code: str = ""
+    reference_solution: str = Field(..., min_length=1)
+    test_cases: list[TestCase] = Field(..., min_length=1, max_length=20)
+
+
+class GeneratedExerciseData(ExerciseUpdateRequest):
+    @model_validator(mode="after")
+    def require_public_and_hidden_cases(self):
+        public_count = sum(not case.hidden for case in self.test_cases)
+        hidden_count = sum(case.hidden for case in self.test_cases)
+        if public_count < 2 or hidden_count < 1:
+            raise ValueError("生成题目必须包含至少 2 个公开用例和 1 个隐藏用例")
+        return self
+
+
+class ExerciseValidationResponse(BaseModel):
+    valid: bool
+    result: str
+    score: int
+    test_results: list[dict]
 
 
 class SubmissionResponse(BaseModel):
@@ -151,6 +186,10 @@ class SubmissionResponse(BaseModel):
     score: int | None
     ai_feedback: str | None
     test_results: list[dict] | None = None
+    execution_time: str | None = None
+    memory: int | None = None
+    trusted: bool = True
+    judge_source: str = "judge0"
 
 
 # ── Error ──
@@ -175,6 +214,11 @@ class RegisterRequest(BaseModel):
 class LoginRequest(BaseModel):
     email: str = Field(..., examples=["user@example.com"])
     password: str = Field(...)
+
+
+class ChangePasswordRequest(BaseModel):
+    current_password: str = Field(..., min_length=1, max_length=100)
+    new_password: str = Field(..., min_length=8, max_length=100)
 
 
 class TokenResponse(BaseModel):
@@ -228,6 +272,23 @@ class UserAccountStatusUpdate(BaseModel):
 
 class UserPasswordReset(BaseModel):
     temporary_password: str = Field(..., min_length=8, max_length=100)
+
+
+class BackgroundJobResponse(BaseModel):
+    id: uuid.UUID
+    job_type: str
+    status: str
+    progress: int
+    result_resource_id: uuid.UUID | None
+    error_message: str | None
+    attempts: int
+    payload: dict | None
+    created_at: datetime
+    started_at: datetime | None
+    finished_at: datetime | None
+    updated_at: datetime
+
+    model_config = {"from_attributes": True}
 
 
 # ── Knowledge Base ──

@@ -29,7 +29,7 @@
 | 🎯 **个性化路径** | 按水平与目标定制路线；进度追踪；可删除路线 |
 | 🖥️ **代码沙箱** | Monaco 语法高亮；Pyodide 浏览器跑 Python；代码块可「同步至沙箱」 |
 | 🎬 **知识点讲解** | 代码块旁「动画讲解」：生成 Remotion 短片并含运行结果 |
-| 📝 **练习演练场** | **管理员**基于知识库出题并发布；学员端只浏览/作答已发布题目 |
+| 📝 **练习演练场** | 管理员基于知识库异步出题并编辑；Judge0 真实运行测试后才可发布 |
 | 🔐 **用户认证** | JWT 注册登录；`ADMIN_EMAILS` 晋升管理员；知识库 / 练习管理仅管理员 |
 | 👤 **个人中心** | 多 LLM Profile（平台默认 + 自定义），可切换当前生效配置 |
 | 📊 **学习仪表盘** | 统计、活跃度热力图、技能雷达 |
@@ -100,8 +100,15 @@ ADMIN_EMAILS=you@example.com
 ### 3. 启动数据库
 
 ```bash
-docker compose up -d postgres redis
+docker compose up -d
 ```
+
+该命令启动 PostgreSQL、Redis、API 和 ARQ 后台任务 worker。代码沙箱使用远程 Judge0，
+通过 `.env` 配置 `JUDGE0_URL` 及标准 Token；RapidAPI 可改填
+`JUDGE0_RAPIDAPI_HOST` 和 `JUDGE0_RAPIDAPI_KEY`。
+
+远程沙箱不可用时，普通运行和学员提交会显示带“非可信”标记的 LLM 临时评估；
+临时结果不计为正式通过，也不能用于管理员验证或解锁练习发布。
 
 ### 4. 启动后端
 
@@ -149,7 +156,7 @@ npm run dev
 
 1. **管理员** →「练习管理」：选知识库 + 主题 → RAG 出题（默认草稿）。
 2. 审核后 **发布**；可撤回草稿 / 下架 / 删除。
-3. **学员** →「练习」：只看到已发布题目；Monaco 编辑 + AI 判题。
+3. **学员** →「练习」：只看到已验证并发布的题目；Monaco 编辑 + Judge0 真实判题。
 4. 无匹配知识库内容时 **拒绝出题**，不会生成无关通用题。
 
 ## 📁 项目结构
@@ -228,7 +235,8 @@ CodePilot/
 | `GET` | `/api/v1/exercises` | **仅 published** 列表（学员） |
 | `GET` | `/api/v1/exercises/admin` | 全部状态（管理员） |
 | `GET` | `/api/v1/exercises/ready-knowledge-bases` | 出题可选就绪库（管理员） |
-| `POST` | `/api/v1/exercises/generate` | 基于 KB RAG 出题（管理员；默认可存草稿） |
+| `POST` | `/api/v1/exercises/generate` | 基于 KB RAG 异步出题（返回后台任务） |
+| `PUT/POST` | `/api/v1/exercises/admin/{id}` · `/validate` | 编辑题目并用参考答案验证 |
 | `PATCH` | `/api/v1/exercises/{id}/status` | `draft` / `published` / `archived` |
 | `DELETE` | `/api/v1/exercises/{id}` | 删除（管理员） |
 | `GET` | `/api/v1/exercises/{id}` | 详情（未发布仅管理员） |
@@ -239,7 +247,8 @@ CodePilot/
 | 方法 | 路径 | 说明 |
 |------|------|------|
 | `GET` | `/api/v1/progress/…` | 统计 / 活跃度 / 技能分布 |
-| `POST` | `/api/v1/code/run` | 运行代码 |
+| `POST` | `/api/v1/code/run` | Judge0 隔离沙箱真实运行代码 |
+| `GET/POST` | `/api/v1/jobs/…` | 后台任务状态与失败重试 |
 | `POST` | `/api/v1/animation/generate-snippet` | 单段代码讲解动画 |
 | `GET` | `/health` | 健康检查 |
 
@@ -307,7 +316,7 @@ CodePilot/
 - [x] **V1.2** — 练习中心 + 仪表盘 + 进度 + 历史
 - [x] **V1.3** — 知识库 RAG + 管理员角色 + 主题相关检索 + 路线删除 / 溯源
 - [x] **V1.4** — 文档学习模式 · 知识点 Remotion 讲解 · 个人 LLM Profiles · 管理员出题发布流
-- [ ] **V2** — 练习真实验判 / 沙箱增强 · 数据统计面板
+- [x] **V2** — Judge0 真实判题 · 练习编辑器 · ARQ 异步入库/出题
 - [ ] **V3** — 多语言产品化 · 社区 · 成就系统
 
 ## 📄 License

@@ -5,7 +5,10 @@ from pydantic import BaseModel, Field
 
 from app.core.deps import get_current_user
 from app.models.models import User
-from app.services.llm import call_llm_json, call_llm_stream, llm_user_context
+import httpx
+
+from app.services.judge0 import run_code
+from app.services.llm import call_llm_json, llm_user_context
 
 router = APIRouter()
 
@@ -94,32 +97,13 @@ SNIPPET_PROMPT = """你是编程课短视频编剧。只讲「这一段代码」
 """
 
 
-async def _simulate_run(code: str, language: str) -> tuple[str, bool]:
-    prompt = f"""你是一个代码执行环境。请执行以下 {language} 代码，只返回控制台输出结果。
-如果代码有语法错误或运行时错误，返回错误信息。
-不要解释代码，不要添加任何额外文字，只返回纯粹的执行输出。
-
-```{language}
-{code}
-```
-
-执行输出："""
-    messages = [
-        {
-            "role": "system",
-            "content": "你是一个精确的代码执行模拟器。只输出代码的运行结果，不要有任何多余的话。",
-        },
-        {"role": "user", "content": prompt},
-    ]
-    output = ""
-    async for token in call_llm_stream(messages):
-        output += token
-    text = output.strip()
-    has_error = any(
-        kw in text.lower()
-        for kw in ["error", "traceback", "exception", "syntaxerror", "错误"]
-    )
-    return text or "(无输出)", has_error
+async def _run_snippet(code: str, language: str) -> tuple[str, bool]:
+    try:
+        result = await run_code(code, language)
+    except (httpx.HTTPError, TimeoutError, ValueError) as exc:
+        raise HTTPException(status_code=503, detail=f"代码沙箱暂不可用: {exc}") from exc
+    output = result.stdout or result.stderr or result.compile_output or result.message
+    return (output or "(无输出)").strip(), result.status_id != 3
 
 
 def _normalize_snippet(result: dict, *, title_fallback: str, code: str, language: str, output: str, has_error: bool) -> dict:
@@ -195,7 +179,7 @@ async def build_snippet_explain(req: SnippetExplainRequest, user: User | None = 
     context = (req.context or "").strip() or "（无额外上下文）"
 
     with llm_user_context(user):
-        output, has_error = await _simulate_run(code, language)
+        output, has_error = await _run_snippet(code, language)
 
         title_fb = "知识点讲解"
         for line in context.splitlines():

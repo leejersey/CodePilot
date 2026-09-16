@@ -19,11 +19,12 @@ import {
   updateChapterStatus,
 } from "@/lib/api";
 import { defaultFilename, extractCodeBlocks, fingerprintCode } from "@/lib/codeBlocks";
+import { buildChapterArchive, safeArchiveName } from "@/lib/chapterExport";
 import {
   DocumentLearningPanel,
   type DocAskContext,
 } from "@/components/DocumentLearningPanel";
-import { BookOpen, Bot, CheckCircle2, Loader2, MessageSquare, Play, Send, User as UserIcon, X } from "lucide-react";
+import { BookOpen, Bot, CheckCircle2, Download, Loader2, MessageSquare, Play, Send, User as UserIcon, X } from "lucide-react";
 
 interface ChatMessage {
   id?: string;
@@ -88,6 +89,8 @@ export default function LearningWorkspacePage() {
   const [consoleOutput, setConsoleOutput] = useState<string[]>(["环境加载中..."]);
   const [running, setRunning] = useState(false);
   const [chapterCompleted, setChapterCompleted] = useState(false);
+  const [chapterTitle, setChapterTitle] = useState("本章内容");
+  const [exporting, setExporting] = useState(false);
   const [completing, setCompleting] = useState(false);
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const [animationData, setAnimationData] = useState<any | null>(null);
@@ -204,6 +207,35 @@ export default function LearningWorkspacePage() {
   const activeTab = tabs.find((t) => t.id === activeTabId) || tabs[0];
   const activeCode = activeTab?.code ?? "";
   const activeLang = activeTab?.language || editorInfo.lang;
+
+  const exportChapterCode = async () => {
+    if (exporting || tabs.length === 0) return;
+    setExporting(true);
+    try {
+      const archive = await buildChapterArchive({
+        chapterTitle,
+        language: editorInfo.lang,
+        tabs: tabs.map((tab) => ({
+          label: tab.label,
+          language: tab.language,
+          code: tab.code,
+        })),
+      });
+      const bytes = new Uint8Array(archive.byteLength);
+      bytes.set(archive);
+      const blob = new Blob([bytes.buffer], { type: "application/zip" });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      link.href = url;
+      link.download = `${safeArchiveName(chapterTitle)}-code.zip`;
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      URL.revokeObjectURL(url);
+    } finally {
+      setExporting(false);
+    }
+  };
 
   // 从课程消息同步代码 Tab（保留用户已修改内容）
   useEffect(() => {
@@ -403,6 +435,7 @@ export default function LearningWorkspacePage() {
         const ch = await fetchChapter(chapterId);
         if (cancelled) return;
         chapterTitle = ch.title || chapterTitle;
+        setChapterTitle(chapterTitle);
       } catch { /* ignore */ }
 
       // 优先恢复该章节已有对话
@@ -495,9 +528,14 @@ export default function LearningWorkspacePage() {
           result.error ? "Program exited with error." : "Program finished.",
         ]);
       } else {
-        // 非 Python → AI 模拟执行
+        // 非 Python → Judge0 隔离沙箱真实执行
         const data = await apiRunCode(activeCode, activeLang);
-        setConsoleOutput(prev => [...prev, data.output, "Program finished."]);
+        setConsoleOutput(prev => [
+          ...prev,
+          data.output,
+          `${data.status}${data.time ? ` · ${data.time}s` : ""}`,
+          data.trusted ? "Remote Judge0 verified." : "LLM fallback: untrusted temporary simulation.",
+        ]);
       }
     } catch {
       setConsoleOutput(prev => [...prev, "Error: 执行失败"]);
@@ -840,6 +878,16 @@ export default function LearningWorkspacePage() {
                 </button>
               ))}
             </div>
+            <button
+              type="button"
+              onClick={exportChapterCode}
+              disabled={exporting || tabs.length === 0}
+              title="将本章全部代码打包为 ZIP"
+              className="flex-shrink-0 flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-white/10 text-xs text-slate-300 hover:border-primary/30 hover:text-primary disabled:opacity-50"
+            >
+              {exporting ? <Loader2 size={13} className="animate-spin" /> : <Download size={13} />}
+              导出
+            </button>
             <button
               className="flex-shrink-0 flex items-center gap-1.5 px-3.5 py-1.5 bg-primary text-on-primary text-xs font-bold font-headline rounded-lg hover:brightness-110 transition-all active:scale-95 disabled:opacity-50 shadow-[0_0_12px_rgba(83,221,252,0.2)]"
               onClick={runCode}

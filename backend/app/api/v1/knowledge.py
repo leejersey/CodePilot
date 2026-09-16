@@ -1,6 +1,7 @@
 """知识库 REST API — 仅管理员可访问"""
 
 import uuid
+from pathlib import Path
 from fastapi import APIRouter, Depends, File, HTTPException, UploadFile
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -10,13 +11,15 @@ from app.core.deps import require_admin
 from app.db.database import get_db
 from app.models.models import KnowledgeBase, KnowledgeDocument, User
 from app.schemas.schemas import (
+    BackgroundJobResponse,
     KnowledgeBaseCreate,
     KnowledgeBaseDetailResponse,
     KnowledgeBaseResponse,
     KnowledgeBaseUpdate,
     KnowledgeDocumentResponse,
 )
-from app.services.kb_ingest import delete_document_files_and_chunks, ingest_uploaded_file
+from app.services.background_jobs import cancel_document_jobs, create_and_enqueue_job
+from app.services.kb_ingest import create_uploaded_document, delete_document_files_and_chunks
 
 router = APIRouter()
 
@@ -142,6 +145,7 @@ async def delete_knowledge_base(
     if not kb:
         raise HTTPException(status_code=404, detail="知识库不存在")
 
+    await cancel_document_jobs(db, [str(doc.id) for doc in kb.documents])
     for doc in list(kb.documents):
         await delete_document_files_and_chunks(db, doc)
     await db.delete(kb)
@@ -149,7 +153,7 @@ async def delete_knowledge_base(
     return None
 
 
-@router.post("/{kb_id}/documents", response_model=KnowledgeDocumentResponse, status_code=201)
+@router.post("/{kb_id}/documents", response_model=BackgroundJobResponse, status_code=202)
 async def upload_document(
     kb_id: uuid.UUID,
     file: UploadFile = File(...),
@@ -157,10 +161,28 @@ async def upload_document(
     user: User = Depends(require_admin),
 ):
     await _get_kb(db, kb_id)
-    doc = await ingest_uploaded_file(db, kb_id=kb_id, user_id=user.id, upload=file)
-    await db.commit()
+    doc: KnowledgeDocument | None = None
+    try:
+        doc = await create_uploaded_document(db, kb_id=kb_id, user_id=user.id, upload=file)
+        await db.commit()
+    except Exception:
+        if doc and doc.storage_path:
+            Path(doc.storage_path).unlink(missing_ok=True)
+        raise
+    assert doc is not None
     await db.refresh(doc)
-    return KnowledgeDocumentResponse.model_validate(doc)
+    try:
+        return await create_and_enqueue_job(
+            db,
+            user=user,
+            job_type="document_ingest",
+            payload={"document_id": str(doc.id), "kb_id": str(kb_id)},
+        )
+    except Exception as exc:
+        doc.status = "failed"
+        doc.error_message = f"后台任务入队失败: {exc}"[:500]
+        await db.commit()
+        raise HTTPException(status_code=503, detail=doc.error_message) from exc
 
 
 @router.delete("/{kb_id}/documents/{doc_id}", status_code=204)
@@ -180,6 +202,7 @@ async def delete_document(
     doc = result.scalar_one_or_none()
     if not doc:
         raise HTTPException(status_code=404, detail="文档不存在")
+    await cancel_document_jobs(db, [str(doc_id)])
     await delete_document_files_and_chunks(db, doc)
     await db.commit()
     return None

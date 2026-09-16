@@ -6,7 +6,7 @@ import { Header } from "@/components/layout/Header";
 import { AuthGuard } from "@/components/AuthGuard";
 import { useAuth } from "@/hooks/useAuth";
 import { useDialog } from "@/components/DialogProvider";
-import { ChevronRight, Plus, X } from "lucide-react";
+import { ChevronRight, KeyRound, Plus, X } from "lucide-react";
 import {
   getLlmSettings,
   setActiveLlmProfile,
@@ -21,7 +21,7 @@ import {
 type FormMode = "closed" | "create" | "edit";
 
 export default function ProfileSettingsPage() {
-  const { init, user } = useAuth();
+  const { init, user, changePassword } = useAuth();
   const { alert, confirm } = useDialog();
 
   const [loading, setLoading] = useState(true);
@@ -36,6 +36,10 @@ export default function ProfileSettingsPage() {
   const [baseUrl, setBaseUrl] = useState("");
   const [model, setModel] = useState("");
   const [setActiveOnCreate, setSetActiveOnCreate] = useState(true);
+  const [currentPassword, setCurrentPassword] = useState("");
+  const [newPassword, setNewPassword] = useState("");
+  const [confirmPassword, setConfirmPassword] = useState("");
+  const [passwordBusy, setPasswordBusy] = useState(false);
 
   useEffect(() => {
     init();
@@ -202,6 +206,32 @@ export default function ProfileSettingsPage() {
   const providerLabel = (id: string) =>
     data?.presets.find((p) => p.id === id)?.label || id;
 
+  const handleChangePassword = async () => {
+    if (newPassword.length < 8) {
+      await alert({ title: "新密码过短", message: "新密码至少需要 8 位。" });
+      return;
+    }
+    if (newPassword !== confirmPassword) {
+      await alert({ title: "密码不一致", message: "两次输入的新密码不一致。" });
+      return;
+    }
+    setPasswordBusy(true);
+    try {
+      await changePassword(currentPassword, newPassword);
+      setCurrentPassword("");
+      setNewPassword("");
+      setConfirmPassword("");
+      await alert({ title: "密码已修改", message: "其他设备的登录状态已失效，当前设备可继续使用。" });
+    } catch (err) {
+      await alert({
+        title: "修改失败",
+        message: err instanceof Error ? err.message : "修改密码失败",
+      });
+    } finally {
+      setPasswordBusy(false);
+    }
+  };
+
   return (
     <AuthGuard>
       <Header />
@@ -224,6 +254,49 @@ export default function ProfileSettingsPage() {
             <div className="mb-8 p-5 rounded-2xl bg-surface-container-high border border-white/5">
               <p className="text-sm text-on-surface font-medium">{user.nickname}</p>
               <p className="text-xs text-slate-500 mt-1">{user.email}</p>
+            </div>
+          )}
+
+          {user?.auth_provider === "email" && (
+            <div className="mb-8 rounded-2xl border border-white/5 bg-surface-container-high/60 p-5">
+              <div className="mb-4 flex items-center gap-2">
+                <KeyRound className="h-4 w-4 text-primary" />
+                <h2 className="text-sm font-bold text-on-surface">修改密码</h2>
+              </div>
+              <div className="space-y-3">
+                <input
+                  type="password"
+                  value={currentPassword}
+                  onChange={(e) => setCurrentPassword(e.target.value)}
+                  placeholder="当前密码"
+                  autoComplete="current-password"
+                  className="w-full rounded-xl border border-white/10 bg-surface-container-low px-4 py-3 text-sm outline-none focus:border-primary"
+                />
+                <input
+                  type="password"
+                  value={newPassword}
+                  onChange={(e) => setNewPassword(e.target.value)}
+                  placeholder="新密码（至少 8 位）"
+                  autoComplete="new-password"
+                  className="w-full rounded-xl border border-white/10 bg-surface-container-low px-4 py-3 text-sm outline-none focus:border-primary"
+                />
+                <input
+                  type="password"
+                  value={confirmPassword}
+                  onChange={(e) => setConfirmPassword(e.target.value)}
+                  placeholder="确认新密码"
+                  autoComplete="new-password"
+                  className="w-full rounded-xl border border-white/10 bg-surface-container-low px-4 py-3 text-sm outline-none focus:border-primary"
+                />
+                <button
+                  type="button"
+                  disabled={passwordBusy || !currentPassword || !newPassword || !confirmPassword}
+                  onClick={handleChangePassword}
+                  className="rounded-xl bg-primary px-5 py-2.5 text-sm font-bold text-on-primary disabled:opacity-50"
+                >
+                  {passwordBusy ? "修改中…" : "确认修改"}
+                </button>
+              </div>
             </div>
           )}
 

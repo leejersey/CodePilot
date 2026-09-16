@@ -34,6 +34,13 @@ def _ext(filename: str) -> str:
     return Path(filename).suffix.lower()
 
 
+def safe_upload_filename(filename: str | None) -> str:
+    safe = Path(filename or "untitled.txt").name
+    if safe in {"", ".", ".."}:
+        raise ValueError("文件名无效")
+    return safe
+
+
 def parse_document_bytes(filename: str, data: bytes) -> str:
     """从 PDF / Markdown / TXT 提取纯文本。"""
     ext = _ext(filename)
@@ -104,15 +111,18 @@ def chunk_text(text: str, chunk_size: int = CHUNK_SIZE, overlap: int = CHUNK_OVE
     return [c for c in chunks if c]
 
 
-async def ingest_uploaded_file(
+async def create_uploaded_document(
     db: AsyncSession,
     *,
     kb_id: uuid.UUID,
     user_id: uuid.UUID,
     upload: UploadFile,
 ) -> KnowledgeDocument:
-    """保存上传文件、解析切块、嵌入并写入 knowledge_chunks。"""
-    filename = upload.filename or "untitled.txt"
+    """校验并保存上传文件，创建待处理文档记录。"""
+    try:
+        filename = safe_upload_filename(upload.filename)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail="文件名无效") from exc
     ext = _ext(filename)
     if ext not in ALLOWED_EXTENSIONS:
         raise HTTPException(status_code=400, detail="仅支持 PDF / Markdown / TXT")
@@ -136,14 +146,28 @@ async def ingest_uploaded_file(
         mime_type=upload.content_type,
         byte_size=len(data),
         storage_path=str(storage_path),
-        status="processing",
+        status="pending",
         chunk_count=0,
     )
     db.add(doc)
+    try:
+        await db.flush()
+    except Exception:
+        storage_path.unlink(missing_ok=True)
+        raise
+    return doc
+
+
+async def process_document(db: AsyncSession, doc: KnowledgeDocument) -> KnowledgeDocument:
+    """由后台 worker 解析、切块并向量化已落盘文档。"""
+    doc.status = "processing"
+    doc.error_message = None
     await db.flush()
 
     try:
-        text = parse_document_bytes(filename, data)
+        path = Path(doc.storage_path)
+        data = path.read_bytes()
+        text = parse_document_bytes(doc.filename, data)
         if not text:
             raise ValueError("未能从文件中提取到文本内容")
 
@@ -152,11 +176,12 @@ async def ingest_uploaded_file(
             raise ValueError("切块结果为空")
 
         vectors = await embed_texts(pieces)
+        await db.execute(delete(KnowledgeChunk).where(KnowledgeChunk.document_id == doc.id))
         for idx, (content, vector) in enumerate(zip(pieces, vectors)):
             db.add(
                 KnowledgeChunk(
                     document_id=doc.id,
-                    kb_id=kb_id,
+                    kb_id=doc.kb_id,
                     chunk_index=idx,
                     content=content,
                     embedding=[float(x) for x in vector],
@@ -180,6 +205,23 @@ async def ingest_uploaded_file(
 
     await db.flush()
     return doc
+
+
+async def ingest_uploaded_file(
+    db: AsyncSession,
+    *,
+    kb_id: uuid.UUID,
+    user_id: uuid.UUID,
+    upload: UploadFile,
+) -> KnowledgeDocument:
+    """兼容入口：保存并立即处理。新上传 API 使用 ARQ 异步处理。"""
+    doc = await create_uploaded_document(
+        db,
+        kb_id=kb_id,
+        user_id=user_id,
+        upload=upload,
+    )
+    return await process_document(db, doc)
 
 
 async def delete_document_files_and_chunks(db: AsyncSession, doc: KnowledgeDocument) -> None:

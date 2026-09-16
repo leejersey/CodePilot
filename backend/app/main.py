@@ -4,12 +4,15 @@ from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy import select
 
 from app.core.config import get_settings
-from app.api.v1 import admin_users, paths, chapters, conversations, exercises, code, auth, progress, animation, knowledge, settings as user_settings
+from app.api.v1 import admin_users, jobs, paths, chapters, conversations, exercises, code, auth, progress, animation, knowledge, settings as user_settings
 from app.api.ws import chat
 
 from app.db.redis import get_redis, close_redis
+from app.db.arq import close_arq_pool
 from app.db.database import AsyncSessionLocal
 from app.models.models import User
+from app.services.judge0 import judge0_available
+from app.services.background_jobs import recover_background_jobs
 
 settings = get_settings()
 
@@ -41,7 +44,13 @@ async def lifespan(app: FastAPI):
     """应用生命周期管理"""
     await get_redis()
     await _sync_admin_roles()
+    try:
+        await recover_background_jobs()
+    except Exception:
+        # Redis/DB 临时不可用时仍允许 API 启动，失败任务可由管理端手动重试。
+        pass
     yield
+    await close_arq_pool()
     await close_redis()
 
 
@@ -75,6 +84,7 @@ app.include_router(animation.router, prefix="/api/v1/animation", tags=["Animatio
 app.include_router(knowledge.router, prefix="/api/v1/knowledge-bases", tags=["Knowledge Bases"])
 app.include_router(user_settings.router, prefix="/api/v1/settings", tags=["User Settings"])
 app.include_router(admin_users.router, prefix="/api/v1/admin/users", tags=["Admin Users"])
+app.include_router(jobs.router, prefix="/api/v1/jobs", tags=["Background Jobs"])
 
 # WebSocket 路由
 app.include_router(chat.router, prefix="/ws", tags=["WebSocket"])
@@ -82,4 +92,9 @@ app.include_router(chat.router, prefix="/ws", tags=["WebSocket"])
 
 @app.get("/health", tags=["Health"])
 async def health_check():
-    return {"status": "ok", "version": "0.1.0"}
+    sandbox_ready = await judge0_available()
+    return {
+        "status": "ok" if sandbox_ready else "degraded",
+        "version": "0.1.0",
+        "services": {"judge0": "ready" if sandbox_ready else "unavailable"},
+    }

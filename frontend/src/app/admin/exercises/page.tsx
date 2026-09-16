@@ -11,10 +11,13 @@ import {
   adminListExercises,
   deleteExercise,
   generateExercise,
+  listBackgroundJobs,
   listReadyKnowledgeBasesForExercises,
+  retryBackgroundJob,
   updateExerciseStatus,
   type Exercise,
   type ExerciseSourceKb,
+  type BackgroundJob,
 } from "@/lib/api";
 import {
   Archive,
@@ -22,6 +25,7 @@ import {
   Eye,
   EyeOff,
   Loader2,
+  Pencil,
   Plus,
   SearchX,
   Trash2,
@@ -42,6 +46,7 @@ export default function AdminExercisesPage() {
   const [loading, setLoading] = useState(true);
   const [statusFilter, setStatusFilter] = useState("");
   const [error, setError] = useState("");
+  const [generationJobs, setGenerationJobs] = useState<BackgroundJob[]>([]);
 
   const [showGenerate, setShowGenerate] = useState(false);
   const [kbs, setKbs] = useState<ExerciseSourceKb[]>([]);
@@ -50,28 +55,44 @@ export default function AdminExercisesPage() {
   const [genLang, setGenLang] = useState("python");
   const [genDiff, setGenDiff] = useState("medium");
   const [selectedKbIds, setSelectedKbIds] = useState<string[]>([]);
-  const [publishNow, setPublishNow] = useState(false);
   const [isGenerating, setIsGenerating] = useState(false);
   const [busyId, setBusyId] = useState<string | null>(null);
 
-  const refresh = useCallback(async () => {
-    setLoading(true);
+  const refresh = useCallback(async (silent = false) => {
+    if (!silent) setLoading(true);
     setError("");
     try {
-      const data = await adminListExercises({
-        status: statusFilter || undefined,
-      });
+      const [data, jobs] = await Promise.all([
+        adminListExercises({ status: statusFilter || undefined }),
+        listBackgroundJobs({ jobType: "exercise_generate" }),
+      ]);
       setItems(data);
+      setGenerationJobs(jobs);
     } catch (err) {
       setError(err instanceof Error ? err.message : "加载失败");
     } finally {
-      setLoading(false);
+      if (!silent) setLoading(false);
     }
   }, [statusFilter]);
 
   useEffect(() => {
     refresh();
   }, [refresh]);
+
+  useEffect(() => {
+    if (!generationJobs.some((job) => ["queued", "processing", "retrying"].includes(job.status))) return;
+    let cancelled = false;
+    let timer: number;
+    const poll = async () => {
+      await refresh(true);
+      if (!cancelled) timer = window.setTimeout(poll, 2000);
+    };
+    timer = window.setTimeout(poll, 2000);
+    return () => {
+      cancelled = true;
+      window.clearTimeout(timer);
+    };
+  }, [generationJobs, refresh]);
 
   const openGenerate = async () => {
     setShowGenerate(true);
@@ -99,22 +120,20 @@ export default function AdminExercisesPage() {
     }
     setIsGenerating(true);
     try {
-      await generateExercise({
+      const job = await generateExercise({
         language: genLang,
         difficulty: genDiff,
         topic,
         knowledge_base_ids: selectedKbIds,
-        publish: publishNow,
+        publish: false,
       });
       setShowGenerate(false);
+      setGenerationJobs((current) => [job, ...current]);
       setGenTopic("");
-      setPublishNow(false);
       await refresh();
       await alert({
-        title: "出题成功",
-        message: publishNow
-          ? "题目已生成并发布，学员可在练习页看到。"
-          : "题目已存为草稿，发布后才会出现在学员练习页。",
+        title: "已加入出题队列",
+        message: "可离开本页，任务完成后会生成已验证或待修正的草稿。",
       });
     } catch (err) {
       await alert({
@@ -206,6 +225,17 @@ export default function AdminExercisesPage() {
               ))}
             </div>
 
+            {generationJobs.slice(0, 3).map((job) => (
+              <div key={job.id} className={`flex items-center justify-between rounded-xl border px-4 py-3 text-xs ${job.status === "failed" ? "border-rose-500/25 bg-rose-500/10 text-rose-300" : "border-cyan-500/20 bg-cyan-500/10 text-cyan-200"}`}>
+                <span>
+                  {job.status === "completed" ? "出题完成" : job.status === "failed" ? `出题失败：${job.error_message}` : `后台出题中 · ${job.status} · 尝试 ${job.attempts || 1}`}
+                </span>
+                {job.status === "failed" && (
+                  <button onClick={async () => { await retryBackgroundJob(job.id); await refresh(); }} className="rounded-lg border border-rose-400/30 px-3 py-1">重试</button>
+                )}
+              </div>
+            ))}
+
             {error && (
               <div className="text-sm text-red-400 border border-red-500/30 rounded-xl px-4 py-3">
                 {error}
@@ -248,6 +278,9 @@ export default function AdminExercisesPage() {
                               {ex.source_kbs[0].name}
                             </span>
                           )}
+                          <span className={`text-[10px] ${ex.validation_status === "verified" ? "text-emerald-300" : "text-amber-300"}`}>
+                            {ex.validation_status === "verified" ? "已验证" : "待验证"}
+                          </span>
                         </div>
                         <h3 className="text-base font-bold text-white mb-1">{ex.title}</h3>
                         <p className="text-xs text-slate-400 line-clamp-2">{ex.description}</p>
@@ -256,7 +289,7 @@ export default function AdminExercisesPage() {
                         {ex.status !== "published" && (
                           <button
                             type="button"
-                            disabled={busyId === ex.id}
+                            disabled={busyId === ex.id || ex.validation_status !== "verified"}
                             onClick={() => setStatus(ex, "published")}
                             className="inline-flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-lg border border-emerald-500/30 text-emerald-300 hover:bg-emerald-500/10"
                           >
@@ -264,6 +297,13 @@ export default function AdminExercisesPage() {
                             发布
                           </button>
                         )}
+                        <Link
+                          href={`/admin/exercises/${ex.id}`}
+                          className="inline-flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-lg border border-cyan-500/30 text-cyan-300 hover:bg-cyan-500/10"
+                        >
+                          <Pencil size={13} />
+                          编辑
+                        </Link>
                         {ex.status === "published" && (
                           <button
                             type="button"
@@ -429,15 +469,9 @@ export default function AdminExercisesPage() {
                 )}
               </div>
 
-              <label className="flex items-center gap-2 text-xs text-slate-300 mb-5 cursor-pointer">
-                <input
-                  type="checkbox"
-                  checked={publishNow}
-                  onChange={(e) => setPublishNow(e.target.checked)}
-                  disabled={isGenerating}
-                />
-                生成后直接发布到学员练习页
-              </label>
+              <p className="mb-5 text-xs text-amber-300/80">
+                生成后保存为草稿；参考答案通过 Judge0 验证后才可发布。
+              </p>
 
               <div className="flex justify-end gap-2">
                 <button

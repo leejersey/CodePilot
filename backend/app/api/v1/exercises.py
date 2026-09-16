@@ -1,7 +1,11 @@
 import logging
+import hashlib
+import json
 import uuid
+from datetime import datetime, timezone
 from typing import Optional
 
+import httpx
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy import delete, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -19,14 +23,21 @@ from app.models.models import (
     User,
 )
 from app.schemas.schemas import (
+    AdminExerciseResponse,
+    BackgroundJobResponse,
     ExerciseGenerateRequest,
+    GeneratedExerciseData,
     ExerciseResponse,
     ExerciseSourceKb,
     ExerciseStatusUpdate,
     ExerciseSubmitRequest,
+    ExerciseUpdateRequest,
+    ExerciseValidationResponse,
     SubmissionResponse,
 )
+from app.services.background_jobs import create_and_enqueue_job
 from app.services.exercise import generate_exercise, judge_submission
+from app.services.judge0 import JudgeUnavailable, run_test_cases
 from app.services.kb_retrieve import (
     filter_kbs_relevant_to_topic,
     get_kb_snippets_for_outline,
@@ -37,6 +48,28 @@ from app.services.llm import llm_user_context
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
+
+
+def _public_exercise(exercise: Exercise) -> dict:
+    payload = ExerciseResponse.model_validate(exercise).model_dump()
+    payload["test_cases"] = [
+        case for case in (payload.get("test_cases") or []) if not case.get("hidden")
+    ]
+    return payload
+
+
+def exercise_content_hash(exercise: Exercise) -> str:
+    content = {
+        "title": exercise.title,
+        "description": exercise.description,
+        "language": exercise.language,
+        "difficulty": exercise.difficulty,
+        "starter_code": exercise.starter_code or "",
+        "reference_solution": exercise.reference_solution or "",
+        "test_cases": exercise.test_cases or [],
+    }
+    canonical = json.dumps(content, ensure_ascii=False, sort_keys=True, separators=(",", ":"))
+    return hashlib.sha256(canonical.encode("utf-8")).hexdigest()
 
 
 # ── 学员端：仅已发布 ──
@@ -59,7 +92,7 @@ async def list_exercises(
 
     query = query.order_by(Exercise.created_at.desc()).offset(skip).limit(limit)
     result = await db.execute(query)
-    return list(result.scalars().all())
+    return [_public_exercise(exercise) for exercise in result.scalars().all()]
 
 
 @router.get("/languages", response_model=list[str])
@@ -100,6 +133,73 @@ async def admin_list_exercises(
     return list(result.scalars().all())
 
 
+@router.get("/admin/{exercise_id}", response_model=AdminExerciseResponse)
+async def admin_get_exercise(
+    exercise_id: uuid.UUID,
+    db: AsyncSession = Depends(get_db),
+    _: User = Depends(require_admin),
+):
+    exercise = await db.get(Exercise, exercise_id)
+    if not exercise:
+        raise HTTPException(status_code=404, detail="练习不存在")
+    return exercise
+
+
+@router.put("/admin/{exercise_id}", response_model=AdminExerciseResponse)
+async def admin_update_exercise(
+    exercise_id: uuid.UUID,
+    body: ExerciseUpdateRequest,
+    db: AsyncSession = Depends(get_db),
+    _: User = Depends(require_admin),
+):
+    exercise = await db.get(Exercise, exercise_id)
+    if not exercise:
+        raise HTTPException(status_code=404, detail="练习不存在")
+    for field, value in body.model_dump().items():
+        setattr(exercise, field, value)
+    exercise.language = body.language.lower()
+    exercise.validation_status = "unverified"
+    exercise.validation_hash = None
+    exercise.validated_at = None
+    if exercise.status == "published":
+        exercise.status = "draft"
+    await db.commit()
+    await db.refresh(exercise)
+    return exercise
+
+
+@router.post("/admin/{exercise_id}/validate", response_model=ExerciseValidationResponse)
+async def admin_validate_exercise(
+    exercise_id: uuid.UUID,
+    db: AsyncSession = Depends(get_db),
+    _: User = Depends(require_admin),
+):
+    exercise = await db.get(Exercise, exercise_id)
+    if not exercise:
+        raise HTTPException(status_code=404, detail="练习不存在")
+    if not exercise.reference_solution or not exercise.test_cases:
+        raise HTTPException(status_code=422, detail="请先填写参考答案和测试用例")
+    validated_hash = exercise_content_hash(exercise)
+    try:
+        result = await run_test_cases(
+            exercise.reference_solution,
+            exercise.language,
+            list(exercise.test_cases),
+        )
+    except (httpx.HTTPError, TimeoutError, ValueError, JudgeUnavailable) as exc:
+        raise HTTPException(status_code=503, detail=f"Judge0 验证失败: {exc}") from exc
+    await db.refresh(exercise, with_for_update=True)
+    content_unchanged = exercise_content_hash(exercise) == validated_hash
+    valid = result["result"] == "pass" and content_unchanged
+    if not content_unchanged:
+        return ExerciseValidationResponse(valid=False, **result)
+    exercise.validation_status = "verified" if valid else "failed"
+    exercise.validation_hash = validated_hash if valid else None
+    exercise.validated_at = datetime.now(timezone.utc) if valid else None
+    await db.commit()
+    return ExerciseValidationResponse(valid=valid, **result)
+
+
 @router.get("/ready-knowledge-bases", response_model=list[ExerciseSourceKb])
 async def list_ready_knowledge_bases_for_exercises(
     db: AsyncSession = Depends(get_db),
@@ -134,13 +234,13 @@ async def list_ready_knowledge_bases_for_exercises(
     ]
 
 
-@router.post("/generate", response_model=ExerciseResponse, status_code=201)
-async def generate_exercise_endpoint(
-    req: ExerciseGenerateRequest,
-    db: AsyncSession = Depends(get_db),
-    admin: User = Depends(require_admin),
-):
-    """管理员基于知识库 RAG 出题；默认草稿，可选择直接发布。"""
+async def generate_exercise_record(
+    db: AsyncSession,
+    payload: dict,
+    admin: User,
+) -> Exercise:
+    """Worker 内执行 RAG 检索和练习草稿生成。"""
+    req = ExerciseGenerateRequest.model_validate(payload)
     topic = (req.topic or "").strip()
     if len(topic) < 2:
         raise HTTPException(status_code=422, detail="请填写出题主题（至少 2 个字）")
@@ -211,27 +311,69 @@ async def generate_exercise_endpoint(
             chapter_hint=chapter_hint,
             kb_context=kb_context,
         )
+    generated = GeneratedExerciseData.model_validate({
+        "title": exercise_data.get("title", "编程练习"),
+        "description": exercise_data.get("description", ""),
+        "language": req.language,
+        "difficulty": req.difficulty,
+        "tags": exercise_data.get("tags", []),
+        "starter_code": exercise_data.get("starter_code", ""),
+        "reference_solution": exercise_data.get("reference_solution", ""),
+        "test_cases": exercise_data.get("test_cases", []),
+    })
 
     source_kbs = [{"id": str(kb.id), "name": kb.name} for kb in relevant]
-    status = "published" if req.publish else "draft"
+    status = "draft"
 
     exercise = Exercise(
         chapter_id=req.chapter_id,
-        language=req.language.lower(),
-        tags=exercise_data.get("tags", []),
-        title=exercise_data.get("title", "编程练习"),
-        description=exercise_data.get("description", ""),
-        starter_code=exercise_data.get("starter_code", ""),
-        test_cases=exercise_data.get("test_cases", []),
-        difficulty=req.difficulty,
+        language=generated.language.lower(),
+        tags=generated.tags,
+        title=generated.title,
+        description=generated.description,
+        starter_code=generated.starter_code,
+        test_cases=[case.model_dump() for case in generated.test_cases],
+        reference_solution=generated.reference_solution,
+        difficulty=generated.difficulty,
         source_kbs=source_kbs,
         status=status,
+        judge_mode="judge0",
+        validation_status="unverified",
     )
     db.add(exercise)
     await db.flush()
-    await db.commit()
-    await db.refresh(exercise)
+    if exercise.reference_solution and exercise.test_cases:
+        validation = await run_test_cases(
+            exercise.reference_solution,
+            exercise.language,
+            list(exercise.test_cases),
+        )
+        if validation["result"] == "pass":
+            exercise.validation_status = "verified"
+            exercise.validation_hash = exercise_content_hash(exercise)
+            exercise.validated_at = datetime.now(timezone.utc)
+        else:
+            exercise.validation_status = "failed"
+    await db.flush()
     return exercise
+
+
+@router.post("/generate", response_model=BackgroundJobResponse, status_code=202)
+async def generate_exercise_endpoint(
+    req: ExerciseGenerateRequest,
+    db: AsyncSession = Depends(get_db),
+    admin: User = Depends(require_admin),
+):
+    """将 RAG 出题加入后台队列，立即返回可轮询任务。"""
+    try:
+        return await create_and_enqueue_job(
+            db,
+            user=admin,
+            job_type="exercise_generate",
+            payload=req.model_dump(mode="json"),
+        )
+    except Exception as exc:
+        raise HTTPException(status_code=503, detail=f"出题任务入队失败: {exc}") from exc
 
 
 @router.patch("/{exercise_id}/status", response_model=ExerciseResponse)
@@ -243,10 +385,17 @@ async def update_exercise_status(
 ):
     """管理员发布 / 下架 / 打回草稿。"""
     _ = admin
-    result = await db.execute(select(Exercise).where(Exercise.id == exercise_id))
+    result = await db.execute(
+        select(Exercise).where(Exercise.id == exercise_id).with_for_update()
+    )
     exercise = result.scalar_one_or_none()
     if not exercise:
         raise HTTPException(status_code=404, detail="练习不存在")
+    if body.status == "published" and (
+        exercise.validation_status != "verified"
+        or exercise.validation_hash != exercise_content_hash(exercise)
+    ):
+        raise HTTPException(status_code=422, detail="参考答案通过全部测试后才能发布")
     exercise.status = body.status
     await db.commit()
     await db.refresh(exercise)
@@ -294,7 +443,7 @@ async def list_exercises_by_chapter(
         )
         .order_by(Exercise.created_at)
     )
-    return list(result.scalars().all())
+    return [_public_exercise(exercise) for exercise in result.scalars().all()]
 
 
 # ── 获取单个练习 ──
@@ -311,7 +460,7 @@ async def get_exercise(
         raise HTTPException(status_code=404, detail="练习不存在")
     if exercise.status != "published" and not is_admin_role(getattr(user, "role", None)):
         raise HTTPException(status_code=404, detail="练习不存在或未发布")
-    return exercise
+    return _public_exercise(exercise)
 
 
 # ── 提交代码 ──
@@ -329,13 +478,20 @@ async def submit_code(
     if not exercise or exercise.status != "published":
         raise HTTPException(status_code=404, detail="练习不存在或未发布")
 
-    with llm_user_context(user):
-        judgement = await judge_submission(
-            exercise.description,
-            exercise.test_cases,
-            body.code,
-            language=exercise.language,
-        )
+    try:
+        with llm_user_context(user):
+            judgement = await judge_submission(
+                exercise.description,
+                exercise.test_cases,
+                body.code,
+                language=exercise.language,
+            )
+    except (httpx.HTTPError, TimeoutError, ValueError) as exc:
+        raise HTTPException(status_code=503, detail=f"真实判题服务暂不可用: {exc}") from exc
+
+    test_results = judgement.get("test_results", [])
+    times = [item.get("time") for item in test_results if item.get("time")]
+    memories = [item.get("memory") for item in test_results if item.get("memory") is not None]
 
     submission = ExerciseSubmission(
         exercise_id=exercise_id,
@@ -344,6 +500,11 @@ async def submit_code(
         result=judgement.get("result", "error"),
         ai_feedback=judgement.get("ai_feedback", ""),
         score=judgement.get("score", 0),
+        test_results=test_results,
+        execution_time=max(times, default=None),
+        memory=max(memories, default=None),
+        judge_source=judgement.get("judge_source", "judge0"),
+        trusted=bool(judgement.get("trusted", True)),
     )
     db.add(submission)
     await db.flush()
@@ -355,7 +516,11 @@ async def submit_code(
         result=submission.result,
         score=submission.score,
         ai_feedback=submission.ai_feedback,
-        test_results=judgement.get("test_results"),
+        test_results=test_results,
+        execution_time=submission.execution_time,
+        memory=submission.memory,
+        judge_source=submission.judge_source,
+        trusted=submission.trusted,
     )
 
 
@@ -384,6 +549,8 @@ async def list_submissions(
             score=s.score,
             ai_feedback=s.ai_feedback,
             test_results=None,
+            judge_source=s.judge_source,
+            trusted=s.trusted,
         )
         for s in submissions
     ]

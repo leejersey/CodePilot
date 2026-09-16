@@ -6,7 +6,7 @@ import Editor from "@monaco-editor/react";
 import { useAuth } from "@/hooks/useAuth";
 import { Header } from "@/components/layout/Header";
 import { MarkdownRenderer } from "@/components/MarkdownRenderer";
-import { getExercise, submitExercise, type Exercise } from "@/lib/api";
+import { getExercise, submitExercise, type Exercise, type SubmissionResponse } from "@/lib/api";
 import { Badge } from "@/components/common/Badge";
 import {
   Bot,
@@ -58,6 +58,7 @@ export default function ExercisePage() {
   const [submissionResult, setSubmissionResult] = useState<
     "pass" | "fail" | "error" | null
   >(null);
+  const [submission, setSubmission] = useState<SubmissionResponse | null>(null);
 
   useEffect(() => {
     init();
@@ -94,9 +95,11 @@ export default function ExercisePage() {
     setSubmitting(true);
     setAiFeedback(null);
     setSubmissionResult(null);
+    setSubmission(null);
 
     try {
       const res = await submitExercise(exerciseId, code);
+      setSubmission(res);
       setSubmissionResult(res.result);
       if (res.ai_feedback) {
         setAiFeedback(res.ai_feedback);
@@ -212,7 +215,7 @@ export default function ExercisePage() {
               实战模式
             </div>
             <span className="text-xs font-mono text-cyan-400 font-medium">
-              AI 自动评测就绪
+              Judge0 真实沙箱就绪
             </span>
           </div>
         </section>
@@ -257,10 +260,10 @@ export default function ExercisePage() {
             />
           </div>
 
-          {aiFeedback && (
+          {submission && (
             <div
               className={`absolute right-8 top-16 w-88 max-w-[min(360px,90%)] backdrop-blur-2xl rounded-2xl p-5 shadow-[0_20px_50px_rgba(0,0,0,0.6)] z-30 border ${
-                submissionResult === "pass"
+                submissionResult === "pass" && submission.trusted
                   ? "bg-emerald-950/80 border-emerald-500/40"
                   : "bg-surface-container-high/95 border-secondary/30"
               }`}
@@ -269,12 +272,12 @@ export default function ExercisePage() {
                 <div className="flex items-center gap-2.5">
                   <div
                     className={`w-8 h-8 rounded-xl flex items-center justify-center ${
-                      submissionResult === "pass"
+                      submissionResult === "pass" && submission.trusted
                         ? "bg-emerald-500/20 text-emerald-400"
                         : "bg-secondary/20 text-secondary"
                     }`}
                   >
-                    {submissionResult === "pass" ? (
+                    {submissionResult === "pass" && submission.trusted ? (
                       <CheckCircle2 size={16} />
                     ) : (
                       <Bot size={16} />
@@ -282,16 +285,18 @@ export default function ExercisePage() {
                   </div>
                   <div>
                     <div className="text-xs font-bold text-white font-headline">
-                      CodePilot AI 判题
+                      {submission.trusted ? "CodePilot 真实判题" : "LLM 临时评估"}
                     </div>
                     <div
                       className={`text-[11px] font-medium ${
-                        submissionResult === "pass"
+                        submissionResult === "pass" && submission.trusted
                           ? "text-emerald-400"
                           : "text-secondary"
                       }`}
                     >
-                      {submissionResult === "fail"
+                      {!submission.trusted
+                        ? "结果非正式，不计为通过"
+                        : submissionResult === "fail"
                         ? "存在优化点"
                         : submissionResult === "pass"
                           ? "通过全部测试"
@@ -301,18 +306,37 @@ export default function ExercisePage() {
                 </div>
                 <button
                   type="button"
-                  onClick={() => setAiFeedback(null)}
+                  onClick={() => {
+                    setAiFeedback(null);
+                    setSubmission(null);
+                  }}
                   className="text-slate-500 hover:text-slate-300 transition-colors p-1"
                 >
                   <X size={15} />
                 </button>
               </div>
 
+              {!submission.trusted && (
+                <div className="mb-3 rounded-lg border border-amber-500/30 bg-amber-500/10 px-3 py-2 text-[11px] text-amber-200">
+                  远程 Judge0 暂不可用。以下为 LLM 临时评估，恢复后请重新提交进行真实判题。
+                </div>
+              )}
+
+              {submission?.test_results && (
+                <div className="mb-3 grid grid-cols-2 gap-2">
+                  {submission.test_results.map((item) => (
+                    <div key={item.case} className={`rounded-lg border px-2.5 py-2 text-[10px] ${item.passed ? "border-emerald-500/25 text-emerald-300" : "border-rose-500/25 text-rose-300"}`}>
+                      测试点 {item.case} · {item.status || (item.passed ? "通过" : "失败")}
+                      {item.hidden ? " · 隐藏" : ""}
+                    </div>
+                  ))}
+                </div>
+              )}
               <div className="text-xs text-slate-300 leading-relaxed mb-4 max-h-48 overflow-y-auto">
-                <MarkdownRenderer content={aiFeedback} />
+                {aiFeedback ? <MarkdownRenderer content={aiFeedback} /> : "判题已完成。"}
               </div>
 
-              {submissionResult === "pass" && (
+              {submissionResult === "pass" && submission.trusted && (
                 <button
                   type="button"
                   onClick={() => router.push("/exercises")}
@@ -339,12 +363,12 @@ export default function ExercisePage() {
               {submitting ? (
                 <>
                   <Loader2 size={14} className="animate-spin" />
-                  AI 正在运行并判题...
+                  Judge0 正在运行测试...
                 </>
               ) : (
                 <>
                   <Send size={14} />
-                  提交任务并让 AI 判题
+                  提交并运行真实测试
                 </>
               )}
             </button>
