@@ -10,6 +10,17 @@ from app.models.models import User
 from app.core.security import verify_token
 
 
+ADMIN_ROLES = frozenset({"admin", "super_admin"})
+
+
+def is_admin_role(role: str | None) -> bool:
+    return role in ADMIN_ROLES
+
+
+def is_super_admin_role(role: str | None) -> bool:
+    return role == "super_admin"
+
+
 async def get_current_user(
     db: AsyncSession = Depends(get_db),
     authorization: str | None = Header(None),
@@ -36,6 +47,10 @@ async def get_current_user(
         user = result.scalar_one_or_none()
         if not user:
             raise HTTPException(status_code=401, detail="用户不存在")
+        if getattr(user, "status", "active") != "active":
+            raise HTTPException(status_code=403, detail="账号已被禁用")
+        if payload.get("auth_version") != getattr(user, "auth_version", 1):
+            raise HTTPException(status_code=401, detail="登录状态已失效，请重新登录")
         return user
 
     # ── 方式 2：匿名模式（兼容 MVP）──
@@ -65,6 +80,13 @@ async def get_current_user(
 
 async def require_admin(user: User = Depends(get_current_user)) -> User:
     """仅管理员可访问。"""
-    if getattr(user, "role", None) != "admin":
+    if not is_admin_role(getattr(user, "role", None)):
         raise HTTPException(status_code=403, detail="需要管理员权限")
+    return user
+
+
+async def require_super_admin(user: User = Depends(get_current_user)) -> User:
+    """仅超级管理员可访问。"""
+    if not is_super_admin_role(getattr(user, "role", None)):
+        raise HTTPException(status_code=403, detail="需要超级管理员权限")
     return user

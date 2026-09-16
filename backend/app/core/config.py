@@ -36,7 +36,7 @@ class Settings(BaseSettings):
     JWT_SECRET_KEY: str = "codepilot-dev-secret-change-in-production"
     JWT_EXPIRE_HOURS: int = 24
 
-    # 管理员邮箱（逗号分隔，命中则 role=admin）
+    # 超级管理员邮箱（逗号分隔，命中则 role=super_admin）
     ADMIN_EMAILS: str = ""
 
     # 先读仓库根 .env，再读 backend/.env（后者覆盖前者，如 DATABASE_URL 端口）

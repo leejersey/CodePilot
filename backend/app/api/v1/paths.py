@@ -7,7 +7,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
 from app.db.database import get_db
-from app.core.deps import get_current_user, require_admin
+from app.core.deps import get_current_user, is_admin_role, require_admin
 from app.models.models import (
     LearningPath,
     Chapter,
@@ -337,11 +337,11 @@ async def rebuild_path_from_kb(
     path = result.scalar_one_or_none()
     if not path:
         raise HTTPException(status_code=404, detail="学习路线不存在")
-    if path.user_id != user.id and getattr(user, "role", None) != "admin":
+    if path.user_id != user.id and not is_admin_role(getattr(user, "role", None)):
         raise HTTPException(status_code=403, detail="无权修改该路线")
 
     # 管理员可指定库；否则仅使用与主题相关的平台 ready 库
-    if body and body.knowledge_base_ids and getattr(user, "role", None) == "admin":
+    if body and body.knowledge_base_ids and is_admin_role(getattr(user, "role", None)):
         kbs = await load_kbs_by_ids(db, body.knowledge_base_ids)
         doc_filenames = await list_ready_document_filenames(db, [kb.id for kb in kbs])
     else:
@@ -431,7 +431,7 @@ async def delete_path(
     path = result.scalar_one_or_none()
     if not path:
         raise HTTPException(status_code=404, detail="学习路线不存在")
-    if path.user_id != user.id and getattr(user, "role", None) != "admin":
+    if path.user_id != user.id and not is_admin_role(getattr(user, "role", None)):
         raise HTTPException(status_code=403, detail="无权删除该路线")
 
     chapter_ids = [ch.id for ch in path.chapters]

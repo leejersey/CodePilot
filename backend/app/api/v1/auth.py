@@ -17,11 +17,19 @@ router = APIRouter()
 
 
 def _apply_admin_role(user: User) -> bool:
-    """若邮箱在 ADMIN_EMAILS 中则晋升为 admin。返回是否发生变更。"""
-    if is_admin_email(user.email) and user.role != "admin":
-        user.role = "admin"
+    """若邮箱在 ADMIN_EMAILS 中则晋升为超级管理员。"""
+    if is_admin_email(user.email) and user.role != "super_admin":
+        user.role = "super_admin"
+        user.auth_version = (user.auth_version or 1) + 1
         return True
     return False
+
+
+def _issue_token(user: User) -> str:
+    return create_access_token({
+        "sub": str(user.id),
+        "auth_version": user.auth_version,
+    })
 
 
 @router.post("/register", response_model=TokenResponse, status_code=201)
@@ -36,13 +44,15 @@ async def register(req: RegisterRequest, db: AsyncSession = Depends(get_db)):
         nickname=req.nickname,
         hashed_password=hash_password(req.password),
         auth_provider="email",
-        role="admin" if is_admin_email(req.email) else "learner",
+        role="super_admin" if is_admin_email(req.email) else "learner",
+        status="active",
+        auth_version=1,
     )
     db.add(user)
     await db.commit()
     await db.refresh(user)
 
-    token = create_access_token({"sub": str(user.id)})
+    token = _issue_token(user)
     return TokenResponse(access_token=token, user=UserResponse.model_validate(user))
 
 
@@ -58,11 +68,14 @@ async def login(req: LoginRequest, db: AsyncSession = Depends(get_db)):
     if not verify_password(req.password, user.hashed_password):
         raise HTTPException(status_code=401, detail="邮箱或密码错误")
 
+    if user.status != "active":
+        raise HTTPException(status_code=403, detail="账号已被禁用")
+
     if _apply_admin_role(user):
         await db.commit()
         await db.refresh(user)
 
-    token = create_access_token({"sub": str(user.id)})
+    token = _issue_token(user)
     return TokenResponse(access_token=token, user=UserResponse.model_validate(user))
 
 

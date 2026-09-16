@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { Header } from "@/components/layout/Header";
 import { Sidebar } from "@/components/layout/Sidebar";
-import { BookOpen, BarChart3, Code2, Database } from "lucide-react";
+import { BookOpen, BarChart3, Code2, History } from "lucide-react";
 
 export default function LearnLayout({ children }: { children: React.ReactNode }) {
   return (
@@ -28,9 +28,9 @@ export default function LearnLayout({ children }: { children: React.ReactNode })
           <BarChart3 className="w-5 h-5" />
           <span className="text-[10px] font-mono">统计</span>
         </Link>
-        <Link href="/knowledge" className="flex flex-col items-center gap-1 text-slate-400 hover:text-slate-200">
-          <Database className="w-5 h-5" />
-          <span className="text-[10px] font-mono">知识库</span>
+        <Link href="/history" className="flex flex-col items-center gap-1 text-slate-400 hover:text-slate-200">
+          <History className="w-5 h-5" />
+          <span className="text-[10px] font-mono">历史</span>
         </Link>
       </nav>
     </div>

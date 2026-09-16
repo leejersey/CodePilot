@@ -11,7 +11,7 @@ import { ShieldAlert, ArrowLeft } from "lucide-react";
  * 管理员守卫：需先登录，且 role === admin。
  */
 export function AdminGuard({ children }: { children: React.ReactNode }) {
-  const { user, loading, init } = useAuth();
+  const { user, loading, init, isAdmin } = useAuth();
   const router = useRouter();
 
   useEffect(() => {
@@ -20,7 +20,7 @@ export function AdminGuard({ children }: { children: React.ReactNode }) {
 
   return (
     <AuthGuard>
-      {loading || !user ? null : user.role !== "admin" ? (
+      {loading || !user ? null : !isAdmin ? (
         <>
           <Header />
           <div className="min-h-[calc(100vh-80px)] flex items-center justify-center px-4 pt-20 bg-[#070b14]">
@@ -30,7 +30,7 @@ export function AdminGuard({ children }: { children: React.ReactNode }) {
               </div>
               <h2 className="text-2xl font-bold text-slate-100 mb-2 font-headline">需要管理员权限</h2>
               <p className="text-slate-400 text-sm mb-6 leading-relaxed">
-                知识库由管理员维护。若你应有权限，请确认账号邮箱已加入 ADMIN_EMAILS 后重新登录。
+                此页面属于平台后台管理，请联系超级管理员为你的账号分配权限。
               </p>
               <button
                 onClick={() => router.push("/")}

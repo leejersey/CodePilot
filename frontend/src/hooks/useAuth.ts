@@ -4,13 +4,14 @@ import { create } from "zustand";
 
 const API_BASE = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
 
-interface User {
+export interface User {
   id: string;
   email: string | null;
   nickname: string;
   avatar_url: string | null;
   auth_provider: string;
-  role: "learner" | "admin" | string;
+  role: "learner" | "admin" | "super_admin";
+  status: "active" | "disabled";
 }
 
 interface AuthState {
@@ -18,6 +19,7 @@ interface AuthState {
   user: User | null;
   loading: boolean;
   isAdmin: boolean;
+  isSuperAdmin: boolean;
 
   /** 初始化：从 localStorage 恢复 token 并获取用户信息 */
   init: () => Promise<void>;
@@ -36,6 +38,7 @@ export const useAuth = create<AuthState>((set, get) => ({
   user: null,
   loading: true,
   isAdmin: false,
+  isSuperAdmin: false,
 
   init: async () => {
     let saved = typeof window !== "undefined" ? localStorage.getItem("codepilot_token") : null;
@@ -48,7 +51,7 @@ export const useAuth = create<AuthState>((set, get) => ({
       }
     }
     if (!saved) {
-      set({ loading: false, isAdmin: false });
+      set({ loading: false, isAdmin: false, isSuperAdmin: false });
       return;
     }
     set({ token: saved });
@@ -58,11 +61,17 @@ export const useAuth = create<AuthState>((set, get) => ({
       });
       if (res.ok) {
         const user = await res.json();
-        set({ user, token: saved, loading: false, isAdmin: user.role === "admin" });
+        set({
+          user,
+          token: saved,
+          loading: false,
+          isAdmin: user.role === "admin" || user.role === "super_admin",
+          isSuperAdmin: user.role === "super_admin",
+        });
       } else {
         // Token 过期或无效
         localStorage.removeItem("codepilot_token");
-        set({ token: null, user: null, loading: false, isAdmin: false });
+        set({ token: null, user: null, loading: false, isAdmin: false, isSuperAdmin: false });
       }
     } catch {
       set({ loading: false });
@@ -85,7 +94,8 @@ export const useAuth = create<AuthState>((set, get) => ({
       token: data.access_token,
       user: data.user,
       loading: false,
-      isAdmin: data.user?.role === "admin",
+      isAdmin: data.user?.role === "admin" || data.user?.role === "super_admin",
+      isSuperAdmin: data.user?.role === "super_admin",
     });
   },
 
@@ -105,13 +115,14 @@ export const useAuth = create<AuthState>((set, get) => ({
       token: data.access_token,
       user: data.user,
       loading: false,
-      isAdmin: data.user?.role === "admin",
+      isAdmin: data.user?.role === "admin" || data.user?.role === "super_admin",
+      isSuperAdmin: data.user?.role === "super_admin",
     });
   },
 
   logout: () => {
     localStorage.removeItem("codepilot_token");
-    set({ token: null, user: null, isAdmin: false });
+    set({ token: null, user: null, isAdmin: false, isSuperAdmin: false });
   },
 
   authHeader: () => {

@@ -44,6 +44,29 @@ export interface ExerciseGenerateRequest {
   publish?: boolean;
 }
 
+export type AccountRole = "learner" | "admin" | "super_admin";
+export type AccountStatus = "active" | "disabled";
+
+export interface AdminUser {
+  id: string;
+  email: string | null;
+  nickname: string;
+  avatar_url: string | null;
+  auth_provider: string;
+  role: AccountRole;
+  status: AccountStatus;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface AdminUserList {
+  items: AdminUser[];
+  total: number;
+  page: number;
+  page_size: number;
+  stats: Record<"total" | "super_admin" | "admin" | "learner" | "active" | "disabled", number>;
+}
+
 export interface SubmissionResponse {
   submission_id: string;
   result: "pass" | "fail" | "error";
@@ -689,5 +712,52 @@ export async function testLlmSettings(): Promise<{
   reply: string;
 }> {
   return fetchAPI("/api/v1/settings/llm/test", { method: "POST", body: "{}" });
+}
+
+export async function listAdminUsers(params: {
+  page?: number;
+  pageSize?: number;
+  keyword?: string;
+  role?: AccountRole | "";
+  status?: AccountStatus | "";
+} = {}): Promise<AdminUserList> {
+  const search = new URLSearchParams();
+  if (params.page) search.set("page", String(params.page));
+  if (params.pageSize) search.set("page_size", String(params.pageSize));
+  if (params.keyword) search.set("keyword", params.keyword);
+  if (params.role) search.set("role", params.role);
+  if (params.status) search.set("status", params.status);
+  const query = search.toString();
+  return fetchAPI<AdminUserList>(`/api/v1/admin/users${query ? `?${query}` : ""}`);
+}
+
+export async function updateAdminUserRole(
+  userId: string,
+  role: AccountRole
+): Promise<AdminUser> {
+  return fetchAPI<AdminUser>(`/api/v1/admin/users/${userId}/role`, {
+    method: "PATCH",
+    body: JSON.stringify({ role }),
+  });
+}
+
+export async function updateAdminUserStatus(
+  userId: string,
+  status: AccountStatus
+): Promise<AdminUser> {
+  return fetchAPI<AdminUser>(`/api/v1/admin/users/${userId}/status`, {
+    method: "PATCH",
+    body: JSON.stringify({ status }),
+  });
+}
+
+export async function resetAdminUserPassword(
+  userId: string,
+  temporaryPassword: string
+): Promise<AdminUser> {
+  return fetchAPI<AdminUser>(`/api/v1/admin/users/${userId}/reset-password`, {
+    method: "POST",
+    body: JSON.stringify({ temporary_password: temporaryPassword }),
+  });
 }
 

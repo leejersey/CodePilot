@@ -4,14 +4,13 @@ import React, { useEffect, useState, useMemo } from "react";
 import { useRouter } from "next/navigation";
 import { useAuth } from "@/hooks/useAuth";
 import {
-  BookOpen,
   Code2,
   Compass,
-  FileCode2,
   FolderGit2,
   History,
   LayoutDashboard,
   Search,
+  ShieldCheck,
   Sparkles,
   Terminal,
   X,
@@ -73,24 +72,14 @@ export function CommandMenu({ isOpen, onClose }: CommandMenuProps) {
     ];
 
     if (isAdmin) {
-      list.push(
-        {
-          id: "knowledge",
-          title: "知识库管理",
-          desc: "上传本地技术文档并构建 RAG 课程",
-          icon: BookOpen,
-          action: () => router.push("/knowledge"),
-          category: "管理员",
-        },
-        {
-          id: "admin-exercises",
-          title: "练习管理",
-          desc: "基于知识库出题、发布与下架",
-          icon: FileCode2,
-          action: () => router.push("/admin/exercises"),
-          category: "管理员",
-        }
-      );
+      list.push({
+        id: "admin",
+        title: "后台管理",
+        desc: "集中管理知识库与练习发布",
+        icon: ShieldCheck,
+        action: () => router.push("/admin"),
+        category: "管理员",
+      });
     }
 
     return list;

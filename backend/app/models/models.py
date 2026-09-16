@@ -28,7 +28,9 @@ class User(Base):
     hashed_password: Mapped[str | None] = mapped_column(String(255), nullable=True)
     avatar_url: Mapped[str | None] = mapped_column(String(512), nullable=True)
     auth_provider: Mapped[str] = mapped_column(String(20), default="anonymous")
-    role: Mapped[str] = mapped_column(String(20), default="learner")  # learner | admin
+    role: Mapped[str] = mapped_column(String(20), default="learner")  # learner | admin | super_admin
+    status: Mapped[str] = mapped_column(String(20), default="active")  # active | disabled
+    auth_version: Mapped[int] = mapped_column(Integer, default=1)
     preferences: Mapped[dict | None] = mapped_column(JSONB, nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())

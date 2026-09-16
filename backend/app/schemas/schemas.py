@@ -1,5 +1,6 @@
 import uuid
 from datetime import datetime
+from typing import Literal
 from pydantic import BaseModel, Field
 
 
@@ -189,9 +190,44 @@ class UserResponse(BaseModel):
     avatar_url: str | None
     auth_provider: str
     role: str = "learner"
+    status: str = "active"
     created_at: datetime
 
     model_config = {"from_attributes": True}
+
+
+class AdminUserResponse(BaseModel):
+    id: uuid.UUID
+    email: str | None
+    nickname: str
+    avatar_url: str | None
+    auth_provider: str
+    role: Literal["learner", "admin", "super_admin"]
+    status: Literal["active", "disabled"]
+    created_at: datetime
+    updated_at: datetime
+
+    model_config = {"from_attributes": True}
+
+
+class AdminUserListResponse(BaseModel):
+    items: list[AdminUserResponse]
+    total: int
+    page: int
+    page_size: int
+    stats: dict[str, int]
+
+
+class UserRoleUpdate(BaseModel):
+    role: Literal["learner", "admin", "super_admin"]
+
+
+class UserAccountStatusUpdate(BaseModel):
+    status: Literal["active", "disabled"]
+
+
+class UserPasswordReset(BaseModel):
+    temporary_password: str = Field(..., min_length=8, max_length=100)
 
 
 # ── Knowledge Base ──

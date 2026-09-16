@@ -1,6 +1,5 @@
 "use client";
 
-import { useState, useEffect, useRef } from "react";
 import { MarkdownRenderer } from "./MarkdownRenderer";
 
 interface Props {
@@ -29,56 +28,35 @@ export function StepAnimator({
   explaining,
   activeFingerprint,
 }: Props) {
-  const [visibleCount, setVisibleCount] = useState(0);
-  const prevBlockCount = useRef(0);
-
   // 按空行 / 标题 / 分割线拆分为逻辑步骤块
   const blocks = splitIntoBlocks(content);
 
-  useEffect(() => {
-    // 有新块出现时逐步显示
-    if (blocks.length > prevBlockCount.current) {
-      const newBlocks = blocks.length - prevBlockCount.current;
-      prevBlockCount.current = blocks.length;
+  // 流式阶段保持布局稳定，不对持续增长的段落做高度或位移动画。
+  if (isStreaming) {
+    return (
+      <MarkdownRenderer
+        content={content}
+        onOpenInEditor={onOpenInEditor}
+        onExplainSnippet={onExplainSnippet}
+        explaining={explaining}
+        activeFingerprint={activeFingerprint}
+      />
+    );
+  }
 
-      // 快速依次显示新出现的块
-      for (let i = 0; i < newBlocks; i++) {
-        setTimeout(() => {
-          setVisibleCount(prev => prev + 1);
-        }, i * 120); // 每个块间隔 120ms
-      }
-    }
-  }, [blocks.length]);
-
-  // 流式传输中 → 最后一块实时显示（无动画延迟）
   return (
     <div className="space-y-0">
-      {blocks.map((block, i) => {
-        const isVisible = i < visibleCount;
-        const isLastAndStreaming = isStreaming && i === blocks.length - 1;
-
-        return (
-          <div
-            key={i}
-            className={`transition-all duration-500 ease-out ${
-              isVisible || isLastAndStreaming
-                ? "opacity-100 translate-y-0"
-                : "opacity-0 translate-y-3 h-0 overflow-hidden"
-            }`}
-            style={{
-              transitionDelay: isVisible ? "0ms" : "0ms",
-            }}
-          >
-            <MarkdownRenderer
-              content={block}
-              onOpenInEditor={onOpenInEditor}
-              onExplainSnippet={onExplainSnippet}
-              explaining={explaining}
-              activeFingerprint={activeFingerprint}
-            />
-          </div>
-        );
-      })}
+      {blocks.map((block, i) => (
+        <div key={i}>
+          <MarkdownRenderer
+            content={block}
+            onOpenInEditor={onOpenInEditor}
+            onExplainSnippet={onExplainSnippet}
+            explaining={explaining}
+            activeFingerprint={activeFingerprint}
+          />
+        </div>
+      ))}
     </div>
   );
 }

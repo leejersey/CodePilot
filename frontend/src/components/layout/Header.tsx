@@ -5,9 +5,7 @@ import { useAuth } from "@/hooks/useAuth";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import {
-  BookOpen,
   ChevronDown,
-  ClipboardList,
   Code2,
   Compass,
   History,
@@ -17,6 +15,7 @@ import {
   Menu,
   Search,
   Settings,
+  ShieldCheck,
   Sparkles,
   User,
   X,
@@ -65,8 +64,7 @@ export function Header() {
     { label: "学习路径", href: "/learn", icon: Compass },
     ...(isAdmin
       ? [
-          { label: "知识库", href: "/knowledge", icon: BookOpen },
-          { label: "练习管理", href: "/admin/exercises", icon: ClipboardList },
+          { label: "后台管理", href: "/admin", icon: ShieldCheck },
         ]
       : []),
     { label: "练习", href: "/exercises", icon: Code2 },
@@ -183,22 +181,12 @@ export function Header() {
                   </Link>
                   {isAdmin && (
                     <Link
-                      href="/knowledge"
+                      href="/admin"
                       onClick={() => setMenuOpen(false)}
                       className="flex items-center gap-2.5 px-4 py-2 text-xs text-slate-300 hover:text-primary hover:bg-white/5 transition-colors"
                     >
-                      <BookOpen size={15} />
-                      知识库管理
-                    </Link>
-                  )}
-                  {isAdmin && (
-                    <Link
-                      href="/admin/exercises"
-                      onClick={() => setMenuOpen(false)}
-                      className="flex items-center gap-2.5 px-4 py-2 text-xs text-slate-300 hover:text-primary hover:bg-white/5 transition-colors"
-                    >
-                      <ClipboardList size={15} />
-                      练习管理
+                      <ShieldCheck size={15} />
+                      后台管理
                     </Link>
                   )}
                   <Link

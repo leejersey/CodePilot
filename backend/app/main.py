@@ -4,7 +4,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy import select
 
 from app.core.config import get_settings
-from app.api.v1 import paths, chapters, conversations, exercises, code, auth, progress, animation, knowledge, settings as user_settings
+from app.api.v1 import admin_users, paths, chapters, conversations, exercises, code, auth, progress, animation, knowledge, settings as user_settings
 from app.api.ws import chat
 
 from app.db.redis import get_redis, close_redis
@@ -15,7 +15,7 @@ settings = get_settings()
 
 
 async def _sync_admin_roles() -> None:
-    """启动时根据 ADMIN_EMAILS 同步已有用户角色。"""
+    """启动时根据 ADMIN_EMAILS 同步超级管理员角色。"""
     emails = settings.admin_email_set
     if not emails:
         return
@@ -25,8 +25,9 @@ async def _sync_admin_roles() -> None:
             users = list(result.scalars().all())
             changed = False
             for u in users:
-                if u.role != "admin":
-                    u.role = "admin"
+                if u.role != "super_admin":
+                    u.role = "super_admin"
+                    u.auth_version = (u.auth_version or 1) + 1
                     changed = True
             if changed:
                 await db.commit()
@@ -73,6 +74,7 @@ app.include_router(progress.router, prefix="/api/v1/progress", tags=["Progress"]
 app.include_router(animation.router, prefix="/api/v1/animation", tags=["Animation"])
 app.include_router(knowledge.router, prefix="/api/v1/knowledge-bases", tags=["Knowledge Bases"])
 app.include_router(user_settings.router, prefix="/api/v1/settings", tags=["User Settings"])
+app.include_router(admin_users.router, prefix="/api/v1/admin/users", tags=["Admin Users"])
 
 # WebSocket 路由
 app.include_router(chat.router, prefix="/ws", tags=["WebSocket"])

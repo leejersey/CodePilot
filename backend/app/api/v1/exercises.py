@@ -7,7 +7,7 @@ from sqlalchemy import delete, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
-from app.core.deps import get_current_user, require_admin
+from app.core.deps import get_current_user, is_admin_role, require_admin
 from app.db.database import get_db
 from app.models.models import (
     Chapter,
@@ -309,7 +309,7 @@ async def get_exercise(
     exercise = result.scalar_one_or_none()
     if not exercise:
         raise HTTPException(status_code=404, detail="练习不存在")
-    if exercise.status != "published" and getattr(user, "role", None) != "admin":
+    if exercise.status != "published" and not is_admin_role(getattr(user, "role", None)):
         raise HTTPException(status_code=404, detail="练习不存在或未发布")
     return exercise
 

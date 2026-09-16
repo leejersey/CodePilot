@@ -98,8 +98,12 @@ export default function LearningWorkspacePage() {
   const router = useRouter();
 
   const wsRef = useRef<WebSocket | null>(null);
-  const chatEndRef = useRef<HTMLDivElement>(null);
-  const docChatEndRef = useRef<HTMLDivElement>(null);
+  const chatScrollRef = useRef<HTMLDivElement>(null);
+  const docChatScrollRef = useRef<HTMLDivElement>(null);
+  const followChatRef = useRef(true);
+  const followDocChatRef = useRef(true);
+  const pendingTokensRef = useRef("");
+  const tokenFlushTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const replyTargetRef = useRef<"ai" | "doc">("ai");
   const splitRef = useRef<HTMLDivElement>(null);
   const draggingRef = useRef(false);
@@ -148,17 +152,30 @@ export default function LearningWorkspacePage() {
     });
   }, []);
 
-  const scrollToBottom = useCallback(() => {
-    chatEndRef.current?.scrollIntoView({ behavior: "smooth" });
+  const keepAtBottom = useCallback((container: HTMLDivElement | null) => {
+    if (container) container.scrollTop = container.scrollHeight;
   }, []);
 
-  useEffect(() => { scrollToBottom(); }, [messages, scrollToBottom]);
+  useEffect(() => {
+    if (!followChatRef.current) return;
+    const frame = requestAnimationFrame(() => keepAtBottom(chatScrollRef.current));
+    return () => cancelAnimationFrame(frame);
+  }, [messages, keepAtBottom]);
 
   useEffect(() => {
-    docChatEndRef.current?.scrollIntoView({ behavior: "smooth" });
-  }, [docMessages]);
+    if (!followDocChatRef.current) return;
+    const frame = requestAnimationFrame(() => keepAtBottom(docChatScrollRef.current));
+    return () => cancelAnimationFrame(frame);
+  }, [docMessages, keepAtBottom]);
 
-  const appendStreamToken = useCallback((content: string) => {
+  const flushStreamTokens = useCallback(() => {
+    const content = pendingTokensRef.current;
+    pendingTokensRef.current = "";
+    if (tokenFlushTimerRef.current) {
+      clearTimeout(tokenFlushTimerRef.current);
+      tokenFlushTimerRef.current = null;
+    }
+    if (!content) return;
     const setter = replyTargetRef.current === "doc" ? setDocMessages : setMessages;
     setter((prev) => {
       const last = prev[prev.length - 1];
@@ -167,6 +184,16 @@ export default function LearningWorkspacePage() {
       }
       return [...prev, { role: "assistant", content }];
     });
+  }, []);
+
+  const appendStreamToken = useCallback((content: string) => {
+    pendingTokensRef.current += content;
+    if (tokenFlushTimerRef.current) return;
+    tokenFlushTimerRef.current = setTimeout(flushStreamTokens, 40);
+  }, [flushStreamTokens]);
+
+  useEffect(() => () => {
+    if (tokenFlushTimerRef.current) clearTimeout(tokenFlushTimerRef.current);
   }, []);
 
   const appendSystemError = useCallback((message: string) => {
@@ -327,8 +354,10 @@ export default function LearningWorkspacePage() {
         if (data.type === "token") {
           appendStreamToken(data.content);
         } else if (data.type === "done") {
+          flushStreamTokens();
           setStreaming(false);
         } else if (data.type === "error") {
+          flushStreamTokens();
           setStreaming(false);
           appendSystemError(data.message || "未知错误");
         }
@@ -336,7 +365,7 @@ export default function LearningWorkspacePage() {
 
       ws.onclose = () => { wsRef.current = null; };
     });
-  }, [appendStreamToken, appendSystemError]);
+  }, [appendStreamToken, appendSystemError, flushStreamTokens]);
 
   // 3. 页面加载：复用章节对话（有历史则恢复，否则新建并引导）
   useEffect(() => {
@@ -485,8 +514,10 @@ export default function LearningWorkspacePage() {
     const target = learnMode === "doc" ? "doc" : "ai";
     replyTargetRef.current = target;
     if (target === "doc") {
+      followDocChatRef.current = true;
       setDocMessages((prev) => [...prev, userMsg]);
     } else {
+      followChatRef.current = true;
       setMessages((prev) => [...prev, userMsg]);
     }
     setInput("");
@@ -580,7 +611,14 @@ export default function LearningWorkspacePage() {
                   </span>
                 )}
               </div>
-              <div className="flex-1 min-h-0 overflow-y-auto px-4 py-2 space-y-2">
+              <div
+                ref={docChatScrollRef}
+                onScroll={(event) => {
+                  const el = event.currentTarget;
+                  followDocChatRef.current = el.scrollHeight - el.scrollTop - el.clientHeight < 80;
+                }}
+                className="flex-1 min-h-0 overflow-y-auto px-4 py-2 space-y-2"
+              >
                 {docMessages.length === 0 && (
                   <p className="text-[11px] text-slate-500 py-2">
                     选中文中片段或直接提问，回答只出现在这里，不会和「AI 教学」对话混在一起。
@@ -613,12 +651,18 @@ export default function LearningWorkspacePage() {
                     </div>
                   )
                 )}
-                <div ref={docChatEndRef} />
               </div>
             </div>
           </>
         ) : (
-          <div className="flex-1 overflow-y-auto p-6 space-y-6 scroll-smooth pb-32">
+          <div
+            ref={chatScrollRef}
+            onScroll={(event) => {
+              const el = event.currentTarget;
+              followChatRef.current = el.scrollHeight - el.scrollTop - el.clientHeight < 80;
+            }}
+            className="flex-1 overflow-y-auto p-6 space-y-6 pb-32"
+          >
             {messages.length === 0 && (
               <div className="flex items-center justify-center h-full opacity-60">
                 <div className="flex flex-col items-center text-center">
@@ -674,7 +718,6 @@ export default function LearningWorkspacePage() {
                 </div>
               </div>
             )}
-            <div ref={chatEndRef} />
           </div>
         )}
 

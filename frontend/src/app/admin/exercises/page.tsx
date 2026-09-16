@@ -2,9 +2,6 @@
 
 import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
-import { Header } from "@/components/layout/Header";
-import { AdminGuard } from "@/components/AdminGuard";
-import { useAuth } from "@/hooks/useAuth";
 import { Badge } from "@/components/common/Badge";
 import { Card } from "@/components/common/Card";
 import { EmptyState } from "@/components/common/EmptyState";
@@ -40,7 +37,6 @@ const STATUS_TABS = [
 ] as const;
 
 export default function AdminExercisesPage() {
-  const { init } = useAuth();
   const { alert, confirm } = useDialog();
   const [items, setItems] = useState<Exercise[]>([]);
   const [loading, setLoading] = useState(true);
@@ -57,10 +53,6 @@ export default function AdminExercisesPage() {
   const [publishNow, setPublishNow] = useState(false);
   const [isGenerating, setIsGenerating] = useState(false);
   const [busyId, setBusyId] = useState<string | null>(null);
-
-  useEffect(() => {
-    init();
-  }, [init]);
 
   const refresh = useCallback(async () => {
     setLoading(true);
@@ -175,11 +167,8 @@ export default function AdminExercisesPage() {
     s === "published" ? "已发布" : s === "archived" ? "已下架" : "草稿";
 
   return (
-    <AdminGuard>
-      <div className="min-h-screen bg-[#070b14] text-slate-100">
-        <Header />
-        <main className="pt-24 pb-20 px-6 md:px-10">
-          <div className="max-w-5xl mx-auto space-y-8">
+    <>
+      <div className="mx-auto max-w-6xl space-y-8">
             <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-4">
               <div>
                 <p className="text-xs font-mono text-primary mb-2">ADMIN · EXERCISES</p>
@@ -318,8 +307,7 @@ export default function AdminExercisesPage() {
                 ))}
               </div>
             )}
-          </div>
-        </main>
+      </div>
 
         {showGenerate && (
           <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
@@ -399,7 +387,7 @@ export default function AdminExercisesPage() {
                 ) : kbs.length === 0 ? (
                   <div className="px-4 py-6 text-center text-xs text-slate-400">
                     暂无就绪知识库。
-                    <Link href="/knowledge" className="block mt-2 text-primary underline">
+                    <Link href="/admin/knowledge" className="block mt-2 text-primary underline">
                       去知识库上传
                     </Link>
                   </div>
@@ -482,7 +470,6 @@ export default function AdminExercisesPage() {
             </div>
           </div>
         )}
-      </div>
-    </AdminGuard>
+    </>
   );
 }
