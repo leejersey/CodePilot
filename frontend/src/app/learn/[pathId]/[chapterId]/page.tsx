@@ -5,6 +5,7 @@ import { useParams, useRouter } from "next/navigation";
 import Link from "next/link";
 import { useAuth } from "@/hooks/useAuth";
 import Editor from "@monaco-editor/react";
+import { useTheme } from "@/components/ThemeProvider";
 import { usePyodide } from "@/hooks/usePyodide";
 import { StepAnimator } from "@/components/StepAnimator";
 import { AnimationPlayer } from "@/components/AnimationPlayer";
@@ -67,6 +68,7 @@ export default function LearningWorkspacePage() {
   const pathId = params.pathId as string;
   const chapterId = params.chapterId as string;
   const { token, init: authInit } = useAuth();
+  const { theme } = useTheme();
 
   useEffect(() => { authInit(); }, [authInit]);
 
@@ -713,21 +715,21 @@ export default function LearningWorkspacePage() {
             {messages.map((msg, i) => (
               msg.role === "user" ? (
                 <div key={i} className="flex gap-4 max-w-3xl ml-auto flex-row-reverse">
-                  <div className="w-8 h-8 rounded-full bg-primary/20 flex items-center justify-center flex-shrink-0 mt-1 border border-primary/30">
-                    <UserIcon size={15} className="text-primary" />
+                  <div className="w-8 h-8 rounded-full bg-sky-100 text-sky-600 dark:bg-primary/20 dark:text-primary flex items-center justify-center flex-shrink-0 mt-1 border border-sky-300 dark:border-primary/30 shadow-xs">
+                    <UserIcon size={15} />
                   </div>
-                  <div className="glass-panel bg-primary/10 p-4 rounded-2xl rounded-tr-none border border-primary/20 shadow-lg text-on-surface">
-                    <p className="leading-relaxed whitespace-pre-wrap">{msg.content}</p>
+                  <div className="p-4 rounded-2xl rounded-tr-none bg-sky-50 dark:bg-primary/10 border border-sky-200/90 dark:border-primary/20 shadow-xs dark:shadow-lg text-slate-900 dark:text-on-surface">
+                    <p className="leading-relaxed whitespace-pre-wrap text-[14.5px]">{msg.content}</p>
                   </div>
                 </div>
               ) : msg.role === "system" ? (
-                <div key={i} className="text-center text-red-400 text-sm py-2">{msg.content}</div>
+                <div key={i} className="text-center text-red-500 dark:text-red-400 text-sm py-2">{msg.content}</div>
               ) : (
                 <div key={i} className="flex gap-4 max-w-3xl">
-                  <div className="w-8 h-8 rounded-full bg-secondary/20 flex items-center justify-center flex-shrink-0 mt-1 border border-secondary/30">
-                    <Bot size={16} className="text-secondary" />
+                  <div className="w-8 h-8 rounded-full bg-violet-100 text-violet-600 dark:bg-secondary/20 dark:text-secondary flex items-center justify-center flex-shrink-0 mt-1 border border-violet-200 dark:border-secondary/30 shadow-xs">
+                    <Bot size={16} />
                   </div>
-                  <div className="glass-panel bg-surface-container-high/40 p-5 rounded-2xl rounded-tl-none border border-white/5 shadow-xl text-on-surface-variant">
+                  <div className="p-5 rounded-2xl rounded-tl-none bg-white dark:bg-surface-container-high/40 border border-slate-200/90 dark:border-white/5 shadow-sm dark:shadow-xl text-slate-800 dark:text-on-surface-variant">
                     <StepAnimator
                       content={msg.content}
                       isStreaming={streaming && i === messages.length - 1}
@@ -737,7 +739,7 @@ export default function LearningWorkspacePage() {
                       activeFingerprint={activeTab?.fingerprint}
                     />
                     {streaming && i === messages.length - 1 && (
-                      <span className="inline-block w-1.5 h-4 bg-secondary ml-1 animate-pulse align-middle" />
+                      <span className="inline-block w-1.5 h-4 bg-sky-500 dark:bg-secondary ml-1 animate-pulse align-middle" />
                     )}
                   </div>
                 </div>
@@ -761,16 +763,16 @@ export default function LearningWorkspacePage() {
 
         {/* Chat Input + Complete Button */}
         <div
-          className={`shrink-0 p-4 border-t border-white/5 ${
+          className={`shrink-0 p-4 border-t border-slate-200/80 dark:border-white/5 ${
             learnMode === "ai"
-              ? "absolute bottom-0 left-0 w-full bg-gradient-to-t from-surface via-surface to-transparent pt-12 border-t-0"
+              ? "absolute bottom-0 left-0 w-full bg-gradient-to-t from-background via-background/95 to-transparent pt-10 border-t-0"
               : "bg-surface"
           }`}
         >
-          <div className="relative flex items-end gap-3">
+          <div className="relative flex items-end gap-3 max-w-4xl mx-auto">
             {!chapterCompleted ? (
               <button
-                className="flex-shrink-0 flex items-center gap-1.5 px-4 py-3 bg-secondary/20 hover:bg-secondary/30 text-secondary border border-secondary/30 rounded-xl text-sm font-bold transition-all active:scale-95 disabled:opacity-50"
+                className="flex-shrink-0 flex items-center gap-1.5 px-4 py-3 bg-purple-50 hover:bg-purple-100 dark:bg-secondary/20 dark:hover:bg-secondary/30 text-purple-700 dark:text-secondary border border-purple-200 dark:border-secondary/30 rounded-2xl text-xs font-bold transition-all active:scale-95 disabled:opacity-50 shadow-xs"
                 onClick={async () => {
                   if (completing) return;
                   setCompleting(true);
@@ -807,14 +809,14 @@ export default function LearningWorkspacePage() {
                 {completing ? "确认中..." : "完成本章"}
               </button>
             ) : (
-              <div className="flex-shrink-0 flex items-center gap-1.5 px-4 py-3 bg-primary/10 text-primary rounded-xl text-sm font-bold border border-primary/20">
+              <div className="flex-shrink-0 flex items-center gap-1.5 px-4 py-3 bg-emerald-50 dark:bg-primary/10 text-emerald-700 dark:text-primary rounded-2xl text-xs font-bold border border-emerald-200 dark:border-primary/20 shadow-xs">
                 <CheckCircle2 size={15} />
                 已完成
               </div>
             )}
-            <div className="flex-1 relative">
+            <div className="flex-1 relative flex items-center rounded-2xl bg-white dark:bg-surface-container-low border border-slate-300 dark:border-white/10 shadow-xs focus-within:border-sky-500 dark:focus-within:border-primary focus-within:ring-2 focus-within:ring-sky-500/20 transition-all">
               <input
-                className="w-full bg-surface-container-low border-b-2 border-outline-variant focus:border-primary focus:ring-0 text-on-surface py-3.5 pl-4 pr-12 rounded-t-xl transition-all placeholder:text-slate-600 outline-none font-body"
+                className="w-full bg-transparent py-3.5 pl-4 pr-12 text-slate-900 dark:text-on-surface text-sm placeholder:text-slate-400 dark:placeholder:text-slate-500 outline-none font-body"
                 placeholder={
                   learnMode === "doc"
                     ? "针对当前文档阶段提问…（可先选中文中片段）"
@@ -827,11 +829,11 @@ export default function LearningWorkspacePage() {
                 disabled={streaming}
               />
               <button
-                className="absolute right-4 bottom-3.5 text-primary hover:scale-110 transition-transform disabled:opacity-50 p-1 rounded-lg hover:bg-primary/10"
+                className="absolute right-3.5 text-sky-600 dark:text-primary hover:scale-105 transition-transform disabled:opacity-40 p-1.5 rounded-xl hover:bg-sky-50 dark:hover:bg-primary/10"
                 onClick={sendMessage}
                 disabled={streaming || !input.trim()}
               >
-                <Send size={18} />
+                <Send size={17} />
               </button>
             </div>
           </div>
@@ -856,21 +858,21 @@ export default function LearningWorkspacePage() {
 
       {/* Right: Code Sandbox */}
       <section
-        className="hidden lg:flex flex-col bg-surface-container-low overflow-hidden shrink-0 min-w-0"
+        className="hidden lg:flex flex-col bg-white dark:bg-surface-container-low border-l border-slate-200 dark:border-white/5 overflow-hidden shrink-0 min-w-0"
         style={{ width: `${rightPct}%` }}
       >
-        <div className="flex-1 flex flex-col min-h-0 border-b border-white/5">
-          <div className="flex items-center justify-between gap-2 px-2 py-2 bg-surface-container-high/50 border-b border-white/5">
-            <div className="flex items-center gap-1 overflow-x-auto min-w-0 flex-1 scrollbar-none">
+        <div className="flex-1 flex flex-col min-h-0 border-b border-slate-200 dark:border-white/5 bg-white dark:bg-[#1e1e1e]">
+          <div className="flex items-center justify-between gap-2 px-3 py-2 bg-slate-100/90 dark:bg-surface-container-high/50 border-b border-slate-200 dark:border-white/5">
+            <div className="flex items-center gap-1.5 overflow-x-auto min-w-0 flex-1 scrollbar-none">
               {tabs.map((tab) => (
                 <button
                   key={tab.id}
                   type="button"
                   onClick={() => setActiveTabId(tab.id)}
-                  className={`flex-shrink-0 px-2.5 py-1.5 rounded-md text-[11px] font-mono transition-colors ${
+                  className={`flex-shrink-0 px-2.5 py-1 rounded-md text-[11px] font-mono transition-all ${
                     tab.id === activeTabId
-                      ? "bg-primary/20 text-primary border border-primary/30"
-                      : "text-slate-400 hover:text-slate-200 hover:bg-white/5"
+                      ? "bg-white dark:bg-primary/20 text-sky-700 dark:text-primary border border-slate-300 dark:border-primary/30 shadow-xs font-semibold"
+                      : "text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-200 hover:bg-slate-200/60 dark:hover:bg-white/5"
                   }`}
                   title={tab.label}
                 >
@@ -883,13 +885,13 @@ export default function LearningWorkspacePage() {
               onClick={exportChapterCode}
               disabled={exporting || tabs.length === 0}
               title="将本章全部代码打包为 ZIP"
-              className="flex-shrink-0 flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-white/10 text-xs text-slate-300 hover:border-primary/30 hover:text-primary disabled:opacity-50"
+              className="flex-shrink-0 flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-slate-200 dark:border-white/10 text-xs text-slate-700 dark:text-slate-300 hover:border-sky-400 hover:text-sky-600 dark:hover:border-primary/30 dark:hover:text-primary bg-white dark:bg-transparent shadow-xs dark:shadow-none disabled:opacity-50"
             >
               {exporting ? <Loader2 size={13} className="animate-spin" /> : <Download size={13} />}
               导出
             </button>
             <button
-              className="flex-shrink-0 flex items-center gap-1.5 px-3.5 py-1.5 bg-primary text-on-primary text-xs font-bold font-headline rounded-lg hover:brightness-110 transition-all active:scale-95 disabled:opacity-50 shadow-[0_0_12px_rgba(83,221,252,0.2)]"
+              className="flex-shrink-0 flex items-center gap-1.5 px-3.5 py-1.5 bg-sky-600 hover:bg-sky-500 text-white dark:bg-primary dark:text-on-primary text-xs font-bold font-headline rounded-lg transition-all active:scale-95 disabled:opacity-50 shadow-xs"
               onClick={runCode}
               disabled={running}
             >
@@ -904,39 +906,59 @@ export default function LearningWorkspacePage() {
               )}
             </button>
           </div>
-          <div className="flex-1 relative overflow-hidden">
-            <Editor
-              height="100%"
-              language={activeLang}
-              path={activeTab?.id || "scratch"}
-              theme="vs-dark"
-              value={activeCode}
-              onChange={(v) => updateActiveCode(v || "")}
-              options={{
-                minimap: { enabled: false },
-                fontSize: 14,
-                fontFamily: "JetBrains Mono, monospace",
-                scrollBeyondLastLine: false,
-                padding: { top: 16 },
-                lineNumbersMinChars: 3,
-                glyphMargin: false,
-                folding: false,
-                overviewRulerLanes: 0,
-              }}
-            />
+          <div className="flex-1 relative w-full h-full overflow-hidden bg-white dark:bg-[#1e1e1e]">
+            <div className="absolute inset-0">
+              <Editor
+                height="100%"
+                language={activeLang}
+                path={activeTab?.id || "scratch"}
+                theme={theme === "light" ? "vs" : "vs-dark"}
+                value={activeCode}
+                onChange={(v) => updateActiveCode(v || "")}
+                loading={
+                  <div className="h-full flex items-center justify-center text-xs text-slate-500 dark:text-slate-400 bg-white dark:bg-[#1e1e1e]">
+                    <Loader2 size={16} className="animate-spin mr-2 text-sky-600 dark:text-primary" />
+                    正在加载代码编辑器…
+                  </div>
+                }
+                options={{
+                  minimap: { enabled: false },
+                  fontSize: 14,
+                  fontFamily: "JetBrains Mono, monospace",
+                  scrollBeyondLastLine: false,
+                  padding: { top: 16 },
+                  lineNumbersMinChars: 3,
+                  glyphMargin: false,
+                  folding: false,
+                  overviewRulerLanes: 0,
+                  automaticLayout: true,
+                }}
+              />
+            </div>
           </div>
         </div>
 
         {/* Console */}
-        <div className="h-1/3 flex flex-col min-h-0 bg-[#000000]">
-          <div className="flex items-center px-4 py-2 bg-surface-container-high/80 border-b border-white/5">
-            <span className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">Console Output</span>
+        <div className="h-1/3 flex flex-col min-h-0 bg-slate-50 dark:bg-[#000000] border-t border-slate-200 dark:border-white/5">
+          <div className="flex items-center px-4 py-2 bg-slate-100/90 dark:bg-surface-container-high/80 border-b border-slate-200 dark:border-white/5">
+            <span className="text-[10px] font-bold text-slate-600 dark:text-slate-400 uppercase tracking-widest font-mono">Console Output</span>
           </div>
           <div className="flex-1 p-4 font-mono text-xs space-y-1 overflow-y-auto">
             {consoleOutput.map((line, i) => (
-              <div key={i} className={line.startsWith("▶") ? "text-cyan-400" : "text-slate-500"}>{line}</div>
+              <div
+                key={i}
+                className={
+                  line.startsWith("▶")
+                    ? "text-sky-600 dark:text-cyan-400 font-semibold"
+                    : line.includes("Error") || line.includes("error")
+                    ? "text-rose-600 dark:text-rose-400"
+                    : "text-slate-800 dark:text-slate-300"
+                }
+              >
+                {line}
+              </div>
             ))}
-            <div className="w-2 h-4 bg-primary/40 inline-block animate-pulse align-middle ml-1"></div>
+            <div className="w-2 h-4 bg-sky-500/60 dark:bg-primary/40 inline-block animate-pulse align-middle ml-1"></div>
           </div>
         </div>
       </section>

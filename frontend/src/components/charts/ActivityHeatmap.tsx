@@ -33,8 +33,8 @@ export function ActivityHeatmap({ data }: { data: ActivityItem[] }) {
   return (
     <Card className="p-5">
       <div className="flex items-center justify-between mb-4">
-        <h3 className="text-sm font-bold text-slate-100 flex items-center gap-2">
-          <Calendar className="w-4 h-4 text-cyan-400" />
+        <h3 className="text-sm font-bold text-slate-900 dark:text-slate-100 flex items-center gap-2">
+          <Calendar className="w-4 h-4 text-cyan-500 dark:text-cyan-400" />
           学习活动热力图
         </h3>
         <div className="flex items-center gap-1.5 text-[10px] text-slate-500 font-mono">

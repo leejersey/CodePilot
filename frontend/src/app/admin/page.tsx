@@ -89,24 +89,24 @@ export default function AdminOverviewPage() {
   return (
     <div className="mx-auto max-w-6xl space-y-8">
       <section>
-        <p className="mb-2 text-xs font-mono text-primary">ADMIN OVERVIEW</p>
-        <h1 className="font-headline text-3xl font-bold tracking-tight text-white">
+        <p className="mb-2 text-xs font-mono text-primary font-semibold">ADMIN OVERVIEW</p>
+        <h1 className="font-headline text-3xl font-bold tracking-tight text-slate-900 dark:text-white">
           管理概览
         </h1>
-        <p className="mt-2 text-sm text-slate-400">
+        <p className="mt-2 text-sm text-slate-600 dark:text-slate-400">
           统一维护平台知识来源与已发布的练习内容。
         </p>
       </section>
 
       {error && (
-        <div className="rounded-xl border border-rose-500/25 bg-rose-500/10 px-4 py-3 text-sm text-rose-300">
+        <div className="rounded-xl border border-rose-500/25 bg-rose-500/10 px-4 py-3 text-sm text-rose-500 dark:text-rose-300">
           {error}
         </div>
       )}
 
       {loading ? (
         <div className="flex min-h-52 items-center justify-center text-sm text-slate-500">
-          <Loader2 size={18} className="mr-2 animate-spin" />
+          <Loader2 size={18} className="mr-2 animate-spin text-primary" />
           加载管理数据…
         </div>
       ) : (
@@ -115,18 +115,18 @@ export default function AdminOverviewPage() {
             {stats.map((stat) => (
               <div
                 key={stat.label}
-                className="rounded-2xl border border-white/[0.07] bg-surface-container-low/60 p-5"
+                className="rounded-2xl border border-slate-200/80 dark:border-white/[0.07] bg-white/90 dark:bg-surface-container-low/60 p-5 shadow-xs dark:shadow-none transition-all"
               >
                 <div className="mb-5 flex items-center justify-between">
-                  <span className="text-xs text-slate-400">{stat.label}</span>
+                  <span className="text-xs font-medium text-slate-500 dark:text-slate-400">{stat.label}</span>
                   <div className="flex h-9 w-9 items-center justify-center rounded-xl border border-primary/20 bg-primary/10 text-primary">
                     <stat.icon size={17} />
                   </div>
                 </div>
-                <p className="font-headline text-3xl font-bold text-white">
+                <p className="font-headline text-3xl font-bold text-slate-900 dark:text-white">
                   {stat.value}
                 </p>
-                <p className="mt-1 text-[11px] text-slate-600">{stat.hint}</p>
+                <p className="mt-1 text-[11px] text-slate-500 dark:text-slate-500">{stat.hint}</p>
               </div>
             ))}
           </section>
@@ -134,28 +134,28 @@ export default function AdminOverviewPage() {
           <section className="grid gap-5 lg:grid-cols-2">
             <Link
               href="/admin/knowledge"
-              className="group rounded-2xl border border-white/[0.07] bg-surface-container-low/50 p-6 transition-colors hover:border-primary/30"
+              className="group rounded-2xl border border-slate-200/80 dark:border-white/[0.07] bg-white/90 dark:bg-surface-container-low/50 p-6 shadow-xs dark:shadow-none transition-all hover:border-cyan-500/40 hover:-translate-y-0.5 hover:shadow-md dark:hover:shadow-none"
             >
               <div className="mb-5 flex items-start justify-between">
-                <div className="flex h-11 w-11 items-center justify-center rounded-xl border border-cyan-500/25 bg-cyan-500/10 text-cyan-300">
+                <div className="flex h-11 w-11 items-center justify-center rounded-xl border border-cyan-500/25 bg-cyan-500/10 text-cyan-600 dark:text-cyan-300">
                   <BookOpen size={21} />
                 </div>
                 <ArrowRight
                   size={18}
-                  className="text-slate-600 transition-transform group-hover:translate-x-1 group-hover:text-primary"
+                  className="text-slate-400 transition-transform group-hover:translate-x-1 group-hover:text-primary"
                 />
               </div>
-              <h2 className="font-headline text-lg font-bold text-white">
+              <h2 className="font-headline text-lg font-bold text-slate-900 dark:text-white">
                 知识库管理
               </h2>
-              <p className="mt-2 text-sm leading-relaxed text-slate-400">
+              <p className="mt-2 text-sm leading-relaxed text-slate-600 dark:text-slate-400">
                 创建知识库、上传技术文档，并维护课程与练习使用的 RAG 内容源。
               </p>
             </Link>
 
             <Link
               href="/admin/exercises"
-              className="group rounded-2xl border border-white/[0.07] bg-surface-container-low/50 p-6 transition-colors hover:border-secondary/30"
+              className="group rounded-2xl border border-slate-200/80 dark:border-white/[0.07] bg-white/90 dark:bg-surface-container-low/50 p-6 shadow-xs dark:shadow-none transition-all hover:border-secondary/40 hover:-translate-y-0.5 hover:shadow-md dark:hover:shadow-none"
             >
               <div className="mb-5 flex items-start justify-between">
                 <div className="flex h-11 w-11 items-center justify-center rounded-xl border border-secondary/25 bg-secondary/10 text-secondary">
@@ -163,13 +163,13 @@ export default function AdminOverviewPage() {
                 </div>
                 <ArrowRight
                   size={18}
-                  className="text-slate-600 transition-transform group-hover:translate-x-1 group-hover:text-secondary"
+                  className="text-slate-400 transition-transform group-hover:translate-x-1 group-hover:text-secondary"
                 />
               </div>
-              <h2 className="font-headline text-lg font-bold text-white">
+              <h2 className="font-headline text-lg font-bold text-slate-900 dark:text-white">
                 练习管理
               </h2>
-              <p className="mt-2 text-sm leading-relaxed text-slate-400">
+              <p className="mt-2 text-sm leading-relaxed text-slate-600 dark:text-slate-400">
                 基于知识库生成题目，审核草稿并控制发布、撤回和下架状态。
               </p>
             </Link>

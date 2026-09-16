@@ -190,34 +190,34 @@ export default function AdminExercisesPage() {
       <div className="mx-auto max-w-6xl space-y-8">
             <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-4">
               <div>
-                <p className="text-xs font-mono text-primary mb-2">ADMIN · EXERCISES</p>
-                <h1 className="text-3xl font-headline font-bold tracking-tight">
+                <p className="text-xs font-mono text-primary font-semibold mb-2">ADMIN · EXERCISES</p>
+                <h1 className="text-3xl font-headline font-bold tracking-tight text-slate-900 dark:text-white">
                   练习管理
                 </h1>
-                <p className="text-sm text-slate-400 mt-2 max-w-xl">
+                <p className="text-sm text-slate-600 dark:text-slate-400 mt-2 max-w-xl">
                   基于知识库 RAG 出题，审核后发布到学员「练习」页。学员端不能自行出题。
                 </p>
               </div>
               <button
                 type="button"
                 onClick={openGenerate}
-                className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-primary text-on-primary-container text-sm font-bold"
+                className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-primary text-white text-sm font-bold shadow-xs hover:bg-primary-dim transition-all"
               >
                 <Plus size={16} />
                 基于知识库出题
               </button>
             </div>
 
-            <div className="flex items-center gap-1 p-1 rounded-xl bg-white/5 border border-white/5 w-fit">
+            <div className="flex items-center gap-1 p-1 rounded-xl bg-slate-100 dark:bg-white/5 border border-slate-200 dark:border-white/5 w-fit">
               {STATUS_TABS.map((tab) => (
                 <button
                   key={tab.key || "all"}
                   type="button"
                   onClick={() => setStatusFilter(tab.key)}
-                  className={`px-3 py-1.5 text-xs rounded-lg transition-colors ${
+                  className={`px-3 py-1.5 text-xs rounded-lg transition-all ${
                     statusFilter === tab.key
-                      ? "bg-primary/20 text-primary font-bold"
-                      : "text-slate-400 hover:text-white"
+                      ? "bg-white dark:bg-primary/20 text-sky-700 dark:text-primary font-bold shadow-xs"
+                      : "text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white"
                   }`}
                 >
                   {tab.label}
@@ -282,8 +282,8 @@ export default function AdminExercisesPage() {
                             {ex.validation_status === "verified" ? "已验证" : "待验证"}
                           </span>
                         </div>
-                        <h3 className="text-base font-bold text-white mb-1">{ex.title}</h3>
-                        <p className="text-xs text-slate-400 line-clamp-2">{ex.description}</p>
+                        <h3 className="text-base font-bold text-slate-900 dark:text-white mb-1">{ex.title}</h3>
+                        <p className="text-xs text-slate-600 dark:text-slate-400 line-clamp-2">{ex.description}</p>
                       </div>
                       <div className="flex flex-wrap items-center gap-2 shrink-0">
                         {ex.status !== "published" && (
@@ -291,7 +291,7 @@ export default function AdminExercisesPage() {
                             type="button"
                             disabled={busyId === ex.id || ex.validation_status !== "verified"}
                             onClick={() => setStatus(ex, "published")}
-                            className="inline-flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-lg border border-emerald-500/30 text-emerald-300 hover:bg-emerald-500/10"
+                            className="inline-flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-lg border border-emerald-500/30 text-emerald-600 dark:text-emerald-300 hover:bg-emerald-500/10 font-medium"
                           >
                             <Eye size={13} />
                             发布
@@ -299,7 +299,7 @@ export default function AdminExercisesPage() {
                         )}
                         <Link
                           href={`/admin/exercises/${ex.id}`}
-                          className="inline-flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-lg border border-cyan-500/30 text-cyan-300 hover:bg-cyan-500/10"
+                          className="inline-flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-lg border border-cyan-500/30 text-cyan-700 dark:text-cyan-300 hover:bg-cyan-500/10 font-medium"
                         >
                           <Pencil size={13} />
                           编辑
@@ -309,7 +309,7 @@ export default function AdminExercisesPage() {
                             type="button"
                             disabled={busyId === ex.id}
                             onClick={() => setStatus(ex, "draft")}
-                            className="inline-flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-lg border border-white/10 text-slate-300 hover:bg-white/5"
+                            className="inline-flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-lg border border-slate-300 dark:border-white/10 text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-white/5 font-medium"
                           >
                             <EyeOff size={13} />
                             撤回草稿
@@ -320,26 +320,19 @@ export default function AdminExercisesPage() {
                             type="button"
                             disabled={busyId === ex.id}
                             onClick={() => setStatus(ex, "archived")}
-                            className="inline-flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-lg border border-white/10 text-slate-400 hover:bg-white/5"
+                            className="inline-flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-lg border border-slate-300 dark:border-white/10 text-slate-500 hover:bg-slate-100 dark:hover:bg-white/5"
                           >
                             <Archive size={13} />
                             下架
                           </button>
                         )}
-                        <Link
-                          href={`/exercise/${ex.id}`}
-                          className="text-xs px-3 py-1.5 rounded-lg border border-primary/30 text-primary hover:bg-primary/10"
-                        >
-                          预览
-                        </Link>
                         <button
                           type="button"
                           disabled={busyId === ex.id}
                           onClick={() => handleDelete(ex)}
-                          className="inline-flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-lg border border-red-500/30 text-red-300 hover:bg-red-500/10"
+                          className="p-1.5 rounded-lg text-slate-400 hover:text-rose-500 hover:bg-rose-500/10 transition-colors"
                         >
-                          <Trash2 size={13} />
-                          删除
+                          <Trash2 size={14} />
                         </button>
                       </div>
                     </div>
@@ -353,15 +346,15 @@ export default function AdminExercisesPage() {
           <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
             <button
               type="button"
-              className="absolute inset-0 bg-black/60 backdrop-blur-sm"
+              className="absolute inset-0 bg-black/40 dark:bg-black/60 backdrop-blur-sm"
               aria-label="关闭"
               onClick={() => !isGenerating && setShowGenerate(false)}
             />
-            <div className="relative w-full max-w-lg rounded-2xl border border-white/10 bg-surface-container-high shadow-2xl p-6">
+            <div className="relative w-full max-w-lg rounded-2xl border border-slate-200 dark:border-white/10 bg-white dark:bg-surface-container-high shadow-2xl p-6 text-slate-900 dark:text-slate-100">
               <div className="flex items-start justify-between gap-3 mb-4">
                 <div>
-                  <h2 className="text-lg font-headline font-bold">基于知识库出题</h2>
-                  <p className="text-xs text-slate-400 mt-1">
+                  <h2 className="text-lg font-headline font-bold text-slate-900 dark:text-white">基于知识库出题</h2>
+                  <p className="text-xs text-slate-600 dark:text-slate-400 mt-1">
                     检索所选知识库后由 AI 生成；默认存草稿。
                   </p>
                 </div>
@@ -369,28 +362,28 @@ export default function AdminExercisesPage() {
                   type="button"
                   disabled={isGenerating}
                   onClick={() => setShowGenerate(false)}
-                  className="p-1.5 rounded-lg text-slate-400 hover:bg-white/5"
+                  className="p-1.5 rounded-lg text-slate-400 hover:bg-slate-100 dark:hover:bg-white/5"
                 >
                   <X size={16} />
                 </button>
               </div>
 
-              <label className="block text-xs font-bold text-slate-300 mb-1.5">主题</label>
+              <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1.5">主题</label>
               <input
                 value={genTopic}
                 onChange={(e) => setGenTopic(e.target.value)}
                 placeholder="例如：pathlib 文件整理"
-                className="w-full mb-3 bg-surface-container-low border border-white/10 rounded-xl px-3 py-2.5 text-sm outline-none focus:border-primary/50"
+                className="w-full mb-3 bg-slate-50 dark:bg-surface-container-low border border-slate-300 dark:border-white/10 text-slate-900 dark:text-slate-100 rounded-xl px-3 py-2.5 text-sm outline-none focus:border-primary/50"
                 disabled={isGenerating}
               />
 
               <div className="grid grid-cols-2 gap-3 mb-3">
                 <div>
-                  <label className="block text-xs font-bold text-slate-300 mb-1.5">语言</label>
+                  <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1.5">语言</label>
                   <select
                     value={genLang}
                     onChange={(e) => setGenLang(e.target.value)}
-                    className="w-full bg-surface-container-low border border-white/10 rounded-xl px-3 py-2 text-sm outline-none"
+                    className="w-full bg-slate-50 dark:bg-surface-container-low border border-slate-300 dark:border-white/10 text-slate-900 dark:text-slate-100 rounded-xl px-3 py-2 text-sm outline-none"
                     disabled={isGenerating}
                   >
                     <option value="python">Python</option>
@@ -401,11 +394,11 @@ export default function AdminExercisesPage() {
                   </select>
                 </div>
                 <div>
-                  <label className="block text-xs font-bold text-slate-300 mb-1.5">难度</label>
+                  <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1.5">难度</label>
                   <select
                     value={genDiff}
                     onChange={(e) => setGenDiff(e.target.value)}
-                    className="w-full bg-surface-container-low border border-white/10 rounded-xl px-3 py-2 text-sm outline-none"
+                    className="w-full bg-slate-50 dark:bg-surface-container-low border border-slate-300 dark:border-white/10 text-slate-900 dark:text-slate-100 rounded-xl px-3 py-2 text-sm outline-none"
                     disabled={isGenerating}
                   >
                     <option value="easy">初级</option>
@@ -415,10 +408,10 @@ export default function AdminExercisesPage() {
                 </div>
               </div>
 
-              <label className="block text-xs font-bold text-slate-300 mb-1.5">
+              <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1.5">
                 知识库（可多选）
               </label>
-              <div className="max-h-40 overflow-y-auto rounded-xl border border-white/10 bg-surface-container-low/50 mb-3">
+              <div className="max-h-40 overflow-y-auto rounded-xl border border-slate-200 dark:border-white/10 bg-slate-50 dark:bg-surface-container-low/50 mb-3">
                 {kbsLoading ? (
                   <div className="py-6 text-center text-xs text-slate-400">
                     <Loader2 size={14} className="inline animate-spin mr-2" />

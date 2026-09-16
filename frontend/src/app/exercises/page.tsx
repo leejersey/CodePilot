@@ -87,9 +87,9 @@ export default function ExercisesHub() {
             </div>
           </section>
 
-          <section className="sticky top-[61px] z-30 backdrop-blur-xl bg-[#060e20]/80 border-y border-white/[0.06] py-3 mb-8">
+          <section className="sticky top-[61px] z-30 backdrop-blur-xl bg-white/80 dark:bg-[#060e20]/80 border-y border-slate-200/80 dark:border-white/[0.06] py-3 mb-8 transition-colors">
             <div className="max-w-screen-2xl mx-auto px-6 flex flex-col sm:flex-row items-center justify-between gap-4">
-              <div className="flex items-center gap-1 overflow-x-auto no-scrollbar w-full sm:w-auto p-1 bg-surface-container-low/60 rounded-xl border border-white/5">
+              <div className="flex items-center gap-1 overflow-x-auto no-scrollbar w-full sm:w-auto p-1 bg-slate-100/90 dark:bg-surface-container-low/60 rounded-xl border border-slate-200 dark:border-white/5">
                 {languages.map((lang) => (
                   <button
                     key={lang}
@@ -97,8 +97,8 @@ export default function ExercisesHub() {
                     onClick={() => setActiveLang(lang)}
                     className={`px-4 py-1.5 text-xs font-medium rounded-lg whitespace-nowrap transition-all ${
                       activeLang === lang
-                        ? "bg-primary/20 text-primary font-bold border border-primary/30"
-                        : "text-slate-400 hover:text-slate-200 hover:bg-white/5"
+                        ? "bg-white dark:bg-primary/20 text-sky-700 dark:text-primary font-bold border border-slate-300 dark:border-primary/30 shadow-xs"
+                        : "text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-200 hover:bg-slate-200/60 dark:hover:bg-white/5"
                     }`}
                   >
                     {lang}
@@ -110,7 +110,7 @@ export default function ExercisesHub() {
                 <select
                   value={activeDifficulty}
                   onChange={(e) => setActiveDifficulty(e.target.value)}
-                  className="appearance-none bg-surface-container-high text-on-surface border border-white/10 rounded-xl px-4 py-2 pr-9 text-xs font-medium focus:ring-1 focus:ring-primary/40 cursor-pointer outline-none"
+                  className="appearance-none bg-white dark:bg-surface-container-high text-slate-800 dark:text-on-surface border border-slate-200 dark:border-white/10 rounded-xl px-4 py-2 pr-9 text-xs font-medium focus:ring-1 focus:ring-primary/40 cursor-pointer outline-none shadow-xs"
                 >
                   <option>所有难度</option>
                   <option>初级</option>
@@ -145,7 +145,7 @@ export default function ExercisesHub() {
                           <Badge difficulty={ex.difficulty} size="sm" />
                           {ex.source_kbs && ex.source_kbs.length > 0 && (
                             <span
-                              className="inline-flex items-center gap-1 text-[10px] font-mono text-violet-300 bg-violet-500/10 border border-violet-500/25 px-2 py-0.5 rounded-full max-w-[140px] truncate"
+                              className="inline-flex items-center gap-1 text-[10px] font-mono text-violet-700 dark:text-violet-300 bg-violet-100/80 dark:bg-violet-500/10 border border-violet-200 dark:border-violet-500/25 px-2 py-0.5 rounded-full max-w-[140px] truncate"
                               title={ex.source_kbs.map((k) => k.name).join("、")}
                             >
                               <BookMarked size={10} />
@@ -153,29 +153,29 @@ export default function ExercisesHub() {
                             </span>
                           )}
                         </div>
-                        <span className="text-slate-500 group-hover:text-primary transition-colors">
+                        <span className="text-slate-400 dark:text-slate-500 group-hover:text-primary transition-colors">
                           <Code2 size={16} />
                         </span>
                       </div>
 
-                      <h3 className="text-xl font-headline font-bold text-white mb-2.5 group-hover:text-primary transition-colors">
+                      <h3 className="text-xl font-headline font-bold text-slate-900 dark:text-white mb-2.5 group-hover:text-primary transition-colors">
                         {ex.title}
                       </h3>
 
-                      <p className="text-on-surface-variant/80 text-xs mb-6 line-clamp-3 leading-relaxed flex-1">
+                      <p className="text-slate-600 dark:text-on-surface-variant/80 text-xs mb-6 line-clamp-3 leading-relaxed flex-1">
                         {ex.description}
                       </p>
 
-                      <div className="mt-auto flex items-center justify-between pt-4 border-t border-white/[0.06]">
+                      <div className="mt-auto flex items-center justify-between pt-4 border-t border-slate-200/80 dark:border-white/[0.06]">
                         <div className="flex items-center gap-3">
-                          <span className="text-[11px] font-mono text-slate-400 bg-white/5 px-2 py-0.5 rounded border border-white/5">
+                          <span className="text-[11px] font-mono text-slate-600 dark:text-slate-400 bg-slate-100 dark:bg-white/5 px-2 py-0.5 rounded border border-slate-200 dark:border-white/5">
                             {ex.tags && ex.tags.length > 0 ? ex.tags[0] : "综合挑战"}
                           </span>
                           <span className="text-[11px] text-slate-500 flex items-center gap-1">
                             <Clock size={11} /> 15m
                           </span>
                         </div>
-                        <div className="w-8 h-8 rounded-full bg-white/5 border border-white/10 flex items-center justify-center text-slate-400 group-hover:bg-primary group-hover:text-surface group-hover:border-primary transition-all">
+                        <div className="w-8 h-8 rounded-full bg-slate-100 dark:bg-white/5 border border-slate-200 dark:border-white/10 flex items-center justify-center text-slate-500 dark:text-slate-400 group-hover:bg-primary group-hover:text-white dark:group-hover:text-surface group-hover:border-primary transition-all shadow-xs">
                           <ArrowRight size={14} />
                         </div>
                       </div>

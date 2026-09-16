@@ -70,12 +70,12 @@ export default function Home() {
           {/* Massive Tech Search Bar */}
           <div className="relative group max-w-3xl mx-auto mb-8">
             <div className="absolute -inset-1 bg-gradient-to-r from-primary/30 via-secondary/20 to-primary/30 rounded-2xl blur-xl opacity-40 group-hover:opacity-100 transition duration-500" />
-            <div className="relative glass-card border border-white/10 group-hover:border-primary/40 rounded-2xl p-2.5 flex items-center shadow-2xl transition-all">
+            <div className="relative glass-card border border-slate-200/90 dark:border-white/10 group-hover:border-primary/50 rounded-2xl p-2.5 flex items-center shadow-lg dark:shadow-2xl transition-all">
               <div className="flex-shrink-0 ml-4 mr-3 text-primary/80">
                 <Terminal size={26} className="text-primary" />
               </div>
               <input
-                className="w-full bg-transparent border-none text-on-surface placeholder:text-slate-500 text-base md:text-lg py-3.5 focus:ring-0 font-body outline-none"
+                className="w-full bg-transparent border-none text-on-surface placeholder:text-slate-400 dark:placeholder:text-slate-500 text-base md:text-lg py-3.5 focus:ring-0 font-body outline-none"
                 placeholder="你想学习什么编程主题？（例如：Python 异步编程、React 状态管理...）"
                 type="text"
                 value={topic}
@@ -87,7 +87,7 @@ export default function Home() {
                 disabled={loading}
               />
               <button
-                className="ml-2 bg-primary text-on-primary-container px-7 py-3.5 rounded-xl font-bold font-headline text-sm hover:bg-primary-dim transition-all active:scale-95 flex items-center gap-2 whitespace-nowrap shadow-[0_4px_20px_rgba(83,221,252,0.25)] disabled:opacity-50 disabled:cursor-not-allowed"
+                className="ml-2 bg-primary text-white dark:text-on-primary-container px-7 py-3.5 rounded-xl font-bold font-headline text-sm hover:bg-primary-dim transition-all active:scale-95 flex items-center gap-2 whitespace-nowrap shadow-[0_4px_20px_rgba(2,132,199,0.25)] dark:shadow-[0_4px_20px_rgba(83,221,252,0.25)] disabled:opacity-50 disabled:cursor-not-allowed"
                 onClick={() => handleGenerate()}
                 disabled={loading}
               >
@@ -105,7 +105,7 @@ export default function Home() {
               </button>
             </div>
             {error && (
-              <p className="absolute -bottom-7 left-3 text-rose-400 text-xs font-medium">{error}</p>
+              <p className="absolute -bottom-7 left-3 text-rose-500 dark:text-rose-400 text-xs font-medium">{error}</p>
             )}
           </div>
 
@@ -116,14 +116,14 @@ export default function Home() {
             </h3>
             <div className="flex flex-wrap justify-center gap-2.5">
               {[
-                { name: "Python", color: "bg-blue-400", hover: "hover:border-primary/40 hover:text-primary" },
-                { name: "JavaScript", color: "bg-yellow-400", hover: "hover:border-yellow-400/40 hover:text-yellow-400" },
-                { name: "Go", color: "bg-cyan-400", hover: "hover:border-cyan-400/40 hover:text-cyan-400" },
-                { name: "Rust", color: "bg-orange-500", hover: "hover:border-orange-500/40 hover:text-orange-400" },
+                { name: "Python", color: "bg-blue-500", hover: "hover:border-primary/40 hover:text-primary" },
+                { name: "JavaScript", color: "bg-amber-500", hover: "hover:border-amber-500/40 hover:text-amber-600 dark:hover:text-amber-400" },
+                { name: "Go", color: "bg-cyan-500", hover: "hover:border-cyan-500/40 hover:text-cyan-600 dark:hover:text-cyan-400" },
+                { name: "Rust", color: "bg-orange-500", hover: "hover:border-orange-500/40 hover:text-orange-600 dark:hover:text-orange-400" },
               ].map((t) => (
                 <button
                   key={t.name}
-                  className={`px-5 py-2 rounded-full bg-surface-container-low/80 border border-white/5 text-on-surface-variant text-xs font-medium ${t.hover} transition-all duration-300 flex items-center gap-2 hover:shadow-[0_0_15px_rgba(255,255,255,0.05)] active:scale-95`}
+                  className={`px-5 py-2 rounded-full bg-white/90 dark:bg-surface-container-low/80 border border-slate-200/80 dark:border-white/5 text-on-surface-variant text-xs font-medium ${t.hover} transition-all duration-300 flex items-center gap-2 shadow-xs dark:shadow-none hover:shadow-[0_0_15px_rgba(2,132,199,0.1)] active:scale-95`}
                   onClick={() => {
                     setTopic(t.name);
                     handleGenerate(t.name);

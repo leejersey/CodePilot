@@ -112,9 +112,9 @@ export default function LearningPathPage() {
     return (
       <div className="flex items-center justify-center min-h-[70vh]">
         <div className="text-center space-y-4 max-w-sm">
-          <p className="text-rose-400 font-medium text-base">{error || "路线不存在"}</p>
+          <p className="text-rose-500 dark:text-rose-400 font-medium text-base">{error || "路线不存在"}</p>
           <button
-            className="px-6 py-2.5 rounded-xl bg-primary text-on-primary-container font-medium text-sm hover:bg-primary-dim transition-all"
+            className="px-6 py-2.5 rounded-xl bg-primary text-white font-medium text-sm hover:bg-primary-dim transition-all shadow-xs"
             onClick={() => router.push("/")}
           >
             返回首页
@@ -143,19 +143,19 @@ export default function LearningPathPage() {
             首页
           </Link>
           <ChevronRight size={12} />
-          <span className="text-slate-400 truncate max-w-[200px]">{path.topic}</span>
+          <span className="text-slate-600 dark:text-slate-400 truncate max-w-[200px]">{path.topic}</span>
         </div>
 
         <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
           <div>
-            <h1 className="text-3xl md:text-5xl font-bold font-headline mb-3 tracking-tight text-white">
+            <h1 className="text-3xl md:text-5xl font-bold font-headline mb-3 tracking-tight text-slate-900 dark:text-white">
               {path.topic}
             </h1>
             <div className="flex items-center gap-2.5 flex-wrap">
               {isKb ? (
                 <Badge variant="rag">知识库增强课程</Badge>
               ) : (
-                <span className="px-2.5 py-1 text-xs rounded-full border border-slate-700 bg-slate-800/80 text-slate-300 font-medium">
+                <span className="px-2.5 py-1 text-xs rounded-full border border-slate-200 dark:border-slate-700 bg-slate-100 dark:bg-slate-800/80 text-slate-700 dark:text-slate-300 font-medium shadow-xs">
                   通用 AI 路线
                 </span>
               )}
@@ -163,7 +163,7 @@ export default function LearningPathPage() {
               {path.outline?.prerequisites?.map((p, i) => (
                 <span
                   key={i}
-                  className="text-[11px] px-2 py-0.5 rounded-md bg-white/5 border border-white/10 text-slate-400"
+                  className="text-[11px] px-2 py-0.5 rounded-md bg-slate-100 dark:bg-white/5 border border-slate-200 dark:border-white/10 text-slate-600 dark:text-slate-400"
                 >
                   {p}
                 </span>
@@ -196,22 +196,22 @@ export default function LearningPathPage() {
           </div>
         </Card>
       ) : (
-        <Card className="mb-8 p-5 border-amber-500/20 bg-amber-500/5" enableSpotlight={false}>
+        <Card className="mb-8 p-5 border-amber-300 dark:border-amber-500/20 bg-amber-50/70 dark:bg-amber-500/5 shadow-xs" enableSpotlight={false}>
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
             <div className="flex items-start gap-3">
-              <div className="p-2 rounded-xl bg-amber-500/15 text-amber-400 shrink-0">
+              <div className="p-2 rounded-xl bg-amber-100 dark:bg-amber-500/15 text-amber-700 dark:text-amber-400 shrink-0">
                 <Sparkles size={18} />
               </div>
               <div>
-                <p className="text-amber-200 text-sm font-semibold">通用 AI 生成大纲</p>
-                <p className="text-xs text-amber-200/70 mt-0.5">
+                <p className="text-amber-900 dark:text-amber-200 text-sm font-semibold">通用 AI 生成大纲</p>
+                <p className="text-xs text-amber-800/80 dark:text-amber-200/70 mt-0.5">
                   平台如果上线了该领域的专业技术资料，可随时一键基于知识库重构章节。
                 </p>
               </div>
             </div>
             <button
               type="button"
-              className="shrink-0 flex items-center gap-1.5 px-4 py-2 rounded-xl bg-amber-500/15 text-amber-300 border border-amber-500/30 text-xs font-medium hover:bg-amber-500/25 transition-all disabled:opacity-50 active:scale-95"
+              className="shrink-0 flex items-center gap-1.5 px-4 py-2 rounded-xl bg-white dark:bg-amber-500/15 text-amber-800 dark:text-amber-300 border border-amber-300 dark:border-amber-500/30 text-xs font-medium hover:bg-amber-100 dark:hover:bg-amber-500/25 transition-all disabled:opacity-50 active:scale-95 shadow-xs"
               onClick={handleRebuildFromKb}
               disabled={rebuilding}
             >
@@ -241,16 +241,16 @@ export default function LearningPathPage() {
               />
             </div>
           </div>
-          <div className="flex items-center gap-6 shrink-0 pt-4 md:pt-0 border-t md:border-t-0 md:border-l border-white/10 md:pl-8">
+          <div className="flex items-center gap-6 shrink-0 pt-4 md:pt-0 border-t md:border-t-0 md:border-l border-slate-200/80 dark:border-white/10 md:pl-8">
             <div>
               <div className="text-[11px] text-slate-500 font-headline uppercase mb-1">完成章节</div>
-              <div className="text-xl font-bold font-mono text-white">
+              <div className="text-xl font-bold font-mono text-slate-900 dark:text-white">
                 {completedCount} <span className="text-sm font-normal text-slate-500">/ {totalCount}</span>
               </div>
             </div>
             <div>
               <div className="text-[11px] text-slate-500 font-headline uppercase mb-1">预计用时</div>
-              <div className="text-xl font-bold font-mono text-cyan-400 flex items-center gap-1">
+              <div className="text-xl font-bold font-mono text-sky-600 dark:text-cyan-400 flex items-center gap-1">
                 <Clock size={16} />
                 {path.outline?.estimated_hours || 4}h
               </div>
@@ -261,12 +261,12 @@ export default function LearningPathPage() {
 
       {/* Knowledge Tree Roadmap (Spine Timeline) */}
       <div className="mb-12">
-        <h2 className="text-lg font-bold font-headline text-white mb-8 flex items-center gap-2">
+        <h2 className="text-lg font-bold font-headline text-slate-900 dark:text-white mb-8 flex items-center gap-2">
           <Layers size={18} className="text-primary" />
           知识演进树
         </h2>
 
-        <div className="relative pl-6 md:pl-10 space-y-8 before:absolute before:left-3.5 md:before:left-5 before:top-4 before:bottom-4 before:w-[2px] before:bg-gradient-to-b before:from-primary/60 before:via-secondary/40 before:to-slate-800">
+        <div className="relative pl-6 md:pl-10 space-y-8 before:absolute before:left-3.5 md:before:left-5 before:top-4 before:bottom-4 before:w-[2px] before:bg-gradient-to-b before:from-primary/60 before:via-secondary/40 before:to-slate-300 dark:before:to-slate-800">
           {chapters.map((chapter, idx) => {
             const isCompleted = chapter.status === "completed";
             const isActive = chapter.status === "unlocked" || chapter.status === "in_progress";
@@ -278,10 +278,10 @@ export default function LearningPathPage() {
                 <div
                   className={`absolute -left-[30px] md:-left-[46px] top-6 w-7 h-7 rounded-full flex items-center justify-center border z-10 transition-all ${
                     isCompleted
-                      ? "bg-emerald-500/20 border-emerald-500 text-emerald-400 shadow-[0_0_15px_rgba(16,185,129,0.3)]"
+                      ? "bg-emerald-500/20 border-emerald-500 text-emerald-600 dark:text-emerald-400 shadow-[0_0_15px_rgba(16,185,129,0.3)]"
                       : isActive
-                      ? "bg-primary border-primary text-surface shadow-[0_0_20px_rgba(83,221,252,0.5)] animate-pulse"
-                      : "bg-surface-container-low border-white/10 text-slate-600"
+                      ? "bg-primary border-primary text-white shadow-[0_0_20px_rgba(2,132,199,0.4)] dark:shadow-[0_0_20px_rgba(83,221,252,0.5)] animate-pulse"
+                      : "bg-slate-100 dark:bg-surface-container-low border-slate-300 dark:border-white/10 text-slate-400 dark:text-slate-600"
                   }`}
                 >
                   {isCompleted ? (
@@ -298,10 +298,10 @@ export default function LearningPathPage() {
                   onClick={() => !isLocked && router.push(`/learn/${pathId}/${chapter.id}`)}
                   className={`p-6 rounded-2xl border transition-all duration-300 ${
                     isActive
-                      ? "bg-gradient-to-br from-surface-container-highest/90 to-surface-container-high border-secondary/40 shadow-[0_10px_35px_rgba(172,138,255,0.1)] cursor-pointer hover:border-secondary/70 hover:translate-x-1"
+                      ? "bg-gradient-to-br from-white to-sky-50/50 dark:from-surface-container-highest/90 dark:to-surface-container-high border-sky-300 dark:border-secondary/40 shadow-sm dark:shadow-[0_10px_35px_rgba(172,138,255,0.1)] cursor-pointer hover:border-sky-400 dark:hover:border-secondary/70 hover:translate-x-1"
                       : isCompleted
-                      ? "bg-surface-container-high/60 border-emerald-500/20 hover:border-emerald-500/40 cursor-pointer hover:bg-surface-bright/40"
-                      : "bg-surface-container-low/40 border-white/[0.04] opacity-60 cursor-not-allowed"
+                      ? "bg-white/90 dark:bg-surface-container-high/60 border-emerald-500/20 hover:border-emerald-500/40 cursor-pointer hover:bg-slate-50 dark:hover:bg-surface-bright/40 shadow-xs"
+                      : "bg-slate-50/80 dark:bg-surface-container-low/40 border-slate-200/80 dark:border-white/[0.04] opacity-70 cursor-not-allowed"
                   }`}
                 >
                   <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-3">
@@ -311,7 +311,11 @@ export default function LearningPathPage() {
                       </span>
                       <h3
                         className={`text-lg font-bold font-headline ${
-                          isActive ? "text-white" : isCompleted ? "text-slate-200" : "text-slate-400"
+                          isActive
+                            ? "text-slate-900 dark:text-white"
+                            : isCompleted
+                            ? "text-slate-800 dark:text-slate-200"
+                            : "text-slate-500 dark:text-slate-400"
                         }`}
                       >
                         {chapter.title}
@@ -320,24 +324,24 @@ export default function LearningPathPage() {
 
                     <div className="flex items-center gap-2">
                       {isCompleted ? (
-                        <span className="px-2.5 py-0.5 text-xs rounded-full bg-emerald-500/10 text-emerald-400 font-medium border border-emerald-500/20 flex items-center gap-1">
+                        <span className="px-2.5 py-0.5 text-xs rounded-full bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 font-medium border border-emerald-500/20 flex items-center gap-1">
                           <CheckCircle2 size={12} /> 已通关
                         </span>
                       ) : isActive ? (
-                        <span className="px-3 py-1 text-xs rounded-full bg-secondary/20 text-secondary font-bold uppercase tracking-wider animate-pulse border border-secondary/30">
+                        <span className="px-3 py-1 text-xs rounded-full bg-sky-100 dark:bg-secondary/20 text-sky-700 dark:text-secondary font-bold uppercase tracking-wider animate-pulse border border-sky-300 dark:border-secondary/30">
                           {chapter.status === "in_progress" ? "学习中" : "当前目标"}
                         </span>
                       ) : (
-                        <span className="px-2 py-0.5 text-[11px] rounded-full bg-white/5 text-slate-500 border border-white/5 flex items-center gap-1">
+                        <span className="px-2 py-0.5 text-[11px] rounded-full bg-slate-100 dark:bg-white/5 text-slate-500 border border-slate-200 dark:border-white/5 flex items-center gap-1">
                           <Lock size={11} /> 待解锁
                         </span>
                       )}
                     </div>
                   </div>
 
-                  <p className="text-sm text-slate-400 leading-relaxed mb-4">{chapter.summary}</p>
+                  <p className="text-sm text-slate-600 dark:text-slate-400 leading-relaxed mb-4">{chapter.summary}</p>
 
-                  <div className="flex items-center justify-between pt-3 border-t border-white/[0.04]">
+                  <div className="flex items-center justify-between pt-3 border-t border-slate-200/80 dark:border-white/[0.04]">
                     <span className="text-xs text-slate-500 font-mono">
                       {isCompleted ? "随时可复习" : isActive ? "支持 AI 流式伴学与沙箱实战" : "完成前序章节后开启"}
                     </span>
@@ -346,8 +350,8 @@ export default function LearningPathPage() {
                       <button
                         className={`flex items-center gap-1.5 text-xs font-semibold px-4 py-1.5 rounded-xl transition-all ${
                           isActive
-                            ? "bg-secondary text-surface font-bold hover:brightness-110 shadow-[0_0_15px_rgba(172,138,255,0.3)]"
-                            : "text-slate-300 hover:text-primary hover:bg-white/5"
+                            ? "bg-sky-600 dark:bg-secondary text-white font-bold hover:brightness-110 shadow-xs dark:shadow-[0_0_15px_rgba(172,138,255,0.3)]"
+                            : "text-slate-700 dark:text-slate-300 hover:text-primary hover:bg-slate-100 dark:hover:bg-white/5"
                         }`}
                       >
                         {isActive ? "开始学习" : "温故知新"}
@@ -364,20 +368,20 @@ export default function LearningPathPage() {
 
       {/* Bottom Floating Next Chapter Tip */}
       {currentChapter && (
-        <Card className="p-6 border-primary/30 bg-primary/5 mt-8 flex flex-col md:flex-row items-center justify-between gap-6" enableSpotlight>
+        <Card className="p-6 border-sky-300 dark:border-primary/30 bg-sky-50/60 dark:bg-primary/5 mt-8 flex flex-col md:flex-row items-center justify-between gap-6" enableSpotlight>
           <div className="flex items-center gap-4 text-left">
-            <div className="w-12 h-12 rounded-2xl bg-primary/20 border border-primary/30 flex items-center justify-center text-primary shrink-0 shadow-[0_0_20px_rgba(83,221,252,0.3)]">
+            <div className="w-12 h-12 rounded-2xl bg-sky-100 dark:bg-primary/20 border border-sky-300 dark:border-primary/30 flex items-center justify-center text-sky-600 dark:text-primary shrink-0 shadow-xs dark:shadow-[0_0_20px_rgba(83,221,252,0.3)]">
               <Bot size={24} />
             </div>
             <div>
-              <h4 className="text-sm font-bold font-headline text-white mb-0.5">AI 导师推进建议</h4>
-              <p className="text-xs text-slate-400">
+              <h4 className="text-sm font-bold font-headline text-slate-900 dark:text-white mb-0.5">AI 导师推进建议</h4>
+              <p className="text-xs text-slate-600 dark:text-slate-400">
                 你的下一个学习里程碑是第 {currentChapter.sort_order} 章「{currentChapter.title}」。
               </p>
             </div>
           </div>
           <button
-            className="shrink-0 flex items-center gap-2 px-6 py-2.5 rounded-xl bg-primary text-on-primary-container font-bold text-sm hover:bg-primary-dim transition-all active:scale-95 shadow-[0_4px_20px_rgba(83,221,252,0.25)]"
+            className="shrink-0 flex items-center gap-2 px-6 py-2.5 rounded-xl bg-primary text-white font-bold text-sm hover:bg-primary-dim transition-all active:scale-95 shadow-[0_4px_20px_rgba(2,132,199,0.25)] dark:shadow-[0_4px_20px_rgba(83,221,252,0.25)]"
             onClick={() => router.push(`/learn/${pathId}/${currentChapter.id}`)}
           >
             立即推进

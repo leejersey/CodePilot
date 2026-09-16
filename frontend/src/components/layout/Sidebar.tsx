@@ -61,15 +61,15 @@ export function Sidebar() {
   const currentChapter = chapters.find(c => c.status === "unlocked" || c.status === "in_progress");
 
   return (
-    <aside className="hidden lg:flex flex-col h-[calc(100vh-64px)] w-64 fixed left-0 top-16 bg-[#070b14]/95 backdrop-blur-xl border-r border-white/5 py-4 px-4 z-40">
+    <aside className="hidden lg:flex flex-col h-[calc(100vh-64px)] w-64 fixed left-0 top-16 bg-white/90 dark:bg-[#070b14]/95 backdrop-blur-xl border-r border-slate-200/80 dark:border-white/5 py-4 px-4 z-40 transition-colors duration-200">
       {/* Header */}
       <div className="mb-5 px-2">
         <div className="flex items-center gap-3 mb-2">
-          <div className="w-9 h-9 rounded-xl bg-cyan-500/10 border border-cyan-500/20 flex items-center justify-center text-cyan-400 shrink-0">
+          <div className="w-9 h-9 rounded-xl bg-cyan-500/10 border border-cyan-500/20 flex items-center justify-center text-cyan-500 dark:text-cyan-400 shrink-0">
             <GitFork className="w-4 h-4" />
           </div>
           <div className="min-w-0 flex-1">
-            <h2 className="text-sm font-bold text-slate-100 font-headline leading-tight truncate">
+            <h2 className="text-sm font-bold text-slate-900 dark:text-slate-100 font-headline leading-tight truncate">
               {pathInfo?.topic || "学习路径"}
             </h2>
             <p className="text-xs text-slate-500 font-mono mt-0.5">
@@ -79,7 +79,7 @@ export function Sidebar() {
         </div>
 
         {/* Progress Bar */}
-        <div className="h-1.5 w-full bg-slate-900 rounded-full overflow-hidden mt-3 mb-3 border border-white/5">
+        <div className="h-1.5 w-full bg-slate-200 dark:bg-slate-900 rounded-full overflow-hidden mt-3 mb-3 border border-slate-300/40 dark:border-white/5">
           <div
             className="h-full bg-gradient-to-r from-cyan-500 to-primary rounded-full transition-all duration-500 shadow-[0_0_8px_rgba(6,182,212,0.4)]"
             style={{ width: `${progressPercent}%` }}
@@ -110,10 +110,10 @@ export function Sidebar() {
               key={ch.id}
               className={`group flex items-center gap-2.5 px-3 py-2 rounded-xl transition-all cursor-pointer text-xs ${
                 isActive
-                  ? "bg-cyan-500/15 text-cyan-300 font-semibold border border-cyan-500/30 shadow-[inset_0_0_12px_rgba(6,182,212,0.15)]"
+                  ? "bg-sky-500/15 dark:bg-cyan-500/15 text-sky-800 dark:text-cyan-300 font-semibold border border-sky-400/40 dark:border-cyan-500/30 shadow-xs"
                   : isLocked
-                  ? "text-slate-600 cursor-not-allowed opacity-60"
-                  : "text-slate-400 hover:bg-white/5 hover:text-slate-200"
+                  ? "text-slate-400 dark:text-slate-600 cursor-not-allowed"
+                  : "text-slate-700 dark:text-slate-400 hover:bg-slate-200/70 dark:hover:bg-white/5 hover:text-slate-900 dark:hover:text-slate-200"
               }`}
               onClick={() => {
                 if (!isLocked && pathId) router.push(`/learn/${pathId}/${ch.id}`);
@@ -121,11 +121,11 @@ export function Sidebar() {
             >
               <div className="shrink-0">
                 {isCompleted ? (
-                  <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400" />
+                  <CheckCircle2 className="w-3.5 h-3.5 text-emerald-500 dark:text-emerald-400" />
                 ) : isInProgress ? (
-                  <PlayCircle className="w-3.5 h-3.5 text-cyan-400 animate-pulse" />
+                  <PlayCircle className="w-3.5 h-3.5 text-cyan-500 dark:text-cyan-400 animate-pulse" />
                 ) : (
-                  <Lock className="w-3.5 h-3.5 text-slate-600" />
+                  <Lock className="w-3.5 h-3.5 text-slate-400 dark:text-slate-600" />
                 )}
               </div>
               <span className="truncate">
@@ -136,7 +136,7 @@ export function Sidebar() {
         })}
 
         {chapters.length === 0 && (
-          <div className="text-center py-10 text-slate-600 text-xs">
+          <div className="text-center py-10 text-slate-500 dark:text-slate-600 text-xs">
             <BookOpen className="w-6 h-6 mx-auto mb-2 opacity-50" />
             选择学习路线后<br />章节目录将在此显现
           </div>
@@ -145,9 +145,9 @@ export function Sidebar() {
 
       {/* Footer: Back to path */}
       {pathId && (
-        <div className="mt-3 pt-3 border-t border-white/5 px-2">
+        <div className="mt-3 pt-3 border-t border-slate-200/80 dark:border-white/5 px-2">
           <button
-            className="flex items-center gap-2 text-xs text-slate-500 hover:text-cyan-400 transition-colors w-full py-1.5"
+            className="flex items-center gap-2 text-xs text-slate-500 hover:text-cyan-600 dark:hover:text-cyan-400 transition-colors w-full py-1.5"
             onClick={() => router.push(`/learn/${pathId}`)}
           >
             <ArrowLeft className="w-3.5 h-3.5" />

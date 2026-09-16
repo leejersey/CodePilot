@@ -64,21 +64,21 @@ export default function DashboardPage() {
 
   return (
     <AuthGuard>
-      <div className="min-h-screen bg-[#070b14] text-slate-100">
+      <div className="min-h-screen bg-background text-on-background transition-colors duration-200">
         <Header />
         <div className="pt-24 px-6 pb-16">
           <div className="max-w-6xl mx-auto space-y-8">
             {/* 顶栏标题区 */}
-            <div className="flex flex-col md:flex-row md:items-end justify-between gap-4 border-b border-white/5 pb-6">
+            <div className="flex flex-col md:flex-row md:items-end justify-between gap-4 border-b border-slate-200/80 dark:border-white/5 pb-6">
               <div>
-                <div className="flex items-center gap-2 text-cyan-400 text-xs font-mono tracking-wider uppercase mb-2">
+                <div className="flex items-center gap-2 text-primary text-xs font-mono tracking-wider uppercase mb-2">
                   <Sparkles className="w-3.5 h-3.5" />
                   <span>Performance & Analytics</span>
                 </div>
-                <h1 className="text-3xl font-extrabold tracking-tight font-headline">
+                <h1 className="text-3xl font-extrabold tracking-tight font-headline text-slate-900 dark:text-white">
                   数据统计面板
                 </h1>
-                <p className="text-slate-400 text-sm mt-1">
+                <p className="text-slate-600 dark:text-slate-400 text-sm mt-1">
                   {user ? `${user.nickname} 的专属学习与练习技能图谱` : "正在分析学习轨迹..."}
                 </p>
               </div>
@@ -239,7 +239,7 @@ export default function DashboardPage() {
                                 <ArrowRight className="w-4 h-4 text-slate-500 group-hover:text-cyan-400 group-hover:translate-x-0.5 transition-all" />
                               </div>
                             </div>
-                            <div className="w-full h-1.5 bg-slate-900 rounded-full overflow-hidden">
+                            <div className="w-full h-1.5 bg-slate-200 dark:bg-slate-900 rounded-full overflow-hidden">
                               <div
                                 className="h-full bg-gradient-to-r from-cyan-500 to-primary rounded-full transition-all duration-700"
                                 style={{ width: `${path.progress}%` }}
@@ -283,10 +283,10 @@ function StatCard({
   };
 
   const badgeColorMap = {
-    cyan: "text-cyan-300 bg-cyan-500/10",
-    emerald: "text-emerald-300 bg-emerald-500/10",
-    amber: "text-amber-300 bg-amber-500/10",
-    purple: "text-purple-300 bg-purple-500/10",
+    cyan: "text-cyan-700 dark:text-cyan-300 bg-cyan-100 dark:bg-cyan-500/10",
+    emerald: "text-emerald-700 dark:text-emerald-300 bg-emerald-100 dark:bg-emerald-500/10",
+    amber: "text-amber-700 dark:text-amber-300 bg-amber-100 dark:bg-amber-500/10",
+    purple: "text-purple-700 dark:text-purple-300 bg-purple-100 dark:bg-purple-500/10",
   };
 
   return (
@@ -302,11 +302,11 @@ function StatCard({
         )}
       </div>
       <div>
-        <div className="text-3xl font-extrabold text-slate-100 font-mono tracking-tight">
+        <div className="text-3xl font-extrabold text-slate-900 dark:text-slate-100 font-mono tracking-tight">
           {value}
-          {sub && <span className="text-sm font-normal text-slate-400 ml-1">{sub}</span>}
+          {sub && <span className="text-sm font-normal text-slate-500 dark:text-slate-400 ml-1">{sub}</span>}
         </div>
-        <p className="text-xs text-slate-400 mt-1">{label}</p>
+        <p className="text-xs text-slate-600 dark:text-slate-400 mt-1">{label}</p>
       </div>
     </Card>
   );

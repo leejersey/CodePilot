@@ -76,14 +76,14 @@ function LegacyRemotionPlayer({ animationData }: { animationData: LegacyAnimatio
   };
 
   return (
-    <div className="my-4 rounded-xl overflow-hidden border border-white/10 bg-[#0a0f1e]">
-      <div className="flex items-center justify-between px-4 py-2.5 bg-surface-container-low/50 border-b border-white/5">
+    <div className="my-4 rounded-xl overflow-hidden border border-slate-200 dark:border-white/10 bg-white dark:bg-[#0a0f1e] shadow-xs dark:shadow-none">
+      <div className="flex items-center justify-between px-4 py-2.5 bg-slate-50 dark:bg-surface-container-low/50 border-b border-slate-200/80 dark:border-white/5">
         <div className="flex items-center gap-2">
-          <Clapperboard className="w-4 h-4 text-cyan-400" />
-          <span className="text-sm font-semibold text-slate-100">{title}</span>
+          <Clapperboard className="w-4 h-4 text-cyan-600 dark:text-cyan-400" />
+          <span className="text-sm font-semibold text-slate-900 dark:text-slate-100">{title}</span>
         </div>
         <button
-          className="text-slate-500 hover:text-slate-300 transition-colors p-1"
+          className="text-slate-400 hover:text-slate-600 dark:text-slate-500 dark:hover:text-slate-300 transition-colors p-1"
           onClick={() => setIsExpanded(!isExpanded)}
           title={isExpanded ? "收起" : "全屏展开"}
         >
@@ -95,7 +95,7 @@ function LegacyRemotionPlayer({ animationData }: { animationData: LegacyAnimatio
         </button>
       </div>
       {description && (
-        <p className="px-4 py-2 text-xs text-slate-500 border-b border-white/5">{description}</p>
+        <p className="px-4 py-2 text-xs text-slate-600 dark:text-slate-500 border-b border-slate-200/80 dark:border-white/5">{description}</p>
       )}
       <div className={`${isExpanded ? "h-[400px]" : "h-[260px]"} transition-all duration-300`}>
         <Player

@@ -13,8 +13,8 @@ export function SkillRadar({ data }: { data: Skill[] }) {
   if (!data || data.length === 0) {
     return (
       <Card className="p-5">
-        <h3 className="text-sm font-bold text-slate-100 flex items-center gap-2 mb-4">
-          <Target className="w-4 h-4 text-purple-400" />
+        <h3 className="text-sm font-bold text-slate-900 dark:text-slate-100 flex items-center gap-2 mb-4">
+          <Target className="w-4 h-4 text-purple-500 dark:text-purple-400" />
           技能图谱与掌握度
         </h3>
         <p className="text-xs text-slate-500 text-center py-8">暂无学习数据，完成章节后将自动汇聚</p>
@@ -23,18 +23,18 @@ export function SkillRadar({ data }: { data: Skill[] }) {
   }
 
   const COLORS = [
-    { bar: "from-cyan-500 to-cyan-400", bg: "bg-cyan-500/10", text: "text-cyan-400" },
-    { bar: "from-purple-500 to-purple-400", bg: "bg-purple-500/10", text: "text-purple-400" },
-    { bar: "from-amber-500 to-amber-400", bg: "bg-amber-500/10", text: "text-amber-400" },
-    { bar: "from-emerald-500 to-emerald-400", bg: "bg-emerald-500/10", text: "text-emerald-400" },
-    { bar: "from-pink-500 to-pink-400", bg: "bg-pink-500/10", text: "text-pink-400" },
-    { bar: "from-blue-500 to-blue-400", bg: "bg-blue-500/10", text: "text-blue-400" },
+    { bar: "from-cyan-500 to-cyan-400", bg: "bg-cyan-500/10", text: "text-cyan-600 dark:text-cyan-400" },
+    { bar: "from-purple-500 to-purple-400", bg: "bg-purple-500/10", text: "text-purple-600 dark:text-purple-400" },
+    { bar: "from-amber-500 to-amber-400", bg: "bg-amber-500/10", text: "text-amber-600 dark:text-amber-400" },
+    { bar: "from-emerald-500 to-emerald-400", bg: "bg-emerald-500/10", text: "text-emerald-600 dark:text-emerald-400" },
+    { bar: "from-pink-500 to-pink-400", bg: "bg-pink-500/10", text: "text-pink-600 dark:text-pink-400" },
+    { bar: "from-blue-500 to-blue-400", bg: "bg-blue-500/10", text: "text-blue-600 dark:text-blue-400" },
   ];
 
   return (
     <Card className="p-5">
-      <h3 className="text-sm font-bold text-slate-100 flex items-center gap-2 mb-5">
-        <Target className="w-4 h-4 text-purple-400" />
+      <h3 className="text-sm font-bold text-slate-900 dark:text-slate-100 flex items-center gap-2 mb-5">
+        <Target className="w-4 h-4 text-purple-500 dark:text-purple-400" />
         技能图谱与掌握度
       </h3>
 
@@ -44,7 +44,7 @@ export function SkillRadar({ data }: { data: Skill[] }) {
           return (
             <div key={skill.topic}>
               <div className="flex items-center justify-between mb-1.5">
-                <span className="text-xs font-medium text-slate-300">{skill.topic}</span>
+                <span className="text-xs font-medium text-slate-800 dark:text-slate-200">{skill.topic}</span>
                 <div className="flex items-center gap-2 font-mono">
                   <span className="text-[10px] text-slate-500">
                     {skill.completed}/{skill.total} 章节
@@ -52,7 +52,7 @@ export function SkillRadar({ data }: { data: Skill[] }) {
                   <span className={`text-xs font-bold ${color.text}`}>{skill.mastery}%</span>
                 </div>
               </div>
-              <div className="w-full h-2 bg-slate-900 rounded-full overflow-hidden border border-white/5">
+              <div className="w-full h-2 bg-slate-100 dark:bg-slate-900 rounded-full overflow-hidden border border-slate-200 dark:border-white/5">
                 <div
                   className={`h-full bg-gradient-to-r ${color.bar} rounded-full transition-all duration-1000 ease-out`}
                   style={{

@@ -114,14 +114,14 @@ export function DocumentWalkthrough({ data, onClose }: Props) {
   const compositionHeight = 540;
 
   return (
-    <div className="my-4 rounded-xl overflow-hidden border border-primary/30 bg-[#050a16] shadow-[0_0_32px_rgba(83,221,252,0.12)]">
-      <div className="flex items-center justify-between gap-3 px-4 py-2.5 bg-black/40 border-b border-white/5">
+    <div className="my-4 rounded-xl overflow-hidden border border-slate-200 dark:border-primary/30 bg-slate-50 dark:bg-[#050a16] shadow-xs dark:shadow-[0_0_32px_rgba(83,221,252,0.12)]">
+      <div className="flex items-center justify-between gap-3 px-4 py-2.5 bg-white/80 dark:bg-black/40 border-b border-slate-200/80 dark:border-white/5">
         <div className="flex items-center gap-2 min-w-0">
-          <Film className="w-4 h-4 text-cyan-400 shrink-0" />
-          <span className="text-sm font-semibold text-slate-100 truncate">
+          <Film className="w-4 h-4 text-cyan-600 dark:text-cyan-400 shrink-0" />
+          <span className="text-sm font-semibold text-slate-900 dark:text-slate-100 truncate">
             {prepared.title}
           </span>
-          <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-cyan-500/15 text-cyan-300 border border-cyan-500/25 shrink-0">
+          <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-cyan-500/15 text-cyan-700 dark:text-cyan-300 border border-cyan-500/25 shrink-0">
             Remotion 讲解片
           </span>
         </div>

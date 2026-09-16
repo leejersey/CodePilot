@@ -21,6 +21,7 @@ import {
   X,
 } from "lucide-react";
 import { CommandMenu } from "./CommandMenu";
+import { ThemeToggle } from "@/components/ThemeToggle";
 
 export function Header() {
   const { user, init, logout, loading, isAdmin } = useAuth();
@@ -73,14 +74,14 @@ export function Header() {
 
   return (
     <>
-      <header className="fixed top-0 w-full flex justify-between items-center px-6 py-3.5 bg-[#060e20]/80 backdrop-blur-xl z-40 shadow-[0_8px_32px_rgba(6,14,32,0.8)] border-b border-white/[0.06]">
+      <header className="fixed top-0 w-full flex justify-between items-center px-6 py-3.5 bg-white/80 dark:bg-[#060e20]/80 backdrop-blur-xl z-40 shadow-xs dark:shadow-[0_8px_32px_rgba(6,14,32,0.8)] border-b border-slate-200/80 dark:border-white/[0.06] transition-colors duration-200">
         {/* Logo & Navigation */}
         <div className="flex items-center gap-8">
           <Link href="/" className="flex items-center gap-2 group">
-            <div className="w-8 h-8 rounded-xl bg-gradient-to-tr from-primary/30 to-secondary/30 border border-primary/40 flex items-center justify-center text-primary group-hover:scale-105 transition-transform shadow-[0_0_15px_rgba(83,221,252,0.3)]">
+            <div className="w-8 h-8 rounded-xl bg-gradient-to-tr from-primary/20 to-secondary/20 dark:from-primary/30 dark:to-secondary/30 border border-primary/40 flex items-center justify-center text-primary group-hover:scale-105 transition-transform shadow-[0_0_15px_rgba(2,132,199,0.2)] dark:shadow-[0_0_15px_rgba(83,221,252,0.3)]">
               <Sparkles size={16} className="text-primary" />
             </div>
-            <span className="text-xl font-bold tracking-tight text-white font-headline">
+            <span className="text-xl font-bold tracking-tight text-slate-900 dark:text-white font-headline">
               Code<span className="text-primary">Pilot</span>
             </span>
           </Link>
@@ -94,11 +95,11 @@ export function Header() {
                   href={item.href}
                   className={`flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl transition-all duration-200 ${
                     isActive
-                      ? "text-primary bg-primary/10 border border-primary/20 shadow-[0_0_15px_rgba(83,221,252,0.1)]"
-                      : "text-slate-400 hover:text-slate-200 hover:bg-white/[0.04]"
+                      ? "text-primary bg-primary/10 border border-primary/20 shadow-[0_0_15px_rgba(2,132,199,0.1)] dark:shadow-[0_0_15px_rgba(83,221,252,0.1)]"
+                      : "text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-200 hover:bg-slate-100 dark:hover:bg-white/[0.04]"
                   }`}
                 >
-                  <item.icon size={15} className={isActive ? "text-primary" : "text-slate-400"} />
+                  <item.icon size={15} className={isActive ? "text-primary" : "text-slate-500 dark:text-slate-400"} />
                   {item.label}
                 </Link>
               );
@@ -107,18 +108,21 @@ export function Header() {
         </div>
 
         {/* Right Actions */}
-        <div className="flex items-center gap-4">
+        <div className="flex items-center gap-3">
           {/* Quick Command Trigger */}
           <button
             onClick={() => setCommandMenuOpen(true)}
-            className="hidden sm:flex items-center gap-2.5 px-3 py-1.5 rounded-xl bg-surface-container-low/70 border border-white/10 hover:border-primary/40 text-slate-400 hover:text-slate-200 text-xs transition-all shadow-sm group"
+            className="hidden sm:flex items-center gap-2.5 px-3 py-1.5 rounded-xl bg-slate-100/80 hover:bg-slate-200/80 dark:bg-surface-container-low/70 dark:hover:bg-surface-container-high/80 border border-slate-200/80 dark:border-white/10 hover:border-primary/40 text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-200 text-xs transition-all shadow-xs group"
           >
             <Search size={14} className="group-hover:text-primary transition-colors" />
-            <span className="text-slate-400">快速搜索...</span>
-            <kbd className="px-1.5 py-0.5 rounded bg-white/5 border border-white/10 text-[10px] font-mono text-slate-400 group-hover:border-primary/30">
+            <span>快速搜索...</span>
+            <kbd className="px-1.5 py-0.5 rounded bg-white dark:bg-white/5 border border-slate-200 dark:border-white/10 text-[10px] font-mono text-slate-500 dark:text-slate-400 group-hover:border-primary/30">
               ⌘K
             </kbd>
           </button>
+
+          {/* Theme Switcher Toggle */}
+          <ThemeToggle />
 
           {/* History */}
           <Link
@@ -126,7 +130,7 @@ export function Header() {
             className={`p-2 rounded-xl border transition-all ${
               pathname === "/history"
                 ? "text-primary bg-primary/10 border-primary/30"
-                : "text-slate-400 hover:text-slate-200 hover:bg-white/5 border-transparent"
+                : "text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-200 hover:bg-slate-100 dark:hover:bg-white/5 border-transparent"
             }`}
             title="学习历史"
           >
@@ -135,26 +139,26 @@ export function Header() {
 
           {/* User Section */}
           {loading ? (
-            <div className="w-9 h-9 rounded-full bg-surface-container-low border border-white/10 animate-pulse" />
+            <div className="w-9 h-9 rounded-full bg-slate-200 dark:bg-surface-container-low border border-slate-300 dark:border-white/10 animate-pulse" />
           ) : user ? (
             /* Logged in */
             <div className="relative" ref={menuRef}>
               <button
-                className="flex items-center gap-2 hover:bg-white/5 p-1.5 rounded-xl transition-all border border-transparent hover:border-white/10"
+                className="flex items-center gap-2 hover:bg-slate-100 dark:hover:bg-white/5 p-1.5 rounded-xl transition-all border border-transparent hover:border-slate-200 dark:hover:border-white/10"
                 onClick={() => setMenuOpen(!menuOpen)}
               >
-                <div className="w-8 h-8 rounded-full bg-gradient-to-br from-primary via-secondary/70 to-primary/40 flex items-center justify-center text-surface text-xs font-bold shadow-[0_0_12px_rgba(83,221,252,0.25)]">
+                <div className="w-8 h-8 rounded-full bg-gradient-to-br from-primary via-secondary/70 to-primary/40 flex items-center justify-center text-white text-xs font-bold shadow-[0_0_12px_rgba(2,132,199,0.25)] dark:shadow-[0_0_12px_rgba(83,221,252,0.25)]">
                   {(user.nickname || user.email || "U")[0].toUpperCase()}
                 </div>
-                <span className="hidden md:inline text-xs font-medium text-slate-300 max-w-[100px] truncate">
+                <span className="hidden md:inline text-xs font-medium text-slate-700 dark:text-slate-300 max-w-[100px] truncate">
                   {user.nickname || user.email}
                 </span>
                 <ChevronDown size={14} className="text-slate-500" />
               </button>
 
               {menuOpen && (
-                <div className="absolute right-0 top-full mt-2 w-56 bg-surface-container-high/95 backdrop-blur-2xl rounded-2xl border border-white/10 shadow-[0_20px_50px_rgba(0,0,0,0.6)] py-2 z-50 animate-in fade-in slide-in-from-top-2 duration-200">
-                  <div className="px-4 py-2.5 border-b border-white/5">
+                <div className="absolute right-0 top-full mt-2 w-56 bg-white/95 dark:bg-surface-container-high/95 backdrop-blur-2xl rounded-2xl border border-slate-200 dark:border-white/10 shadow-xl dark:shadow-[0_20px_50px_rgba(0,0,0,0.6)] py-2 z-50 animate-in fade-in slide-in-from-top-2 duration-200">
+                  <div className="px-4 py-2.5 border-b border-slate-200/80 dark:border-white/5">
                     <p className="text-sm font-semibold text-on-surface truncate">{user.nickname}</p>
                     <p className="text-xs text-slate-500 truncate">{user.email}</p>
                     {isAdmin && (
@@ -166,7 +170,7 @@ export function Header() {
                   <Link
                     href="/dashboard"
                     onClick={() => setMenuOpen(false)}
-                    className="flex items-center gap-2.5 px-4 py-2 text-xs text-slate-300 hover:text-primary hover:bg-white/5 transition-colors"
+                    className="flex items-center gap-2.5 px-4 py-2 text-xs text-slate-600 dark:text-slate-300 hover:text-primary dark:hover:text-primary hover:bg-slate-100 dark:hover:bg-white/5 transition-colors"
                   >
                     <LayoutDashboard size={15} />
                     学习仪表盘
@@ -174,7 +178,7 @@ export function Header() {
                   <Link
                     href="/settings"
                     onClick={() => setMenuOpen(false)}
-                    className="flex items-center gap-2.5 px-4 py-2 text-xs text-slate-300 hover:text-primary hover:bg-white/5 transition-colors"
+                    className="flex items-center gap-2.5 px-4 py-2 text-xs text-slate-600 dark:text-slate-300 hover:text-primary dark:hover:text-primary hover:bg-slate-100 dark:hover:bg-white/5 transition-colors"
                   >
                     <Settings size={15} />
                     个人中心
@@ -183,7 +187,7 @@ export function Header() {
                     <Link
                       href="/admin"
                       onClick={() => setMenuOpen(false)}
-                      className="flex items-center gap-2.5 px-4 py-2 text-xs text-slate-300 hover:text-primary hover:bg-white/5 transition-colors"
+                      className="flex items-center gap-2.5 px-4 py-2 text-xs text-slate-600 dark:text-slate-300 hover:text-primary dark:hover:text-primary hover:bg-slate-100 dark:hover:bg-white/5 transition-colors"
                     >
                       <ShieldCheck size={15} />
                       后台管理
@@ -192,14 +196,14 @@ export function Header() {
                   <Link
                     href="/history"
                     onClick={() => setMenuOpen(false)}
-                    className="flex items-center gap-2.5 px-4 py-2 text-xs text-slate-300 hover:text-primary hover:bg-white/5 transition-colors"
+                    className="flex items-center gap-2.5 px-4 py-2 text-xs text-slate-600 dark:text-slate-300 hover:text-primary dark:hover:text-primary hover:bg-slate-100 dark:hover:bg-white/5 transition-colors"
                   >
                     <History size={15} />
                     学习历史
                   </Link>
-                  <div className="border-t border-white/5 mt-1 pt-1">
+                  <div className="border-t border-slate-200/80 dark:border-white/5 mt-1 pt-1">
                     <button
-                      className="flex items-center gap-2.5 w-full px-4 py-2 text-xs text-rose-400 hover:bg-rose-500/10 transition-colors"
+                      className="flex items-center gap-2.5 w-full px-4 py-2 text-xs text-rose-500 hover:bg-rose-50 dark:hover:bg-rose-500/10 transition-colors"
                       onClick={() => {
                         logout();
                         setMenuOpen(false);
@@ -216,7 +220,7 @@ export function Header() {
             /* Guest */
             <Link
               href="/auth/login"
-              className="flex items-center gap-1.5 bg-primary/15 hover:bg-primary/25 text-primary px-3.5 py-1.5 rounded-xl text-xs font-semibold transition-all active:scale-95 border border-primary/30 shadow-[0_0_15px_rgba(83,221,252,0.15)]"
+              className="flex items-center gap-1.5 bg-primary/15 hover:bg-primary/25 text-primary px-3.5 py-1.5 rounded-xl text-xs font-semibold transition-all active:scale-95 border border-primary/30 shadow-xs"
             >
               <LogIn size={14} />
               登录
@@ -226,7 +230,7 @@ export function Header() {
           {/* Mobile Hamburger */}
           <button
             onClick={() => setMobileNavOpen(!mobileNavOpen)}
-            className="md:hidden p-2 rounded-xl text-slate-400 hover:text-slate-200 hover:bg-white/5"
+            className="md:hidden p-2 rounded-xl text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-200 hover:bg-slate-100 dark:hover:bg-white/5"
           >
             {mobileNavOpen ? <X size={20} /> : <Menu size={20} />}
           </button>
@@ -235,24 +239,28 @@ export function Header() {
 
       {/* Mobile Drawer Navigation */}
       {mobileNavOpen && (
-        <div className="md:hidden fixed top-[61px] inset-x-0 bg-surface-container-high/95 backdrop-blur-2xl border-b border-white/10 z-30 p-4 space-y-2 animate-in slide-in-from-top duration-200">
+        <div className="md:hidden fixed top-[61px] inset-x-0 bg-white/95 dark:bg-surface-container-high/95 backdrop-blur-2xl border-b border-slate-200 dark:border-white/10 z-30 p-4 space-y-2 animate-in slide-in-from-top duration-200">
           {navItems.map((item) => (
             <Link
               key={item.href}
               href={item.href}
               onClick={() => setMobileNavOpen(false)}
-              className="flex items-center gap-3 px-4 py-2.5 rounded-xl text-sm font-medium text-slate-300 hover:text-primary hover:bg-white/5"
+              className="flex items-center gap-3 px-4 py-2.5 rounded-xl text-sm font-medium text-slate-700 dark:text-slate-300 hover:text-primary hover:bg-slate-100 dark:hover:bg-white/5"
             >
               <item.icon size={18} />
               {item.label}
             </Link>
           ))}
+          <div className="flex items-center justify-between px-4 py-2 rounded-xl border border-slate-200 dark:border-white/10 bg-slate-50 dark:bg-white/5">
+            <span className="text-sm font-medium text-slate-700 dark:text-slate-300">外观主题</span>
+            <ThemeToggle showLabel />
+          </div>
           <button
             onClick={() => {
               setMobileNavOpen(false);
               setCommandMenuOpen(true);
             }}
-            className="flex items-center gap-3 w-full px-4 py-2.5 rounded-xl text-sm font-medium text-slate-400 hover:text-primary hover:bg-white/5"
+            className="flex items-center gap-3 w-full px-4 py-2.5 rounded-xl text-sm font-medium text-slate-600 dark:text-slate-400 hover:text-primary hover:bg-slate-100 dark:hover:bg-white/5"
           >
             <Search size={18} />
             全局搜索 (Cmd + K)

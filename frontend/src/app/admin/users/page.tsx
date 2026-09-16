@@ -147,18 +147,18 @@ export default function AdminUsersPage() {
     <SuperAdminGuard>
       <div className="mx-auto max-w-7xl space-y-6">
         <section>
-          <p className="mb-2 text-xs font-mono text-primary">ACCOUNT ACCESS</p>
-          <h1 className="font-headline text-3xl font-bold tracking-tight text-white">账号管理</h1>
-          <p className="mt-2 text-sm text-slate-400">管理平台账号状态、角色与登录凭据。</p>
+          <p className="mb-2 text-xs font-mono text-primary font-semibold">ACCOUNT ACCESS</p>
+          <h1 className="font-headline text-3xl font-bold tracking-tight text-slate-900 dark:text-white">账号管理</h1>
+          <p className="mt-2 text-sm text-slate-600 dark:text-slate-400">管理平台账号状态、角色与登录凭据。</p>
         </section>
 
         <section className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
           {stats.map((item) => (
-            <div key={item.label} className="rounded-2xl border border-white/[0.07] bg-surface-container-low/60 p-4">
+            <div key={item.label} className="rounded-2xl border border-slate-200/80 dark:border-white/[0.07] bg-white dark:bg-surface-container-low/60 p-4 shadow-xs dark:shadow-none">
               <div className="flex items-center justify-between">
                 <div>
-                  <p className="text-xs text-slate-500">{item.label}</p>
-                  <p className="mt-1 font-headline text-2xl font-bold text-white">{item.value}</p>
+                  <p className="text-xs text-slate-500 dark:text-slate-400 font-medium">{item.label}</p>
+                  <p className="mt-1 font-headline text-2xl font-bold text-slate-900 dark:text-white">{item.value}</p>
                 </div>
                 <item.icon size={19} className="text-primary" />
               </div>
@@ -166,21 +166,21 @@ export default function AdminUsersPage() {
           ))}
         </section>
 
-        <section className="rounded-2xl border border-white/[0.07] bg-surface-container-low/45">
-          <form onSubmit={applySearch} className="flex flex-col gap-3 border-b border-white/[0.07] p-4 lg:flex-row">
+        <section className="rounded-2xl border border-slate-200/80 dark:border-white/[0.07] bg-white dark:bg-surface-container-low/45 shadow-xs dark:shadow-none overflow-hidden">
+          <form onSubmit={applySearch} className="flex flex-col gap-3 border-b border-slate-200/80 dark:border-white/[0.07] p-4 lg:flex-row bg-slate-50/50 dark:bg-transparent">
             <div className="relative flex-1">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-600" size={16} />
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={16} />
               <input
                 value={keyword}
                 onChange={(event) => setKeyword(event.target.value)}
                 placeholder="搜索邮箱或昵称"
-                className="w-full rounded-xl border border-white/10 bg-[#081126] py-2.5 pl-10 pr-3 text-sm text-white outline-none focus:border-primary/40"
+                className="w-full rounded-xl border border-slate-300 dark:border-white/10 bg-white dark:bg-[#081126] py-2.5 pl-10 pr-3 text-sm text-slate-900 dark:text-white placeholder:text-slate-400 outline-none focus:border-primary"
               />
             </div>
             <select
               value={role}
               onChange={(event) => { setRole(event.target.value as AccountRole | ""); setPage(1); }}
-              className="rounded-xl border border-white/10 bg-[#081126] px-3 py-2.5 text-sm text-slate-300"
+              className="rounded-xl border border-slate-300 dark:border-white/10 bg-white dark:bg-[#081126] px-3 py-2.5 text-sm text-slate-700 dark:text-slate-300 outline-none focus:border-primary"
             >
               <option value="">全部角色</option>
               <option value="super_admin">超级管理员</option>
@@ -190,26 +190,26 @@ export default function AdminUsersPage() {
             <select
               value={status}
               onChange={(event) => { setStatus(event.target.value as AccountStatus | ""); setPage(1); }}
-              className="rounded-xl border border-white/10 bg-[#081126] px-3 py-2.5 text-sm text-slate-300"
+              className="rounded-xl border border-slate-300 dark:border-white/10 bg-white dark:bg-[#081126] px-3 py-2.5 text-sm text-slate-700 dark:text-slate-300 outline-none focus:border-primary"
             >
               <option value="">全部状态</option>
               <option value="active">正常</option>
               <option value="disabled">已禁用</option>
             </select>
-            <button className="rounded-xl bg-primary px-5 py-2.5 text-sm font-semibold text-slate-950">查询</button>
+            <button className="rounded-xl bg-primary px-5 py-2.5 text-sm font-bold text-white shadow-xs hover:bg-primary-dim transition-all">查询</button>
           </form>
 
-          {error && <div className="m-4 rounded-xl border border-rose-500/25 bg-rose-500/10 p-3 text-sm text-rose-300">{error}</div>}
+          {error && <div className="m-4 rounded-xl border border-rose-500/25 bg-rose-500/10 p-3 text-sm text-rose-500 dark:text-rose-300">{error}</div>}
           {loading ? (
             <div className="flex min-h-56 items-center justify-center text-sm text-slate-500">
-              <Loader2 className="mr-2 animate-spin" size={18} />加载账号…
+              <Loader2 className="mr-2 animate-spin text-primary" size={18} />加载账号…
             </div>
           ) : data.items.length === 0 ? (
             <div className="py-16 text-center text-sm text-slate-500">没有符合条件的账号</div>
           ) : (
             <div className="overflow-x-auto">
               <table className="w-full min-w-[900px] text-left text-sm">
-                <thead className="border-b border-white/[0.07] text-xs text-slate-500">
+                <thead className="border-b border-slate-200/80 dark:border-white/[0.07] text-xs text-slate-600 dark:text-slate-500 bg-slate-100/50 dark:bg-white/[0.02]">
                   <tr>
                     <th className="px-5 py-3 font-medium">用户</th>
                     <th className="px-5 py-3 font-medium">角色</th>
@@ -218,22 +218,22 @@ export default function AdminUsersPage() {
                     <th className="px-5 py-3 text-right font-medium">操作</th>
                   </tr>
                 </thead>
-                <tbody className="divide-y divide-white/[0.05]">
+                <tbody className="divide-y divide-slate-200/80 dark:divide-white/[0.05]">
                   {data.items.map((item) => {
                     const isSelf = item.id === currentUser?.id;
                     const busy = busyId === item.id;
                     return (
-                      <tr key={item.id} className="text-slate-300">
+                      <tr key={item.id} className="text-slate-700 dark:text-slate-300 hover:bg-slate-50/50 dark:hover:bg-white/[0.015] transition-colors">
                         <td className="px-5 py-4">
-                          <p className="font-medium text-white">{item.nickname}{isSelf && <span className="ml-2 text-[10px] text-primary">当前账号</span>}</p>
-                          <p className="mt-0.5 text-xs text-slate-600">{item.email || `匿名账号 · ${item.id.slice(0, 8)}`}</p>
+                          <p className="font-semibold text-slate-900 dark:text-white">{item.nickname}{isSelf && <span className="ml-2 text-[10px] font-bold text-primary bg-primary/10 px-1.5 py-0.5 rounded">当前账号</span>}</p>
+                          <p className="mt-0.5 text-xs text-slate-500 dark:text-slate-600">{item.email || `匿名账号 · ${item.id.slice(0, 8)}`}</p>
                         </td>
                         <td className="px-5 py-4">
                           <select
                             value={item.role}
                             disabled={busy || isSelf}
                             onChange={(event) => changeRole(item, event.target.value as AccountRole)}
-                            className="rounded-lg border border-white/10 bg-[#081126] px-2.5 py-1.5 text-xs disabled:opacity-50"
+                            className="rounded-lg border border-slate-300 dark:border-white/10 bg-slate-50 dark:bg-[#081126] px-2.5 py-1.5 text-xs text-slate-900 dark:text-white disabled:opacity-50"
                           >
                             <option value="learner">学员</option>
                             <option value="admin">管理员</option>
@@ -241,7 +241,7 @@ export default function AdminUsersPage() {
                           </select>
                         </td>
                         <td className="px-5 py-4">
-                          <span className={`rounded-full px-2.5 py-1 text-xs ${item.status === "active" ? "bg-emerald-500/10 text-emerald-300" : "bg-rose-500/10 text-rose-300"}`}>
+                          <span className={`rounded-full px-2.5 py-1 text-xs font-medium ${item.status === "active" ? "bg-emerald-500/15 text-emerald-700 dark:text-emerald-300 border border-emerald-500/30" : "bg-rose-500/15 text-rose-700 dark:text-rose-300 border border-rose-500/30"}`}>
                             {item.status === "active" ? "正常" : "已禁用"}
                           </span>
                         </td>
@@ -252,7 +252,7 @@ export default function AdminUsersPage() {
                               <button
                                 disabled={busy}
                                 onClick={() => { setResetTarget(item); setTemporaryPassword(""); }}
-                                className="rounded-lg border border-white/10 p-2 text-slate-400 hover:text-primary disabled:opacity-50"
+                                className="rounded-lg border border-slate-200 dark:border-white/10 p-2 text-slate-500 hover:text-primary hover:bg-slate-100 dark:hover:bg-white/5 disabled:opacity-50 transition-colors"
                                 title="重置密码"
                               >
                                 <KeyRound size={15} />
@@ -261,7 +261,7 @@ export default function AdminUsersPage() {
                             <button
                               disabled={busy || isSelf}
                               onClick={() => toggleStatus(item)}
-                              className={`rounded-lg border px-3 py-1.5 text-xs disabled:opacity-40 ${item.status === "active" ? "border-rose-500/20 text-rose-300" : "border-emerald-500/20 text-emerald-300"}`}
+                              className={`rounded-lg border px-3 py-1.5 text-xs font-medium transition-all disabled:opacity-40 ${item.status === "active" ? "border-rose-500/30 text-rose-600 dark:text-rose-300 hover:bg-rose-500/10" : "border-emerald-500/30 text-emerald-600 dark:text-emerald-300 hover:bg-emerald-500/10"}`}
                             >
                               {busy ? "处理中" : item.status === "active" ? "禁用" : "启用"}
                             </button>
@@ -275,28 +275,28 @@ export default function AdminUsersPage() {
             </div>
           )}
 
-          <div className="flex items-center justify-between border-t border-white/[0.07] px-5 py-4 text-xs text-slate-500">
+          <div className="flex items-center justify-between border-t border-slate-200/80 dark:border-white/[0.07] px-5 py-4 text-xs text-slate-500 bg-slate-50/30 dark:bg-transparent">
             <span>共 {data.total} 个结果</span>
             <div className="flex items-center gap-2">
-              <button disabled={page <= 1 || loading} onClick={() => setPage((value) => value - 1)} className="rounded-lg border border-white/10 px-3 py-1.5 disabled:opacity-30">上一页</button>
-              <span>{page} / {totalPages}</span>
-              <button disabled={page >= totalPages || loading} onClick={() => setPage((value) => value + 1)} className="rounded-lg border border-white/10 px-3 py-1.5 disabled:opacity-30">下一页</button>
+              <button disabled={page <= 1 || loading} onClick={() => setPage((value) => value - 1)} className="rounded-lg border border-slate-300 dark:border-white/10 px-3 py-1.5 text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-white/5 disabled:opacity-30">上一页</button>
+              <span className="font-mono">{page} / {totalPages}</span>
+              <button disabled={page >= totalPages || loading} onClick={() => setPage((value) => value + 1)} className="rounded-lg border border-slate-300 dark:border-white/10 px-3 py-1.5 text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-white/5 disabled:opacity-30">下一页</button>
             </div>
           </div>
         </section>
       </div>
 
       {resetTarget && (
-        <div className="fixed inset-0 z-[90] flex items-center justify-center bg-black/70 p-4 backdrop-blur-sm">
-          <form onSubmit={submitPasswordReset} className="w-full max-w-md rounded-2xl border border-white/10 bg-[#0b1428] p-6 shadow-2xl">
+        <div className="fixed inset-0 z-[90] flex items-center justify-center bg-black/40 dark:bg-black/70 p-4 backdrop-blur-sm">
+          <form onSubmit={submitPasswordReset} className="w-full max-w-md rounded-2xl border border-slate-200 dark:border-white/10 bg-white dark:bg-[#0b1428] p-6 shadow-2xl text-slate-900 dark:text-slate-100">
             <div className="flex items-start justify-between">
               <div>
-                <h2 className="font-headline text-lg font-bold text-white">重置临时密码</h2>
+                <h2 className="font-headline text-lg font-bold text-slate-900 dark:text-white">重置临时密码</h2>
                 <p className="mt-1 text-xs text-slate-500">{resetTarget.email}</p>
               </div>
-              <button type="button" onClick={() => setResetTarget(null)} className="text-slate-500 hover:text-white"><X size={18} /></button>
+              <button type="button" onClick={() => setResetTarget(null)} className="text-slate-400 hover:text-slate-600 dark:hover:text-white"><X size={18} /></button>
             </div>
-            <label className="mt-6 block text-xs text-slate-400">临时密码（至少 8 位）</label>
+            <label className="mt-6 block text-xs font-semibold text-slate-700 dark:text-slate-400">临时密码（至少 8 位）</label>
             <input
               autoFocus
               type="password"
@@ -305,12 +305,12 @@ export default function AdminUsersPage() {
               required
               value={temporaryPassword}
               onChange={(event) => setTemporaryPassword(event.target.value)}
-              className="mt-2 w-full rounded-xl border border-white/10 bg-[#081126] px-3 py-2.5 text-sm text-white outline-none focus:border-primary/40"
+              className="mt-2 w-full rounded-xl border border-slate-300 dark:border-white/10 bg-slate-50 dark:bg-[#081126] px-3 py-2.5 text-sm text-slate-900 dark:text-white outline-none focus:border-primary"
             />
-            <p className="mt-2 text-xs leading-relaxed text-amber-300/80">保存后该账号的所有旧登录状态会立即失效。</p>
+            <p className="mt-2 text-xs leading-relaxed text-amber-600 dark:text-amber-300/80">保存后该账号的所有旧登录状态会立即失效。</p>
             <div className="mt-6 flex justify-end gap-3">
-              <button type="button" onClick={() => setResetTarget(null)} className="rounded-xl border border-white/10 px-4 py-2 text-sm text-slate-400">取消</button>
-              <button disabled={temporaryPassword.length < 8 || busyId === resetTarget.id} className="rounded-xl bg-primary px-4 py-2 text-sm font-semibold text-slate-950 disabled:opacity-40">
+              <button type="button" onClick={() => setResetTarget(null)} className="rounded-xl border border-slate-300 dark:border-white/10 px-4 py-2 text-sm text-slate-600 dark:text-slate-400 hover:bg-slate-100">取消</button>
+              <button disabled={temporaryPassword.length < 8 || busyId === resetTarget.id} className="rounded-xl bg-primary px-4 py-2 text-sm font-bold text-white shadow-xs disabled:opacity-40">
                 {busyId === resetTarget.id ? "保存中…" : "确认重置"}
               </button>
             </div>

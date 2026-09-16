@@ -90,23 +90,23 @@ export default function AdminKnowledgePage() {
 
   return (
     <div className="mx-auto max-w-6xl space-y-7">
-      <div className="flex flex-col justify-between gap-4 border-b border-white/[0.07] pb-6 md:flex-row md:items-end">
+      <div className="flex flex-col justify-between gap-4 border-b border-slate-200 dark:border-white/[0.07] pb-6 md:flex-row md:items-end">
         <div>
-          <p className="mb-2 text-xs font-mono text-primary">ADMIN · KNOWLEDGE</p>
-          <h1 className="flex items-center gap-3 font-headline text-3xl font-bold tracking-tight text-white">
-            <Database className="h-7 w-7 text-cyan-400" />
+          <p className="mb-2 text-xs font-mono text-primary font-semibold">ADMIN · KNOWLEDGE</p>
+          <h1 className="flex items-center gap-3 font-headline text-3xl font-bold tracking-tight text-slate-900 dark:text-white">
+            <Database className="h-7 w-7 text-cyan-600 dark:text-cyan-400" />
             知识库管理
           </h1>
-          <p className="mt-2 max-w-2xl text-sm text-slate-400">
+          <p className="mt-2 max-w-2xl text-sm text-slate-600 dark:text-slate-400">
             管理技术文档与教案，作为学习路线、文档教学和练习出题的 RAG 内容源。
           </p>
         </div>
         <button
           type="button"
-          className={`flex items-center gap-2 rounded-xl px-5 py-2.5 text-sm font-bold transition-colors ${
+          className={`flex items-center gap-2 rounded-xl px-5 py-2.5 text-sm font-bold transition-all shadow-xs ${
             showForm
-              ? "bg-slate-800 text-slate-300 hover:bg-slate-700"
-              : "bg-primary text-on-primary-container hover:bg-primary-dim"
+              ? "bg-slate-200 hover:bg-slate-300 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300"
+              : "bg-primary text-white hover:bg-primary-dim"
           }`}
           onClick={() => setShowForm((value) => !value)}
         >
@@ -116,26 +116,26 @@ export default function AdminKnowledgePage() {
       </div>
 
       {error && (
-        <div className="flex items-center gap-3 rounded-xl border border-rose-500/20 bg-rose-500/10 px-4 py-3 text-sm text-rose-400">
+        <div className="flex items-center gap-3 rounded-xl border border-rose-500/20 bg-rose-500/10 px-4 py-3 text-sm text-rose-500 dark:text-rose-400">
           <AlertCircle size={16} className="shrink-0" />
           {error}
         </div>
       )}
 
       {showForm && (
-        <Card className="space-y-4 border-cyan-500/30 p-6">
-          <div className="flex items-center gap-2 text-sm font-semibold text-cyan-400">
+        <Card className="space-y-4 border-slate-300 dark:border-cyan-500/30 bg-white dark:bg-surface-container-low/80 p-6 shadow-md dark:shadow-none">
+          <div className="flex items-center gap-2 text-sm font-semibold text-cyan-600 dark:text-cyan-400">
             <Sparkles size={16} />
             新建专业知识库
           </div>
           <input
-            className="w-full rounded-xl border border-white/10 bg-slate-900/80 px-4 py-3 text-sm outline-none transition-colors focus:border-cyan-500"
+            className="w-full rounded-xl border border-slate-300 dark:border-white/10 bg-slate-50 dark:bg-slate-900/80 px-4 py-3 text-sm text-slate-900 dark:text-slate-100 placeholder:text-slate-400 outline-none transition-colors focus:border-cyan-500"
             placeholder="知识库名称，例如：Go 并发编程核心规范"
             value={name}
             onChange={(event) => setName(event.target.value)}
           />
           <textarea
-            className="min-h-24 w-full rounded-xl border border-white/10 bg-slate-900/80 px-4 py-3 text-sm outline-none transition-colors focus:border-cyan-500"
+            className="min-h-24 w-full rounded-xl border border-slate-300 dark:border-white/10 bg-slate-50 dark:bg-slate-900/80 px-4 py-3 text-sm text-slate-900 dark:text-slate-100 placeholder:text-slate-400 outline-none transition-colors focus:border-cyan-500"
             placeholder="知识库涵盖范围与适用课程（可选）"
             value={description}
             onChange={(event) => setDescription(event.target.value)}
@@ -143,14 +143,14 @@ export default function AdminKnowledgePage() {
           <div className="flex justify-end gap-3">
             <button
               type="button"
-              className="px-4 py-2 text-sm text-slate-400"
+              className="px-4 py-2 text-sm text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-200"
               onClick={() => setShowForm(false)}
             >
               取消
             </button>
             <button
               type="button"
-              className="rounded-xl bg-cyan-500 px-6 py-2 text-sm font-bold text-slate-950 disabled:opacity-50"
+              className="rounded-xl bg-cyan-600 hover:bg-cyan-500 dark:bg-cyan-500 px-6 py-2 text-sm font-bold text-white dark:text-slate-950 disabled:opacity-50 shadow-xs"
               onClick={handleCreate}
               disabled={creating}
             >
@@ -178,31 +178,31 @@ export default function AdminKnowledgePage() {
           {items.map((kb) => (
             <Card
               key={kb.id}
-              className="group flex flex-col justify-between p-6 transition-colors hover:border-cyan-500/30"
+              className="group flex flex-col justify-between p-6 transition-all hover:border-cyan-500/40"
             >
               <div>
                 <div className="mb-3 flex items-start justify-between gap-3">
-                  <div className="flex h-10 w-10 items-center justify-center rounded-xl border border-cyan-500/20 bg-cyan-500/10 text-cyan-400">
+                  <div className="flex h-10 w-10 items-center justify-center rounded-xl border border-cyan-500/20 bg-cyan-500/10 text-cyan-600 dark:text-cyan-400">
                     <Database size={19} />
                   </div>
-                  <span className="flex items-center gap-1.5 rounded-full border border-white/5 bg-slate-900/60 px-2.5 py-1 text-xs font-mono text-slate-400">
-                    <FileText size={13} className="text-cyan-400" />
+                  <span className="flex items-center gap-1.5 rounded-full border border-slate-200 dark:border-white/5 bg-slate-100 dark:bg-slate-900/60 px-2.5 py-1 text-xs font-mono text-slate-600 dark:text-slate-400">
+                    <FileText size={13} className="text-cyan-600 dark:text-cyan-400" />
                     {kb.document_count} 个文档
                   </span>
                 </div>
                 <Link href={`/admin/knowledge/${kb.id}`}>
-                  <h2 className="font-headline text-lg font-bold text-white transition-colors group-hover:text-cyan-400">
+                  <h2 className="font-headline text-lg font-bold text-slate-900 dark:text-white transition-colors group-hover:text-cyan-600 dark:group-hover:text-cyan-400">
                     {kb.name}
                   </h2>
-                  <p className="mt-1.5 line-clamp-2 text-sm leading-relaxed text-slate-400">
+                  <p className="mt-1.5 line-clamp-2 text-sm leading-relaxed text-slate-600 dark:text-slate-400">
                     {kb.description || "暂无描述信息"}
                   </p>
                 </Link>
               </div>
-              <div className="mt-4 flex items-center justify-between border-t border-white/5 pt-4">
+              <div className="mt-4 flex items-center justify-between border-t border-slate-200/80 dark:border-white/5 pt-4">
                 <Link
                   href={`/admin/knowledge/${kb.id}`}
-                  className="flex items-center gap-1 text-xs font-semibold text-cyan-400"
+                  className="flex items-center gap-1 text-xs font-semibold text-cyan-600 dark:text-cyan-400 hover:underline"
                 >
                   <Settings size={13} />
                   管理文档与向量
@@ -211,7 +211,7 @@ export default function AdminKnowledgePage() {
                   type="button"
                   title="删除知识库"
                   onClick={() => handleDelete(kb)}
-                  className="rounded-lg p-1.5 text-slate-500 transition-colors hover:bg-rose-500/10 hover:text-rose-400"
+                  className="rounded-lg p-1.5 text-slate-400 hover:bg-rose-500/10 hover:text-rose-500 dark:text-slate-500 dark:hover:text-rose-400 transition-colors"
                 >
                   <Trash2 size={16} />
                 </button>

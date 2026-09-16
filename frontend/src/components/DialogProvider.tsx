@@ -125,7 +125,7 @@ export function DialogProvider({ children }: { children: ReactNode }) {
               pending.kind === "confirm" ? closeConfirm(false) : closeAlert()
             }
           />
-          <div className="relative w-full max-w-md rounded-2xl border border-white/10 bg-[#0c1528] shadow-[0_20px_60px_rgba(0,0,0,0.55)] overflow-hidden">
+          <div className="relative w-full max-w-md rounded-2xl border border-slate-200 dark:border-white/10 bg-white dark:bg-[#0c1528] text-slate-900 dark:text-slate-100 shadow-2xl dark:shadow-[0_20px_60px_rgba(0,0,0,0.55)] overflow-hidden">
             <div
               className={`h-1 w-full ${
                 isDanger && pending.kind === "confirm"

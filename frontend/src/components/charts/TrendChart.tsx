@@ -38,8 +38,8 @@ export function TrendChart({ data }: { data: ActivityItem[] }) {
 
   return (
     <Card className="p-5">
-      <h3 className="text-sm font-bold text-slate-100 flex items-center gap-2 mb-4">
-        <TrendingUp className="w-4 h-4 text-emerald-400" />
+      <h3 className="text-sm font-bold text-slate-900 dark:text-slate-100 flex items-center gap-2 mb-4">
+        <TrendingUp className="w-4 h-4 text-emerald-500 dark:text-emerald-400" />
         学习趋势波动
       </h3>
 

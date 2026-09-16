@@ -43,16 +43,16 @@ export function EmptyState({
 
   return (
     <div
-      className={`flex flex-col items-center justify-center text-center p-12 rounded-2xl border border-dashed border-white/10 bg-surface-container-low/30 backdrop-blur-sm ${className}`}
+      className={`flex flex-col items-center justify-center text-center p-12 rounded-2xl border border-dashed border-slate-200 dark:border-white/10 bg-slate-50/60 dark:bg-surface-container-low/30 backdrop-blur-sm ${className}`}
     >
-      <div className="w-16 h-16 rounded-2xl bg-cyan-500/10 border border-cyan-500/20 flex items-center justify-center text-cyan-400 mb-4 shadow-[0_0_30px_rgba(6,182,212,0.1)]">
+      <div className="w-16 h-16 rounded-2xl bg-cyan-500/10 border border-cyan-500/20 flex items-center justify-center text-cyan-500 dark:text-cyan-400 mb-4 shadow-[0_0_30px_rgba(6,182,212,0.1)]">
         {renderIcon()}
       </div>
-      <h3 className="text-lg font-semibold text-slate-100 font-headline mb-1">
+      <h3 className="text-lg font-semibold text-slate-900 dark:text-slate-100 font-headline mb-1">
         {title}
       </h3>
       {description && (
-        <p className="text-sm text-slate-400 max-w-sm mb-6 leading-relaxed">
+        <p className="text-sm text-slate-600 dark:text-slate-400 max-w-sm mb-6 leading-relaxed">
           {description}
         </p>
       )}

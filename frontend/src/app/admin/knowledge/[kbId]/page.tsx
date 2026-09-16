@@ -225,33 +225,33 @@ export default function AdminKnowledgeDetailPage() {
         />
       ) : (
         <>
-          <div className="flex flex-col justify-between gap-4 border-b border-white/[0.07] pb-6 md:flex-row md:items-start">
+          <div className="flex flex-col justify-between gap-4 border-b border-slate-200 dark:border-white/[0.07] pb-6 md:flex-row md:items-start">
             <div>
-              <h1 className="flex items-center gap-3 font-headline text-3xl font-bold text-white">
-                <Database size={28} className="text-cyan-400" />
+              <h1 className="flex items-center gap-3 font-headline text-3xl font-bold text-slate-900 dark:text-white">
+                <Database size={28} className="text-cyan-600 dark:text-cyan-400" />
                 {kb.name}
               </h1>
-              <p className="mt-2 text-sm leading-relaxed text-slate-400">
+              <p className="mt-2 text-sm leading-relaxed text-slate-600 dark:text-slate-400">
                 {kb.description || "暂无描述信息"}
               </p>
             </div>
-            <span className="w-fit rounded-full border border-cyan-500/20 bg-cyan-500/10 px-3 py-1 text-xs font-mono text-cyan-300">
+            <span className="w-fit rounded-full border border-cyan-500/30 bg-cyan-500/10 px-3 py-1 text-xs font-mono text-cyan-700 dark:text-cyan-300 font-medium">
               {kb.documents.length} 篇文档
             </span>
           </div>
 
           {error && (
-            <div className="flex items-center gap-3 rounded-xl border border-rose-500/20 bg-rose-500/10 px-4 py-3 text-sm text-rose-400">
+            <div className="flex items-center gap-3 rounded-xl border border-rose-500/20 bg-rose-500/10 px-4 py-3 text-sm text-rose-500 dark:text-rose-400">
               <AlertCircle size={16} />
               {error}
             </div>
           )}
 
           <div
-            className={`cursor-pointer rounded-2xl border-2 border-dashed p-10 text-center transition-colors ${
+            className={`cursor-pointer rounded-2xl border-2 border-dashed p-10 text-center transition-all ${
               dragOver
-                ? "border-cyan-400 bg-cyan-500/10"
-                : "border-white/15 bg-surface-container/40 hover:border-cyan-500/40"
+                ? "border-cyan-500 bg-cyan-50 dark:bg-cyan-500/10"
+                : "border-slate-300 dark:border-white/15 bg-white/80 dark:bg-surface-container/40 hover:border-cyan-500 shadow-xs dark:shadow-none"
             } ${uploading ? "pointer-events-none opacity-70" : ""}`}
             onDragEnter={(event) => {
               event.preventDefault();
@@ -270,33 +270,33 @@ export default function AdminKnowledgeDetailPage() {
               className="hidden"
               onChange={(event) => void uploadFiles(event.target.files)}
             />
-            <div className="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-2xl border border-cyan-500/20 bg-cyan-500/10 text-cyan-400">
+            <div className="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-2xl border border-cyan-500/30 bg-cyan-500/10 text-cyan-600 dark:text-cyan-400">
               {uploading ? (
                 <Loader2 size={27} className="animate-spin" />
               ) : (
                 <UploadCloud size={27} />
               )}
             </div>
-            <p className="font-semibold text-slate-200">
+            <p className="font-semibold text-slate-800 dark:text-slate-200">
               {dragOver ? "松开即可上传" : "点击或拖拽文档到这里"}
             </p>
             <p className="mb-5 mt-1 text-xs font-mono text-slate-500">
               PDF / Markdown / TXT · 单文件不超过 10MB
             </p>
-            <span className="inline-flex items-center gap-2 rounded-xl bg-primary px-5 py-2.5 text-sm font-bold text-on-primary-container">
+            <span className="inline-flex items-center gap-2 rounded-xl bg-primary px-5 py-2.5 text-sm font-bold text-white shadow-xs">
               <FileCode size={16} />
               {uploading ? "向量化解析中…" : "浏览本地文件"}
             </span>
             {uploadProgress && (
-              <p className="mt-4 text-xs font-mono text-cyan-400">
+              <p className="mt-4 text-xs font-mono text-cyan-600 dark:text-cyan-400">
                 {uploadProgress}
               </p>
             )}
           </div>
 
           <section className="space-y-4">
-            <h2 className="flex items-center gap-2 font-headline text-lg font-bold text-white">
-              <FileText size={19} className="text-cyan-400" />
+            <h2 className="flex items-center gap-2 font-headline text-lg font-bold text-slate-900 dark:text-white">
+              <FileText size={19} className="text-cyan-600 dark:text-cyan-400" />
               已索引文档
             </h2>
             {!kb.documents.length ? (
@@ -314,14 +314,14 @@ export default function AdminKnowledgeDetailPage() {
                   return (
                     <Card
                       key={doc.id}
-                      className="flex items-center justify-between gap-4 p-4"
+                      className="flex items-center justify-between gap-4 p-4 shadow-xs dark:shadow-none"
                     >
                       <div className="flex min-w-0 items-center gap-3">
-                        <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-white/5 bg-slate-900 text-cyan-400">
+                        <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-slate-200 dark:border-white/5 bg-slate-100 dark:bg-slate-900 text-cyan-600 dark:text-cyan-400">
                           <FileText size={19} />
                         </div>
                         <div className="min-w-0">
-                          <p className="truncate text-sm font-semibold text-slate-200">
+                          <p className="truncate text-sm font-semibold text-slate-900 dark:text-slate-200">
                             {doc.filename}
                           </p>
                           <div className="mt-1 flex flex-wrap items-center gap-2 text-[11px] font-mono text-slate-500">
@@ -339,12 +339,12 @@ export default function AdminKnowledgeDetailPage() {
                             </span>
                           </div>
                           {doc.error_message && (
-                            <p className="mt-1 line-clamp-1 text-xs text-rose-400">
+                            <p className="mt-1 line-clamp-1 text-xs text-rose-500 dark:text-rose-400">
                               {doc.error_message}
                             </p>
                           )}
                           {job?.status === "retrying" && (
-                            <p className="mt-1 text-xs text-amber-300">自动重试中（第 {job.attempts} 次）</p>
+                            <p className="mt-1 text-xs text-amber-600 dark:text-amber-300">自动重试中（第 {job.attempts} 次）</p>
                           )}
                         </div>
                       </div>
@@ -354,7 +354,7 @@ export default function AdminKnowledgeDetailPage() {
                             type="button"
                             title="重试处理"
                             onClick={async () => { await retryBackgroundJob(job.id); await refresh(); }}
-                            className="rounded-lg p-2 text-amber-300 hover:bg-amber-500/10"
+                            className="rounded-lg p-2 text-amber-600 dark:text-amber-300 hover:bg-amber-500/10"
                           >
                             <RotateCcw size={16} />
                           </button>
@@ -363,7 +363,7 @@ export default function AdminKnowledgeDetailPage() {
                           type="button"
                           title="删除文档"
                           onClick={() => deleteDocument(doc.id, doc.filename)}
-                          className="shrink-0 rounded-lg p-2 text-slate-500 hover:bg-rose-500/10 hover:text-rose-400"
+                          className="shrink-0 rounded-lg p-2 text-slate-400 hover:bg-rose-500/10 hover:text-rose-500 dark:text-slate-500 dark:hover:text-rose-400 transition-colors"
                         >
                           <Trash2 size={16} />
                         </button>

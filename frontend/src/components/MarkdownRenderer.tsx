@@ -3,11 +3,11 @@
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import { Prism as SyntaxHighlighter } from "react-syntax-highlighter";
-// cjs 在 Next/Turbopack 下比 esm 样式导入更稳
 import { oneDark } from "react-syntax-highlighter/dist/cjs/styles/prism";
 import { Check, CheckCircle2, Clapperboard, Code2, Copy, Loader2 } from "lucide-react";
 import { useState, type CSSProperties } from "react";
 import { fingerprintCode } from "@/lib/codeBlocks";
+import { useTheme } from "@/components/ThemeProvider";
 
 const LANG_ALIASES: Record<string, string> = {
   py: "python",
@@ -34,21 +34,91 @@ function normalizeLang(raw: string): string {
   return LANG_ALIASES[key] || key;
 }
 
-const baseTheme = oneDark as Record<string, CSSProperties>;
-const codeTheme: Record<string, CSSProperties> = {
-  ...baseTheme,
+// 经典的暗色代码主题 (One Dark 增强版)
+const baseDarkTheme = oneDark as Record<string, CSSProperties>;
+const darkCodeTheme: Record<string, CSSProperties> = {
+  ...baseDarkTheme,
   'pre[class*="language-"]': {
-    ...baseTheme['pre[class*="language-"]'],
+    ...baseDarkTheme['pre[class*="language-"]'],
     background: "#0d1117",
     textShadow: "none",
-    color: "#abb2bf",
+    color: "#e6edf3",
+    fontFamily: "JetBrains Mono, ui-monospace, monospace",
+    lineHeight: "1.6",
   },
   'code[class*="language-"]': {
-    ...baseTheme['code[class*="language-"]'],
+    ...baseDarkTheme['code[class*="language-"]'],
     background: "transparent",
     textShadow: "none",
-    color: "#abb2bf",
+    color: "#e6edf3",
+    fontFamily: "JetBrains Mono, ui-monospace, monospace",
   },
+  comment: { color: "#8b949e", fontStyle: "italic" },
+  prolog: { color: "#8b949e", fontStyle: "italic" },
+  keyword: { color: "#ff7b72", fontWeight: "bold" },
+  string: { color: "#a5d6ff" },
+  function: { color: "#d2a8ff", fontWeight: "600" },
+  "class-name": { color: "#ffa657", fontWeight: "600" },
+  number: { color: "#79c0ff" },
+  boolean: { color: "#ff7b72" },
+  operator: { color: "#79c0ff" },
+  punctuation: { color: "#c9d1d9" },
+  builtin: { color: "#ffa657" },
+};
+
+// 专业的亮色代码主题 (GitHub Light / VS Code Light 工业级高对比度规范)
+const lightCodeTheme: Record<string, CSSProperties> = {
+  'pre[class*="language-"]': {
+    background: "#f6f8fa",
+    color: "#24292f",
+    textShadow: "none",
+    fontFamily: "JetBrains Mono, ui-monospace, monospace",
+    direction: "ltr",
+    textAlign: "left",
+    whiteSpace: "pre",
+    wordSpacing: "normal",
+    wordBreak: "normal",
+    lineHeight: "1.65",
+    MozTabSize: "2",
+    OTabSize: "2",
+    tabSize: "2",
+    hyphens: "none",
+  },
+  'code[class*="language-"]': {
+    background: "transparent",
+    color: "#24292f",
+    textShadow: "none",
+    fontFamily: "JetBrains Mono, ui-monospace, monospace",
+  },
+  // 注释：中性深灰，极度清晰，拒绝淡灰看不清
+  comment: { color: "#57606a", fontStyle: "italic" },
+  prolog: { color: "#57606a", fontStyle: "italic" },
+  doctype: { color: "#57606a", fontStyle: "italic" },
+  cdata: { color: "#57606a", fontStyle: "italic" },
+  // 标点符号与括号：清晰纯黑
+  punctuation: { color: "#24292f" },
+  // 关键字：经典深红，醒目权威
+  keyword: { color: "#cf222e", fontWeight: "600" },
+  "tag": { color: "#116329" },
+  "boolean": { color: "#0550ae", fontWeight: "bold" },
+  "number": { color: "#0550ae", fontWeight: "500" },
+  // 字符串：深海蓝，高对比度
+  string: { color: "#0a3069" },
+  char: { color: "#0a3069" },
+  "attr-value": { color: "#0a3069" },
+  // 函数名：典雅深紫
+  function: { color: "#8250df", fontWeight: "600" },
+  "class-name": { color: "#953800", fontWeight: "600" },
+  // 运算符：深灰带红
+  operator: { color: "#0550ae" },
+  entity: { color: "#8250df" },
+  url: { color: "#0969da", textDecoration: "underline" },
+  // 内置函数 (print, len 等)：深金褐
+  builtin: { color: "#953800", fontWeight: "600" },
+  variable: { color: "#953800" },
+  property: { color: "#0550ae" },
+  regex: { color: "#116329" },
+  important: { color: "#cf222e", fontWeight: "bold" },
 };
 
 interface Props {
@@ -73,16 +143,17 @@ export function MarkdownRenderer({
   explaining,
   activeFingerprint,
 }: Props) {
+  const { theme } = useTheme();
+  const isDark = theme === "dark";
+
   return (
     <ReactMarkdown
       remarkPlugins={[remarkGfm]}
       components={{
-        // fenced code 已由 code 组件渲染完整卡片，去掉外层 pre 默认底色
         pre: ({ children }) => <>{children}</>,
         code({ className, children, ...props }) {
           const match = /language-([\w#+-]+)/i.exec(className || "");
           const codeStr = String(children).replace(/\n$/, "");
-          // react-markdown：围栏代码不是 inline
           const isInline = Boolean((props as { inline?: boolean }).inline);
 
           if (!isInline && (match || codeStr.includes("\n"))) {
@@ -92,20 +163,26 @@ export function MarkdownRenderer({
             const isActive = activeFingerprint === fp;
             return (
               <div
-                className={`relative group my-3 rounded-xl overflow-hidden border transition-all ${
+                className={`relative group my-4 rounded-xl overflow-hidden border transition-all duration-200 ${
                   isActive
-                    ? "border-primary/50 shadow-[0_0_20px_rgba(83,221,252,0.15)] ring-1 ring-primary/30"
-                    : "border-white/[0.08] hover:border-white/20"
+                    ? "border-sky-500 shadow-md ring-2 ring-sky-500/20"
+                    : "border-slate-300 dark:border-white/[0.08] shadow-xs hover:border-slate-400 dark:hover:border-white/20"
                 }`}
               >
-                <div className="flex items-center justify-between px-4 py-2 bg-[#121929] text-xs text-slate-400 border-b border-white/5">
-                  <span className="font-mono text-primary/80 font-semibold">{lang}</span>
+                {/* 代码块顶部工具栏 */}
+                <div className="flex items-center justify-between px-4 py-2.5 bg-slate-100 dark:bg-[#121929] border-b border-slate-200 dark:border-white/5 select-none">
+                  <div className="flex items-center gap-2">
+                    <span className="inline-block w-2.5 h-2.5 rounded-full bg-slate-300 dark:bg-slate-700" />
+                    <span className="font-mono text-xs font-bold uppercase tracking-wider text-slate-700 dark:text-sky-400">
+                      {lang}
+                    </span>
+                  </div>
                   <div className="flex items-center gap-2">
                     {onExplainSnippet && (
                       <button
                         type="button"
                         disabled={explaining}
-                        className="flex items-center gap-1.5 px-2 py-1 rounded-md text-[11px] text-violet-300 bg-violet-500/10 hover:bg-violet-500/20 border border-violet-500/20 transition-all disabled:opacity-50"
+                        className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-medium text-violet-700 dark:text-violet-300 bg-violet-100/70 hover:bg-violet-200/70 dark:bg-violet-500/10 dark:hover:bg-violet-500/20 border border-violet-200 dark:border-violet-500/20 transition-all disabled:opacity-50 active:scale-95"
                         onClick={() =>
                           onExplainSnippet({
                             code: codeStr,
@@ -116,31 +193,34 @@ export function MarkdownRenderer({
                         title="生成该知识点讲解短片（含运行结果）"
                       >
                         {explaining ? (
-                          <Loader2 size={12} className="animate-spin text-violet-300" />
+                          <Loader2 size={13} className="animate-spin text-violet-600 dark:text-violet-300" />
                         ) : (
-                          <Clapperboard size={12} className="text-violet-300" />
+                          <Clapperboard size={13} className="text-violet-600 dark:text-violet-300" />
                         )}
                         <span>{explaining ? "生成中" : "动画讲解"}</span>
                       </button>
                     )}
                     {onOpenInEditor && (
                       <button
-                        className={`flex items-center gap-1.5 px-2 py-1 rounded-md text-[11px] border transition-all ${
+                        type="button"
+                        className={`flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-medium border transition-all active:scale-95 ${
                           isActive
-                            ? "text-primary bg-primary/15 border-primary/30 shadow-[0_0_10px_rgba(83,221,252,0.2)]"
-                            : "text-slate-400 hover:text-primary bg-white/5 hover:bg-primary/10 border-white/5"
+                            ? "text-sky-700 dark:text-primary bg-sky-100 dark:bg-primary/10 border-sky-300 dark:border-primary/30 font-semibold"
+                            : "text-slate-700 dark:text-slate-400 hover:text-sky-600 dark:hover:text-primary bg-white dark:bg-white/5 hover:bg-slate-50 dark:hover:bg-primary/10 border-slate-200 dark:border-white/5"
                         }`}
                         onClick={() => onOpenInEditor(codeStr, lang)}
                       >
-                        {isActive ? <CheckCircle2 size={12} /> : <Code2 size={12} />}
+                        {isActive ? <CheckCircle2 size={13} /> : <Code2 size={13} />}
                         <span>{isActive ? "编辑中" : "同步至沙箱"}</span>
                       </button>
                     )}
                     <CopyButton text={codeStr} />
                   </div>
                 </div>
+
+                {/* 代码高亮主体 */}
                 <SyntaxHighlighter
-                  style={codeTheme}
+                  style={isDark ? darkCodeTheme : lightCodeTheme}
                   language={lang}
                   PreTag="div"
                   codeTagProps={{
@@ -148,16 +228,16 @@ export function MarkdownRenderer({
                       background: "transparent",
                       textShadow: "none",
                       fontFamily: "JetBrains Mono, ui-monospace, monospace",
+                      fontSize: "13.5px",
                     },
                   }}
                   customStyle={{
                     margin: 0,
                     borderRadius: 0,
-                    background: "#0d1117",
-                    fontSize: "13px",
+                    background: isDark ? "#0d1117" : "#f6f8fa",
+                    fontSize: "13.5px",
                     padding: "16px",
                     textShadow: "none",
-                    color: "#abb2bf",
                   }}
                 >
                   {codeStr}
@@ -166,44 +246,95 @@ export function MarkdownRenderer({
             );
           }
 
+          // 行内代码 Inline Code (精致专业版)
           return (
-            <code className="bg-white/10 text-cyan-300 px-1.5 py-0.5 rounded text-[13px] font-mono" {...props}>
+            <code
+              className="bg-slate-100 dark:bg-white/10 text-[#cf222e] dark:text-cyan-300 border border-slate-200 dark:border-transparent px-1.5 py-0.5 rounded-md text-[13px] font-mono font-semibold mx-0.5"
+              {...props}
+            >
               {children}
             </code>
           );
         },
-        h1: ({ children }) => <h1 className="text-xl font-bold text-on-surface mt-4 mb-2 font-headline">{children}</h1>,
-        h2: ({ children }) => <h2 className="text-lg font-bold text-on-surface mt-3 mb-2 font-headline">{children}</h2>,
-        h3: ({ children }) => <h3 className="text-base font-bold text-on-surface mt-2 mb-1">{children}</h3>,
-        p: ({ children }) => <p className="leading-relaxed mb-2 last:mb-0">{children}</p>,
-        ul: ({ children }) => <ul className="space-y-1 mb-2 ml-1">{children}</ul>,
-        ol: ({ children }) => <ol className="space-y-1 mb-2 ml-1 list-decimal list-inside">{children}</ol>,
+        h1: ({ children }) => (
+          <h1 className="text-2xl font-bold text-slate-900 dark:text-white mt-5 mb-3 font-headline tracking-tight pb-1 border-b border-slate-200/80 dark:border-white/10">
+            {children}
+          </h1>
+        ),
+        h2: ({ children }) => (
+          <h2 className="text-xl font-bold text-slate-900 dark:text-white mt-4 mb-2 font-headline tracking-tight">
+            {children}
+          </h2>
+        ),
+        h3: ({ children }) => (
+          <h3 className="text-base font-bold text-slate-900 dark:text-slate-100 mt-3 mb-1.5">
+            {children}
+          </h3>
+        ),
+        p: ({ children }) => (
+          <p className="leading-7 mb-3 last:mb-0 text-slate-800 dark:text-slate-200 text-[14.5px]">
+            {children}
+          </p>
+        ),
+        ul: ({ children }) => (
+          <ul className="space-y-1.5 mb-3 ml-1 text-slate-800 dark:text-slate-200 text-[14px]">
+            {children}
+          </ul>
+        ),
+        ol: ({ children }) => (
+          <ol className="space-y-1.5 mb-3 ml-2 list-decimal list-inside text-slate-800 dark:text-slate-200 text-[14px]">
+            {children}
+          </ol>
+        ),
         li: ({ children }) => (
-          <li className="flex gap-2 leading-relaxed">
-            <span className="text-secondary mt-1.5 text-[8px]">●</span>
+          <li className="flex items-baseline gap-2 leading-relaxed">
+            <span className="w-1.5 h-1.5 rounded-full bg-sky-500 dark:bg-primary shrink-0 translate-y-[-2px]" />
             <span className="flex-1">{children}</span>
           </li>
         ),
-        strong: ({ children }) => <strong className="font-bold text-on-surface">{children}</strong>,
-        em: ({ children }) => <em className="text-secondary/90 italic">{children}</em>,
+        strong: ({ children }) => (
+          <strong className="font-bold text-slate-950 dark:text-white">
+            {children}
+          </strong>
+        ),
+        em: ({ children }) => (
+          <em className="text-violet-800 dark:text-violet-300 not-italic font-semibold px-0.5">
+            {children}
+          </em>
+        ),
         a: ({ href, children }) => (
-          <a href={href} target="_blank" rel="noreferrer" className="text-primary underline underline-offset-2 hover:brightness-125">
+          <a
+            href={href}
+            target="_blank"
+            rel="noreferrer"
+            className="text-sky-600 dark:text-primary font-semibold underline underline-offset-4 hover:text-sky-700 dark:hover:brightness-125 transition-colors"
+          >
             {children}
           </a>
         ),
-        hr: () => <hr className="border-white/10 my-3" />,
+        hr: () => <hr className="border-slate-200 dark:border-white/10 my-4" />,
         blockquote: ({ children }) => (
-          <blockquote className="border-l-2 border-secondary/50 pl-3 my-2 text-slate-400 italic">
+          <blockquote className="border-l-4 border-sky-500 dark:border-secondary/70 pl-4 py-2.5 my-3 bg-sky-50/80 dark:bg-surface-container-high/30 rounded-r-xl text-slate-800 dark:text-slate-200 text-[14px] leading-relaxed shadow-xs">
             {children}
           </blockquote>
         ),
         table: ({ children }) => (
-          <div className="overflow-x-auto my-3">
-            <table className="w-full text-sm border border-white/10 rounded">{children}</table>
+          <div className="overflow-x-auto my-4 border border-slate-200 dark:border-white/10 rounded-xl shadow-xs">
+            <table className="w-full text-sm divide-y divide-slate-200 dark:divide-white/10">
+              {children}
+            </table>
           </div>
         ),
-        th: ({ children }) => <th className="bg-white/5 px-3 py-1.5 text-left font-bold border-b border-white/10">{children}</th>,
-        td: ({ children }) => <td className="px-3 py-1.5 border-b border-white/5">{children}</td>,
+        th: ({ children }) => (
+          <th className="bg-slate-100 dark:bg-white/5 px-4 py-2.5 text-left font-bold text-slate-900 dark:text-slate-100 text-xs uppercase tracking-wider">
+            {children}
+          </th>
+        ),
+        td: ({ children }) => (
+          <td className="px-4 py-2.5 text-slate-800 dark:text-slate-300 border-b border-slate-100 dark:border-white/5 text-[13.5px]">
+            {children}
+          </td>
+        ),
       }}
     >
       {content}
@@ -215,15 +346,19 @@ function CopyButton({ text }: { text: string }) {
   const [copied, setCopied] = useState(false);
   return (
     <button
-      className="flex items-center gap-1 text-[11px] text-slate-400 hover:text-slate-200 bg-white/5 hover:bg-white/10 px-2 py-1 rounded-md border border-white/5 transition-all"
+      type="button"
+      className="flex items-center gap-1.5 text-xs font-medium text-slate-700 dark:text-slate-400 hover:text-slate-950 dark:hover:text-slate-100 bg-white dark:bg-white/5 hover:bg-slate-50 dark:hover:bg-white/10 px-2.5 py-1 rounded-lg border border-slate-200 dark:border-white/5 transition-all shadow-xs dark:shadow-none active:scale-95"
       onClick={() => {
         navigator.clipboard.writeText(text);
         setCopied(true);
         setTimeout(() => setCopied(false), 2000);
       }}
+      title="复制代码"
     >
-      {copied ? <Check size={12} className="text-emerald-400" /> : <Copy size={12} />}
-      <span className={copied ? "text-emerald-400" : ""}>{copied ? "已复制" : "复制"}</span>
+      {copied ? <Check size={13} className="text-emerald-600 dark:text-emerald-400" /> : <Copy size={13} />}
+      <span className={copied ? "text-emerald-600 dark:text-emerald-400 font-semibold" : ""}>
+        {copied ? "已复制" : "复制"}
+      </span>
     </button>
   );
 }
