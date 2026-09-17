@@ -11,7 +11,12 @@ from sqlalchemy import delete, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
-from app.core.deps import get_current_user, is_admin_role, require_admin
+from app.core.deps import (
+    get_current_user,
+    get_optional_user,
+    is_admin_role,
+    require_admin,
+)
 from app.db.database import get_db
 from app.models.models import (
     Chapter,
@@ -25,6 +30,7 @@ from app.models.models import (
 from app.schemas.schemas import (
     AdminExerciseResponse,
     BackgroundJobResponse,
+    ChapterPracticeResponse,
     ExerciseGenerateRequest,
     GeneratedExerciseData,
     ExerciseResponse,
@@ -36,6 +42,7 @@ from app.schemas.schemas import (
     SubmissionResponse,
 )
 from app.services.background_jobs import create_and_enqueue_job
+from app.services.course_access import can_access_legacy_chapter
 from app.services.exercise import generate_exercise, judge_submission
 from app.services.judge0 import JudgeUnavailable, run_test_cases
 from app.services.kb_retrieve import (
@@ -50,12 +57,63 @@ logger = logging.getLogger(__name__)
 router = APIRouter()
 
 
+def build_chapter_practice_items(
+    exercises: list[Exercise],
+    submissions: list[ExerciseSubmission],
+) -> dict[uuid.UUID, dict]:
+    status_by_exercise = {
+        exercise.id: {
+            "attempted": False,
+            "passed": False,
+            "best_score": None,
+        }
+        for exercise in exercises
+    }
+    for submission in submissions:
+        status = status_by_exercise.get(submission.exercise_id)
+        if status is None:
+            continue
+        status["attempted"] = True
+        if submission.score is not None:
+            current_best = status["best_score"]
+            status["best_score"] = max(current_best or 0, submission.score)
+        if submission.result == "pass" and bool(submission.trusted):
+            status["passed"] = True
+    return status_by_exercise
+
+
 def _public_exercise(exercise: Exercise) -> dict:
     payload = ExerciseResponse.model_validate(exercise).model_dump()
     payload["test_cases"] = [
         case for case in (payload.get("test_cases") or []) if not case.get("hidden")
     ]
     return payload
+
+
+def submission_response(submission: ExerciseSubmission) -> SubmissionResponse:
+    safe_results = []
+    for item in submission.test_results or []:
+        if item.get("hidden"):
+            safe_results.append({
+                key: item[key]
+                for key in ("case", "passed", "hidden", "status", "time", "memory")
+                if key in item
+            })
+        else:
+            safe_results.append(dict(item))
+    return SubmissionResponse(
+        submission_id=submission.id,
+        submitted_code=submission.submitted_code,
+        result=submission.result,
+        score=submission.score,
+        ai_feedback=submission.ai_feedback,
+        test_results=safe_results,
+        execution_time=submission.execution_time,
+        memory=submission.memory,
+        judge_source=submission.judge_source,
+        trusted=submission.trusted,
+        created_at=submission.created_at,
+    )
 
 
 def exercise_content_hash(exercise: Exercise) -> str:
@@ -70,6 +128,29 @@ def exercise_content_hash(exercise: Exercise) -> str:
     }
     canonical = json.dumps(content, ensure_ascii=False, sort_keys=True, separators=(",", ":"))
     return hashlib.sha256(canonical.encode("utf-8")).hexdigest()
+
+
+async def validate_generated_exercise(exercise: Exercise) -> dict:
+    """Validate a generated solution, preserving LLM fallback as untrusted."""
+    validation = await judge_submission(
+        exercise.description,
+        list(exercise.test_cases or []),
+        exercise.reference_solution or "",
+        exercise.language,
+    )
+    if not validation.get("trusted"):
+        exercise.validation_status = "unverified"
+        exercise.validation_hash = None
+        exercise.validated_at = None
+    elif validation.get("result") == "pass":
+        exercise.validation_status = "verified"
+        exercise.validation_hash = exercise_content_hash(exercise)
+        exercise.validated_at = datetime.now(timezone.utc)
+    else:
+        exercise.validation_status = "failed"
+        exercise.validation_hash = None
+        exercise.validated_at = None
+    return validation
 
 
 # ── 学员端：仅已发布 ──
@@ -343,17 +424,8 @@ async def generate_exercise_record(
     db.add(exercise)
     await db.flush()
     if exercise.reference_solution and exercise.test_cases:
-        validation = await run_test_cases(
-            exercise.reference_solution,
-            exercise.language,
-            list(exercise.test_cases),
-        )
-        if validation["result"] == "pass":
-            exercise.validation_status = "verified"
-            exercise.validation_hash = exercise_content_hash(exercise)
-            exercise.validated_at = datetime.now(timezone.utc)
-        else:
-            exercise.validation_status = "failed"
+        with llm_user_context(admin):
+            await validate_generated_exercise(exercise)
     await db.flush()
     return exercise
 
@@ -428,11 +500,12 @@ async def delete_exercise(
 async def list_exercises_by_chapter(
     chapter_id: uuid.UUID,
     db: AsyncSession = Depends(get_db),
+    user: User | None = Depends(get_optional_user),
 ):
-    """获取某章节下已发布练习。"""
+    """获取某章节下已发布练习（与章节可见性一致）。"""
     ch_result = await db.execute(select(Chapter).where(Chapter.id == chapter_id))
     chapter = ch_result.scalar_one_or_none()
-    if not chapter:
+    if not chapter or not await can_access_legacy_chapter(db, chapter_id, user):
         raise HTTPException(status_code=404, detail="章节不存在")
 
     result = await db.execute(
@@ -444,6 +517,67 @@ async def list_exercises_by_chapter(
         .order_by(Exercise.created_at)
     )
     return [_public_exercise(exercise) for exercise in result.scalars().all()]
+
+
+@router.get(
+    "/chapter/{chapter_id}/recommendations",
+    response_model=ChapterPracticeResponse,
+)
+async def get_chapter_practice(
+    chapter_id: uuid.UUID,
+    db: AsyncSession = Depends(get_db),
+    user: User = Depends(get_current_user),
+):
+    """获取章节练习、当前用户练习状态及下一章。"""
+    chapter_result = await db.execute(
+        select(Chapter).where(Chapter.id == chapter_id)
+    )
+    chapter = chapter_result.scalar_one_or_none()
+    if not chapter or not await can_access_legacy_chapter(
+        db, chapter_id, user, require_enrollment=True
+    ):
+        raise HTTPException(status_code=404, detail="章节不存在")
+
+    exercise_result = await db.execute(
+        select(Exercise)
+        .where(
+            Exercise.chapter_id == chapter_id,
+            Exercise.status == "published",
+        )
+        .order_by(Exercise.created_at)
+    )
+    exercises = list(exercise_result.scalars().all())
+
+    submissions: list[ExerciseSubmission] = []
+    if exercises:
+        submission_result = await db.execute(
+            select(ExerciseSubmission).where(
+                ExerciseSubmission.exercise_id.in_(
+                    [exercise.id for exercise in exercises]
+                ),
+                ExerciseSubmission.user_id == user.id,
+            )
+        )
+        submissions = list(submission_result.scalars().all())
+    practice_status = build_chapter_practice_items(exercises, submissions)
+
+    next_result = await db.execute(
+        select(Chapter).where(
+            Chapter.path_id == chapter.path_id,
+            Chapter.sort_order == chapter.sort_order + 1,
+        )
+    )
+    next_chapter = next_result.scalar_one_or_none()
+
+    recommendations = []
+    for exercise in exercises:
+        payload = _public_exercise(exercise)
+        payload.update(practice_status[exercise.id])
+        recommendations.append(payload)
+    return {
+        "exercises": recommendations,
+        "next_chapter": next_chapter,
+    }
 
 
 # ── 获取单个练习 ──
@@ -511,17 +645,7 @@ async def submit_code(
     await db.commit()
     await db.refresh(submission)
 
-    return SubmissionResponse(
-        submission_id=submission.id,
-        result=submission.result,
-        score=submission.score,
-        ai_feedback=submission.ai_feedback,
-        test_results=test_results,
-        execution_time=submission.execution_time,
-        memory=submission.memory,
-        judge_source=submission.judge_source,
-        trusted=submission.trusted,
-    )
+    return submission_response(submission)
 
 
 # ── 提交记录 ──
@@ -529,6 +653,7 @@ async def submit_code(
 @router.get("/{exercise_id}/submissions", response_model=list[SubmissionResponse])
 async def list_submissions(
     exercise_id: uuid.UUID,
+    limit: int = Query(20, ge=1, le=100),
     db: AsyncSession = Depends(get_db),
     user: User = Depends(get_current_user),
 ):
@@ -540,17 +665,7 @@ async def list_submissions(
             ExerciseSubmission.user_id == user.id,
         )
         .order_by(ExerciseSubmission.created_at.desc())
+        .limit(limit)
     )
     submissions = result.scalars().all()
-    return [
-        SubmissionResponse(
-            submission_id=s.id,
-            result=s.result,
-            score=s.score,
-            ai_feedback=s.ai_feedback,
-            test_results=None,
-            judge_source=s.judge_source,
-            trusted=s.trusted,
-        )
-        for s in submissions
-    ]
+    return [submission_response(submission) for submission in submissions]

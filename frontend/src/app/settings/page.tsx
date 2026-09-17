@@ -6,7 +6,7 @@ import { Header } from "@/components/layout/Header";
 import { AuthGuard } from "@/components/AuthGuard";
 import { useAuth } from "@/hooks/useAuth";
 import { useDialog } from "@/components/DialogProvider";
-import { ChevronRight, KeyRound, Plus, X } from "lucide-react";
+import { ChevronRight, Gauge, KeyRound, Plus, X } from "lucide-react";
 import {
   getLlmSettings,
   setActiveLlmProfile,
@@ -14,8 +14,10 @@ import {
   updateLlmProfile,
   deleteLlmProfile,
   testLlmSettings,
+  getMyLlmUsage,
   type LlmSettings,
   type LlmProfile,
+  type LlmUsageSummary,
 } from "@/lib/api";
 
 type FormMode = "closed" | "create" | "edit";
@@ -27,6 +29,7 @@ export default function ProfileSettingsPage() {
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
   const [data, setData] = useState<LlmSettings | null>(null);
+  const [usage, setUsage] = useState<LlmUsageSummary | null>(null);
 
   const [formMode, setFormMode] = useState<FormMode>("closed");
   const [editingId, setEditingId] = useState<string | null>(null);
@@ -45,16 +48,15 @@ export default function ProfileSettingsPage() {
     init();
   }, [init]);
 
-  const refresh = async () => {
-    const s = await getLlmSettings();
-    setData(s);
-    return s;
-  };
-
   useEffect(() => {
     async function load() {
       try {
-        await refresh();
+        const [settings, usageData] = await Promise.all([
+          getLlmSettings(),
+          getMyLlmUsage(),
+        ]);
+        setData(settings);
+        setUsage(usageData);
       } catch (err) {
         await alert({
           title: "加载失败",
@@ -254,6 +256,48 @@ export default function ProfileSettingsPage() {
             <div className="mb-8 p-5 rounded-2xl bg-surface-container-high border border-white/5">
               <p className="text-sm text-on-surface font-medium">{user.nickname}</p>
               <p className="text-xs text-slate-500 mt-1">{user.email}</p>
+            </div>
+          )}
+
+          {usage && (
+            <div className="mb-8 rounded-2xl border border-primary/20 bg-primary/5 p-5">
+              <div className="mb-4 flex items-center justify-between gap-4">
+                <div className="flex items-center gap-2">
+                  <Gauge className="h-4 w-4 text-primary" />
+                  <h2 className="text-sm font-bold text-on-surface">本月 LLM 用量</h2>
+                </div>
+                <span className="text-xs font-mono text-slate-500">{usage.month}</span>
+              </div>
+              <div className="mb-2 flex items-center justify-between text-xs">
+                <span className="text-slate-500">平台 Token 配额</span>
+                <span className="font-mono text-on-surface">
+                  {usage.platform_tokens.toLocaleString()} / {usage.monthly_token_quota.toLocaleString()}
+                </span>
+              </div>
+              <div className="h-2 overflow-hidden rounded-full bg-slate-200 dark:bg-white/10">
+                <div
+                  className={`h-full rounded-full transition-all ${
+                    usage.quota_percent >= 90 ? "bg-rose-500" : "bg-gradient-to-r from-primary to-secondary"
+                  }`}
+                  style={{ width: `${Math.min(100, usage.quota_percent)}%` }}
+                />
+              </div>
+              <div className="mt-4 grid grid-cols-2 gap-3 sm:grid-cols-4">
+                {[
+                  ["调用次数", usage.request_count.toLocaleString()],
+                  ["总 Token", usage.total_tokens.toLocaleString()],
+                  ["BYOK Token", usage.byok_tokens.toLocaleString()],
+                  ["预估费用", usage.pricing_configured ? `$${usage.estimated_cost_usd.toFixed(4)}` : "未配置价格"],
+                ].map(([label, value]) => (
+                  <div key={label} className="rounded-xl border border-slate-200 dark:border-white/10 bg-white/60 dark:bg-black/10 p-3">
+                    <p className="text-[10px] text-slate-500">{label}</p>
+                    <p className="mt-1 text-xs font-bold font-mono text-on-surface">{value}</p>
+                  </div>
+                ))}
+              </div>
+              <p className="mt-3 text-[10px] text-slate-500">
+                个人 API Key 的调用会统计，但不会消耗平台 Token 配额。费用根据配置单价估算。
+              </p>
             </div>
           )}
 

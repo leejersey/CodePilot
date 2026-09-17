@@ -5,20 +5,26 @@ from __future__ import annotations
 import json
 from contextlib import contextmanager
 from contextvars import ContextVar
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from typing import Any, Iterator
 
 from openai import AsyncOpenAI
 
 from app.core.config import get_settings
+from app.services.llm_usage import (
+    begin_llm_request,
+    estimate_tokens,
+    finish_llm_request,
+    resolve_monthly_quota,
+)
 
 # provider → 预设（均可走 OpenAI 兼容协议）
 LLM_PRESETS: dict[str, dict[str, str]] = {
     "deepseek": {
         "label": "DeepSeek",
         "base_url": "https://api.deepseek.com",
-        "default_model": "deepseek-chat",
-        "hint": "官方 DeepSeek API",
+        "default_model": "deepseek-flash",
+        "hint": "官方 DeepSeek API（deepseek-flash 支持图像理解）",
     },
     "openai": {
         "label": "OpenAI",
@@ -54,6 +60,8 @@ class LLMRuntimeConfig:
     model: str
     provider: str
     source: str  # platform | user
+    user_id: Any | None = None
+    monthly_token_quota: int = 0
 
 
 _llm_ctx: ContextVar[LLMRuntimeConfig | None] = ContextVar("llm_runtime", default=None)
@@ -64,7 +72,7 @@ def platform_llm_config() -> LLMRuntimeConfig:
     return LLMRuntimeConfig(
         api_key=s.LLM_API_KEY or "",
         base_url=(s.LLM_BASE_URL or "").rstrip("/") or "https://api.deepseek.com",
-        model=s.LLM_MODEL or "deepseek-chat",
+        model=s.LLM_MODEL or "deepseek-flash",
         provider="platform",
         source="platform",
     )
@@ -75,6 +83,13 @@ def resolve_llm_config(user: Any | None = None) -> LLMRuntimeConfig:
     platform = platform_llm_config()
     if user is None:
         return platform
+    platform = replace(
+        platform,
+        user_id=getattr(user, "id", None),
+        monthly_token_quota=resolve_monthly_quota(
+            user, get_settings().LLM_MONTHLY_PLATFORM_TOKEN_QUOTA
+        ),
+    )
 
     prefs = getattr(user, "preferences", None) or {}
     llm = prefs.get("llm") if isinstance(prefs, dict) else None
@@ -135,6 +150,10 @@ def resolve_llm_config(user: Any | None = None) -> LLMRuntimeConfig:
         model=model,
         provider=provider,
         source="user",
+        user_id=getattr(user, "id", None),
+        monthly_token_quota=resolve_monthly_quota(
+            user, get_settings().LLM_MONTHLY_PLATFORM_TOKEN_QUOTA
+        ),
     )
 
 
@@ -167,30 +186,76 @@ def mask_api_key(key: str | None) -> str | None:
     return f"{k[:3]}****{k[-4:]}"
 
 
-async def call_llm_json(prompt: str, temperature: float = 0.7) -> dict:
+async def call_llm_json(
+    prompt: str,
+    temperature: float = 0.7,
+    request_type: str = "general",
+) -> dict:
     """调用 LLM 并要求返回 JSON 格式"""
     cfg = get_active_llm_config()
-    client = _client_for(cfg)
-    response = await client.chat.completions.create(
-        model=cfg.model,
-        messages=[{"role": "user", "content": prompt}],
-        temperature=temperature,
-        response_format={"type": "json_object"},
+    reservation = await begin_llm_request(
+        cfg, prompt_text=prompt, request_type=request_type
     )
-    content = response.choices[0].message.content or "{}"
-    return json.loads(content)
+    try:
+        client = _client_for(cfg)
+        response = await client.chat.completions.create(
+            model=cfg.model,
+            messages=[{"role": "user", "content": prompt}],
+            temperature=temperature,
+            response_format={"type": "json_object"},
+        )
+        content = response.choices[0].message.content or "{}"
+        result = json.loads(content)
+    except BaseException as exc:
+        await finish_llm_request(
+            reservation,
+            status="error",
+            error_message=str(exc),
+        )
+        raise
+    usage = response.usage
+    await finish_llm_request(
+        reservation,
+        input_tokens=getattr(usage, "prompt_tokens", None),
+        output_tokens=getattr(usage, "completion_tokens", 0) or 0,
+    )
+    return result
 
 
-async def call_llm_stream(messages: list[dict], temperature: float = 0.7):
+async def call_llm_stream(
+    messages: list[dict],
+    temperature: float = 0.7,
+    request_type: str = "chat",
+):
     """流式调用 LLM，返回 async generator"""
     cfg = get_active_llm_config()
-    client = _client_for(cfg)
-    stream = await client.chat.completions.create(
-        model=cfg.model,
-        messages=messages,
-        temperature=temperature,
-        stream=True,
+    prompt_text = json.dumps(messages, ensure_ascii=False)
+    reservation = await begin_llm_request(
+        cfg, prompt_text=prompt_text, request_type=request_type
     )
-    async for chunk in stream:
-        if chunk.choices and chunk.choices[0].delta and chunk.choices[0].delta.content:
-            yield chunk.choices[0].delta.content
+    output_parts: list[str] = []
+    try:
+        client = _client_for(cfg)
+        stream = await client.chat.completions.create(
+            model=cfg.model,
+            messages=messages,
+            temperature=temperature,
+            stream=True,
+        )
+        async for chunk in stream:
+            if chunk.choices and chunk.choices[0].delta and chunk.choices[0].delta.content:
+                content = chunk.choices[0].delta.content
+                output_parts.append(content)
+                yield content
+    except BaseException as exc:
+        await finish_llm_request(
+            reservation,
+            output_tokens=estimate_tokens("".join(output_parts)),
+            status="error",
+            error_message=str(exc),
+        )
+        raise
+    await finish_llm_request(
+        reservation,
+        output_tokens=estimate_tokens("".join(output_parts)),
+    )

@@ -7,12 +7,16 @@ import {
   getPath,
   getPathChapters,
   getPathKnowledgeBases,
+  getPathRebuildEligibility,
   rebuildPathFromKb,
   type LearningPath,
   type Chapter,
   type KnowledgeBase,
 } from "@/lib/api";
-import { useAuth } from "@/hooks/useAuth";
+import {
+  legacyRebuildAffordance,
+  type LegacyRebuildEligibility,
+} from "@/lib/legacyPathRebuild";
 import { useDialog } from "@/components/DialogProvider";
 import { Badge } from "@/components/common/Badge";
 import { Card } from "@/components/common/Card";
@@ -36,12 +40,12 @@ export default function LearningPathPage() {
   const params = useParams();
   const router = useRouter();
   const pathId = params.pathId as string;
-  const { isAdmin } = useAuth();
   const { confirm } = useDialog();
 
   const [path, setPath] = useState<LearningPath | null>(null);
   const [chapters, setChapters] = useState<Chapter[]>([]);
   const [boundKbs, setBoundKbs] = useState<KnowledgeBase[]>([]);
+  const [eligibility, setEligibility] = useState<LegacyRebuildEligibility | null>(null);
   const [rebuilding, setRebuilding] = useState(false);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
@@ -49,14 +53,16 @@ export default function LearningPathPage() {
   useEffect(() => {
     async function fetchData() {
       try {
-        const [pathData, chaptersData, pathKbs] = await Promise.all([
+        const [pathData, chaptersData, pathKbs, rebuildEligibility] = await Promise.all([
           getPath(pathId),
           getPathChapters(pathId),
           getPathKnowledgeBases(pathId).catch(() => [] as KnowledgeBase[]),
+          getPathRebuildEligibility(pathId).catch(() => null),
         ]);
         setPath(pathData);
         setChapters(chaptersData);
         setBoundKbs(pathKbs);
+        setEligibility(rebuildEligibility);
       } catch (err: unknown) {
         setError(err instanceof Error ? err.message : "加载失败");
       } finally {
@@ -67,11 +73,13 @@ export default function LearningPathPage() {
     if (pathId) fetchData();
   }, [pathId]);
 
+  const rebuildAffordance = legacyRebuildAffordance(eligibility);
+
   const handleRebuildFromKb = async () => {
+    if (rebuildAffordance.kind !== "rebuild") return;
     const ok = await confirm({
       title: "重建课程大纲",
-      message:
-        "将根据平台知识库重新生成章节大纲（替换现有章节，学习进度会重置）。是否继续？",
+      message: rebuildAffordance.confirmMessage,
       confirmText: "继续重建",
       tone: "danger",
     });
@@ -176,23 +184,47 @@ export default function LearningPathPage() {
       {/* RAG Knowledge Base Banner */}
       {isKb ? (
         <Card className="mb-8 p-5 border-secondary/30 bg-secondary/10" enableSpotlight={false}>
-          <div className="flex items-start gap-3.5">
-            <div className="p-2 rounded-xl bg-secondary/20 text-secondary shrink-0">
-              <BookOpen size={18} />
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+            <div className="flex items-start gap-3.5">
+              <div className="p-2 rounded-xl bg-secondary/20 text-secondary shrink-0">
+                <BookOpen size={18} />
+              </div>
+              <div className="flex-1 min-w-0">
+                <p className="text-on-surface text-sm font-semibold mb-1">
+                  依据平台知识库生成
+                  {rag?.kb_names?.length ? (
+                    <span className="text-secondary ml-1 font-mono">
+                      「{rag.kb_names.join("、")}」
+                    </span>
+                  ) : null}
+                </p>
+                <p className="text-xs text-on-surface-variant/80 leading-relaxed">
+                  {rebuildAffordance.kind === "governed"
+                    ? rebuildAffordance.notice
+                    : "本课程融合了向量知识库中的真实开发文档，知识库更新后可重新生成章节。"}
+                </p>
+              </div>
             </div>
-            <div className="flex-1 min-w-0">
-              <p className="text-on-surface text-sm font-semibold mb-1">
-                依据平台知识库生成
-                {rag?.kb_names?.length ? (
-                  <span className="text-secondary ml-1 font-mono">
-                    「{rag.kb_names.join("、")}」
-                  </span>
-                ) : null}
-              </p>
-              <p className="text-xs text-on-surface-variant/80 leading-relaxed">
-                本课程融合了向量知识库中的真实开发文档，所有案例与练习均贴合企业级场景。
-              </p>
-            </div>
+            {rebuildAffordance.kind === "rebuild" && (
+              <button
+                type="button"
+                className="shrink-0 flex items-center gap-1.5 px-4 py-2 rounded-xl bg-secondary/15 text-secondary border border-secondary/30 text-xs font-medium hover:bg-secondary/25 transition-all disabled:opacity-50 active:scale-95"
+                onClick={handleRebuildFromKb}
+                disabled={rebuilding}
+              >
+                <RefreshCw size={13} className={rebuilding ? "animate-spin" : ""} />
+                {rebuilding ? "重建中..." : "用知识库重建"}
+              </button>
+            )}
+            {rebuildAffordance.kind === "governed" && (
+              <Link
+                href={rebuildAffordance.courseHref}
+                className="shrink-0 flex items-center gap-1.5 px-4 py-2 rounded-xl bg-secondary/15 text-secondary border border-secondary/30 text-xs font-medium hover:bg-secondary/25 transition-all active:scale-95"
+              >
+                <BookOpen size={13} />
+                查看课程页
+              </Link>
+            )}
           </div>
         </Card>
       ) : (
@@ -205,21 +237,43 @@ export default function LearningPathPage() {
               <div>
                 <p className="text-amber-900 dark:text-amber-200 text-sm font-semibold">通用 AI 生成大纲</p>
                 <p className="text-xs text-amber-800/80 dark:text-amber-200/70 mt-0.5">
-                  平台如果上线了该领域的专业技术资料，可随时一键基于知识库重构章节。
+                  {rebuildAffordance.kind === "governed"
+                    ? rebuildAffordance.notice
+                    : "平台如果上线了该领域的专业技术资料，可随时一键基于知识库重构章节。"}
                 </p>
               </div>
             </div>
-            <button
-              type="button"
-              className="shrink-0 flex items-center gap-1.5 px-4 py-2 rounded-xl bg-white dark:bg-amber-500/15 text-amber-800 dark:text-amber-300 border border-amber-300 dark:border-amber-500/30 text-xs font-medium hover:bg-amber-100 dark:hover:bg-amber-500/25 transition-all disabled:opacity-50 active:scale-95 shadow-xs"
-              onClick={handleRebuildFromKb}
-              disabled={rebuilding}
-            >
-              <RefreshCw size={13} className={rebuilding ? "animate-spin" : ""} />
-              {rebuilding ? "重建中..." : "用知识库重建"}
-            </button>
+            {rebuildAffordance.kind === "rebuild" && (
+              <button
+                type="button"
+                className="shrink-0 flex items-center gap-1.5 px-4 py-2 rounded-xl bg-white dark:bg-amber-500/15 text-amber-800 dark:text-amber-300 border border-amber-300 dark:border-amber-500/30 text-xs font-medium hover:bg-amber-100 dark:hover:bg-amber-500/25 transition-all disabled:opacity-50 active:scale-95 shadow-xs"
+                onClick={handleRebuildFromKb}
+                disabled={rebuilding}
+              >
+                <RefreshCw size={13} className={rebuilding ? "animate-spin" : ""} />
+                {rebuilding ? "重建中..." : "用知识库重建"}
+              </button>
+            )}
+            {rebuildAffordance.kind === "governed" && (
+              <Link
+                href={rebuildAffordance.courseHref}
+                className="shrink-0 flex items-center gap-1.5 px-4 py-2 rounded-xl bg-white dark:bg-amber-500/15 text-amber-800 dark:text-amber-300 border border-amber-300 dark:border-amber-500/30 text-xs font-medium hover:bg-amber-100 dark:hover:bg-amber-500/25 transition-all active:scale-95 shadow-xs"
+              >
+                <BookOpen size={13} />
+                查看课程页
+              </Link>
+            )}
           </div>
         </Card>
+      )}
+
+      {error && (
+        <div
+          role="alert"
+          className="mb-8 rounded-xl border border-rose-300 dark:border-rose-500/30 bg-rose-50 dark:bg-rose-500/10 px-4 py-3 text-sm text-rose-700 dark:text-rose-300"
+        >
+          {error}
+        </div>
       )}
 
       {/* Progress Metric Card */}

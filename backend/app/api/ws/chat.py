@@ -1,5 +1,6 @@
 """WebSocket 流式对话端点"""
 
+import asyncio
 import logging
 import uuid
 from datetime import datetime, timezone
@@ -8,13 +9,22 @@ from sqlalchemy import select
 from sqlalchemy.orm import selectinload
 
 from app.db.database import AsyncSessionLocal
-from app.models.models import Chapter, Conversation, LearningPath, Message, User
-from app.services.chat import detect_language_from_topic, stream_chat_response
+from app.models.models import Chapter, Conversation, LearningPath, Message
+from app.services.chat import detect_language_from_context, stream_chat_response
+from app.services.chat_images import (
+    compose_stored_user_text,
+    normalize_chat_images,
+)
 from app.services.llm import llm_user_context
 from app.services.kb_retrieve import (
     format_retrieval_context,
     list_platform_ready_kb_ids,
     retrieve_chunks,
+)
+from app.services.ws_auth import (
+    WebSocketAuthError,
+    authenticate_websocket,
+    extract_websocket_token,
 )
 
 logger = logging.getLogger(__name__)
@@ -41,7 +51,11 @@ async def _build_chapter_context(
 
     path: LearningPath | None = chapter.path
     topic = path.topic if path else ""
-    language = detect_language_from_topic(topic)
+    language = detect_language_from_context(
+        topic,
+        chapter.title,
+        chapter.summary,
+    )
     parts = [
         f"学习路径主题：{topic or '未指定'}",
         f"编程语言：{language}（所有代码示例必须使用此语言）",
@@ -74,15 +88,12 @@ async def websocket_chat(websocket: WebSocket, conv_id: uuid.UUID):
 
     try:
         async with AsyncSessionLocal() as db:
-            result = await db.execute(select(Conversation).where(Conversation.id == conv_id))
-            conv = result.scalar_one_or_none()
-            if not conv:
-                await websocket.send_json({"type": "error", "code": "NOT_FOUND", "message": "对话不存在"})
-                await websocket.close()
-                return
-
-            user_result = await db.execute(select(User).where(User.id == conv.user_id))
-            chat_user = user_result.scalar_one_or_none()
+            auth_data = await asyncio.wait_for(websocket.receive_json(), timeout=5)
+            token = extract_websocket_token(auth_data)
+            chat_user, conv = await authenticate_websocket(
+                db, conv_id, token
+            )
+            await websocket.send_json({"type": "authenticated"})
 
             base_context, kb_ids, query_seed = await _build_chapter_context(db, conv)
 
@@ -104,8 +115,11 @@ async def websocket_chat(websocket: WebSocket, conv_id: uuid.UUID):
                     continue
 
                 user_content = data.get("content", "").strip()
-                if not user_content:
+                images = normalize_chat_images(data.get("images"))
+                if not user_content and not images:
                     continue
+
+                stored_content = compose_stored_user_text(user_content, len(images))
 
                 doc_context = data.get("doc_context")
                 doc_ctx_text = ""
@@ -129,12 +143,12 @@ async def websocket_chat(websocket: WebSocket, conv_id: uuid.UUID):
                 user_msg = Message(
                     conversation_id=conv_id,
                     role="user",
-                    content=user_content,
+                    content=stored_content,
                 )
                 db.add(user_msg)
                 await db.flush()
 
-                history.append({"role": "user", "content": user_content})
+                history.append({"role": "user", "content": stored_content})
 
                 chapter_context = base_context
                 if doc_ctx_text:
@@ -144,8 +158,9 @@ async def websocket_chat(websocket: WebSocket, conv_id: uuid.UUID):
                 if kb_ids:
                     try:
                         # 引导语很长时，用章节主题检索更稳；普通提问拼上章节种子
-                        is_guide = len(user_content) > 120 and "学习页面" in user_content
-                        query = query_seed if is_guide else f"{query_seed}\n{user_content}"
+                        rag_query_text = user_content or stored_content
+                        is_guide = len(rag_query_text) > 120 and "学习页面" in rag_query_text
+                        query = query_seed if is_guide else f"{query_seed}\n{rag_query_text}"
                         if doc_context and isinstance(doc_context, dict):
                             extra = " ".join(
                                 filter(
@@ -158,8 +173,11 @@ async def websocket_chat(websocket: WebSocket, conv_id: uuid.UUID):
                             )
                             if extra:
                                 query = f"{query}\n{extra}"
-                        chunks = await retrieve_chunks(
-                            db, kb_ids=kb_ids, query=query, top_k=6
+                        chunks = await asyncio.wait_for(
+                            retrieve_chunks(
+                                db, kb_ids=kb_ids, query=query, top_k=6
+                            ),
+                            timeout=8.0,
                         )
                         rag_text = format_retrieval_context(chunks)
                         if rag_text:
@@ -174,10 +192,40 @@ async def websocket_chat(websocket: WebSocket, conv_id: uuid.UUID):
                         logger.warning("RAG retrieve failed: %s", e)
 
                 full_response = ""
-                with llm_user_context(chat_user):
-                    async for token in stream_chat_response(history, chapter_context=chapter_context):
-                        full_response += token
-                        await websocket.send_json({"type": "token", "content": token})
+                try:
+                    with llm_user_context(chat_user):
+                        async for token in stream_chat_response(
+                            history,
+                            chapter_context=chapter_context,
+                            images=images or None,
+                        ):
+                            full_response += token
+                            await websocket.send_json(
+                                {"type": "token", "content": token}
+                            )
+                except Exception as e:
+                    logger.exception("LLM stream failed for conv=%s", conv_id)
+                    await websocket.send_json(
+                        {
+                            "type": "error",
+                            "code": "LLM_ERROR",
+                            "message": f"模型回复失败: {e}",
+                        }
+                    )
+                    # 回滚本轮仅写入的用户消息状态由后续提交覆盖；先不阻塞会话
+                    await db.commit()
+                    continue
+
+                if not full_response.strip():
+                    await websocket.send_json(
+                        {
+                            "type": "error",
+                            "code": "LLM_EMPTY",
+                            "message": "模型返回了空内容，请检查个人中心的模型配置后重试",
+                        }
+                    )
+                    await db.commit()
+                    continue
 
                 ai_msg = Message(
                     conversation_id=conv_id,
@@ -199,6 +247,24 @@ async def websocket_chat(websocket: WebSocket, conv_id: uuid.UUID):
 
     except WebSocketDisconnect:
         pass
+    except asyncio.TimeoutError:
+        await websocket.send_json({
+            "type": "error",
+            "code": "AUTH_TIMEOUT",
+            "message": "WebSocket 身份验证超时",
+        })
+        await websocket.close(code=4401)
+    except WebSocketAuthError as e:
+        await websocket.send_json({
+            "type": "error",
+            "code": {
+                4401: "UNAUTHORIZED",
+                4403: "FORBIDDEN",
+                4404: "NOT_FOUND",
+            }.get(e.close_code, "UNAUTHORIZED"),
+            "message": e.message,
+        })
+        await websocket.close(code=e.close_code)
     except Exception as e:
         try:
             await websocket.send_json({"type": "error", "code": "INTERNAL", "message": str(e)})

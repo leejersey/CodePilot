@@ -216,11 +216,13 @@ async def list_ready_kb_ids_for_user(db: AsyncSession, user_id: uuid.UUID) -> li
 
 
 async def list_platform_ready_kb_ids(db: AsyncSession) -> list[uuid.UUID]:
-    """平台全部 active 且至少有一份 ready 文档的知识库 ID。"""
+    """Approved public active KBs with at least one ready document."""
     result = await db.execute(
         select(KnowledgeBase.id)
         .join(KnowledgeDocument, KnowledgeDocument.kb_id == KnowledgeBase.id)
         .where(KnowledgeBase.status == "active")
+        .where(KnowledgeBase.visibility == "platform_public")
+        .where(KnowledgeBase.approval_status == "approved")
         .where(KnowledgeDocument.status == "ready")
         .distinct()
     )
@@ -246,11 +248,16 @@ def is_kb_relevant_to_topic(
     topic_hint = detect_language_hint(topic)
     if not topic_hint:
         return True
-    catalog = f"{kb_name} {' '.join(filenames)}"
-    catalog_hint = detect_language_hint(catalog)
-    if catalog_hint is None:
+    # 分别识别库名和文件名。混合技术栈资料可能同时包含 HTML/CSS/JS，
+    # 拼成一个字符串只会命中首个语言，错误排除整个前端知识库。
+    catalog_hints = {
+        hint
+        for part in (kb_name, *filenames)
+        if (hint := detect_language_hint(part)) is not None
+    }
+    if not catalog_hints:
         return False
-    return catalog_hint == topic_hint
+    return topic_hint in catalog_hints
 
 
 async def filter_kbs_relevant_to_topic(

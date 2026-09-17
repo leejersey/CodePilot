@@ -16,6 +16,8 @@ export interface SnippetExplainData {
   code: string;
   run_output: string;
   has_error?: boolean;
+  run_trusted?: boolean;
+  run_source?: "judge0" | "llm" | string;
   beats: Array<{
     id: string;
     duration_ms: number;
@@ -37,14 +39,17 @@ export function SnippetExplainPlayer({ data, onClose }: Props) {
 
   const prepared = useMemo(() => {
     const beatsRaw = Array.isArray(data.beats) ? data.beats : [];
-    let cursor = 0;
-    const beats: SnippetBeat[] = beatsRaw.map((b, i) => {
-      const durationFrames = Math.max(
+    const durations = beatsRaw.map((beat) =>
+      Math.max(
         Math.round(FPS * 2.5),
-        Math.round(((b.duration_ms || 4000) / 1000) * FPS)
-      );
-      const startFrame = cursor;
-      cursor += durationFrames;
+        Math.round(((beat.duration_ms || 4000) / 1000) * FPS)
+      )
+    );
+    const beats: SnippetBeat[] = beatsRaw.map((b, i) => {
+      const durationFrames = durations[i];
+      const startFrame = durations
+        .slice(0, i)
+        .reduce((total, duration) => total + duration, 0);
       return {
         id: b.id || `b${i}`,
         startFrame,
@@ -64,7 +69,10 @@ export function SnippetExplainPlayer({ data, onClose }: Props) {
       runOutput: data.run_output || "(无输出)",
       hasError: Boolean(data.has_error),
       beats,
-      durationInFrames: Math.max(FPS * 8, cursor),
+      durationInFrames: Math.max(
+        FPS * 8,
+        durations.reduce((total, duration) => total + duration, 0)
+      ),
     };
   }, [data]);
 
@@ -76,8 +84,12 @@ export function SnippetExplainPlayer({ data, onClose }: Props) {
           <span className="text-sm font-semibold text-slate-900 dark:text-slate-100 truncate">
             {prepared.title}
           </span>
-          <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-violet-500/15 text-violet-700 dark:text-violet-300 border border-violet-500/30 shrink-0">
-            单知识点 · 含运行结果
+          <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full border shrink-0 ${
+            data.run_source === "llm"
+              ? "bg-amber-500/15 text-amber-700 dark:text-amber-300 border-amber-500/30"
+              : "bg-violet-500/15 text-violet-700 dark:text-violet-300 border-violet-500/30"
+          }`}>
+            {data.run_source === "llm" ? "LLM 临时模拟 · 非真实执行" : "单知识点 · 含运行结果"}
           </span>
         </div>
         <div className="flex items-center gap-1 shrink-0">

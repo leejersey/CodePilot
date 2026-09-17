@@ -21,11 +21,21 @@ import {
   TrendingUp,
   Clock,
   Sparkles,
+  Target,
 } from "lucide-react";
 import {
-  getProgressStats, getProgressPaths, getProgressActivity, getSkillDistribution,
+  getProgressStats, getProgressPaths, getSkillDistribution,
+  getLearningTime, getWeakPoints,
   type ProgressStats, type PathProgress, type ActivityItem, type SkillItem,
+  type LearningTimeSummary, type WeakPointSummary,
 } from "@/lib/api";
+
+function formatDuration(seconds: number): string {
+  if (seconds < 60) return `${seconds} 秒`;
+  const hours = Math.floor(seconds / 3600);
+  const minutes = Math.floor((seconds % 3600) / 60);
+  return hours ? `${hours} 小时 ${minutes} 分` : `${minutes} 分钟`;
+}
 
 export default function DashboardPage() {
   const { user, init } = useAuth();
@@ -33,6 +43,8 @@ export default function DashboardPage() {
   const [paths, setPaths] = useState<PathProgress[]>([]);
   const [activity, setActivity] = useState<ActivityItem[]>([]);
   const [skills, setSkills] = useState<SkillItem[]>([]);
+  const [learningTime, setLearningTime] = useState<LearningTimeSummary | null>(null);
+  const [weakPoints, setWeakPoints] = useState<WeakPointSummary | null>(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => { init(); }, [init]);
@@ -40,16 +52,34 @@ export default function DashboardPage() {
   useEffect(() => {
     async function fetchData() {
       try {
-        const [s, p, a, sk] = await Promise.all([
+        const [s, p, sk, time, weak] = await Promise.all([
           getProgressStats(),
           getProgressPaths(),
-          getProgressActivity(),
           getSkillDistribution(),
+          getLearningTime(),
+          getWeakPoints(),
         ]);
         setStats(s);
         setPaths(p);
-        setActivity(a);
-        setSkills(sk);
+        setActivity(
+          time.daily.map((item) => ({
+            date: item.date,
+            count: Math.round(item.seconds / 60),
+          }))
+        );
+        setSkills(
+          weak.knowledge_points.length
+            ? weak.knowledge_points.map((item) => ({
+                topic: item.topic,
+                total: item.exercises,
+                completed: item.mastery >= 60 ? item.exercises : 0,
+                mastery: item.mastery,
+                attempts: item.attempts,
+              }))
+            : sk
+        );
+        setLearningTime(time);
+        setWeakPoints(weak);
       } catch { /* ignore */ }
       setLoading(false);
     }
@@ -100,7 +130,7 @@ export default function DashboardPage() {
             ) : (
               <>
                 {/* 核心指标统计卡片 */}
-                <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
                   <StatCard
                     icon={Compass}
                     label="学习路线"
@@ -115,6 +145,13 @@ export default function DashboardPage() {
                     sub={stats ? `/${stats.chapters.total} 章` : ""}
                     trend={stats?.chapters.total ? `${stats.chapters.completion_rate}%` : undefined}
                     accentColor="emerald"
+                  />
+                  <StatCard
+                    icon={Clock}
+                    label="今日学习"
+                    value={formatDuration(learningTime?.today_seconds ?? 0)}
+                    trend={learningTime ? `累计 ${formatDuration(learningTime.total_seconds)}` : undefined}
+                    accentColor="cyan"
                   />
                   <StatCard
                     icon={Flame}
@@ -176,6 +213,56 @@ export default function DashboardPage() {
                   <ActivityHeatmap data={activity} />
                   <SkillRadar data={skills} />
                 </div>
+
+                <Card className="p-6">
+                  <div className="mb-5 flex items-center justify-between gap-4">
+                    <div>
+                      <h2 className="flex items-center gap-2 text-lg font-bold font-headline text-slate-900 dark:text-white">
+                        <Target className="h-5 w-5 text-rose-500 dark:text-rose-400" />
+                        薄弱知识点
+                      </h2>
+                      <p className="mt-1 text-xs text-slate-500">
+                        仅依据 Judge0 可信判题，综合最佳成绩与重复尝试次数计算
+                      </p>
+                    </div>
+                  </div>
+                  {!weakPoints || weakPoints.knowledge_points.length === 0 ? (
+                    <p className="py-6 text-center text-sm text-slate-500">
+                      完成可信判题练习后，将自动生成知识点掌握度。
+                    </p>
+                  ) : weakPoints.weak_points.length === 0 ? (
+                    <p className="py-6 text-center text-sm text-emerald-600 dark:text-emerald-400">
+                      当前已分析的知识点掌握度均达到 60%。
+                    </p>
+                  ) : (
+                    <div className="grid gap-3 md:grid-cols-2">
+                      {weakPoints.weak_points.map((item) => (
+                        <div key={item.topic} className="rounded-xl border border-rose-500/20 bg-rose-500/5 p-4">
+                          <div className="flex items-center justify-between">
+                            <h3 className="text-sm font-bold text-slate-900 dark:text-slate-100">{item.topic}</h3>
+                            <span className="font-mono text-sm font-bold text-rose-500">{item.mastery}%</span>
+                          </div>
+                          <p className="mt-1 text-[11px] text-slate-500">
+                            {item.exercises} 道题 · {item.attempts} 次可信作答
+                          </p>
+                          {item.recommended_exercises.length > 0 && (
+                            <div className="mt-3 flex flex-wrap gap-2">
+                              {item.recommended_exercises.map((exercise) => (
+                                <Link
+                                  key={exercise.id}
+                                  href={`/exercise/${exercise.id}?returnTo=/dashboard`}
+                                  className="rounded-lg border border-rose-500/20 bg-white/60 dark:bg-white/5 px-2.5 py-1.5 text-[11px] text-rose-600 dark:text-rose-300 hover:border-rose-500/40"
+                                >
+                                  练习：{exercise.title}
+                                </Link>
+                              ))}
+                            </div>
+                          )}
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </Card>
 
                 {/* 趋势图 */}
                 <div>
@@ -270,7 +357,7 @@ function StatCard({
 }: {
   icon: React.ComponentType<{ className?: string }>;
   label: string;
-  value: number;
+  value: React.ReactNode;
   sub?: string;
   trend?: string;
   accentColor: "cyan" | "emerald" | "amber" | "purple";

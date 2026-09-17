@@ -14,6 +14,9 @@ from app.models.models import BackgroundJob, User
 FUNCTION_BY_TYPE = {
     "document_ingest": "process_document_job",
     "exercise_generate": "generate_exercise_job",
+    "path_generate": "generate_path_job",
+    "course_generate": "course_generate_job",
+    "course_rebuild": "course_rebuild_job",
 }
 
 
@@ -84,9 +87,9 @@ async def recover_background_jobs() -> int:
 async def cancel_document_jobs(
     db: AsyncSession,
     document_ids: list[str],
-) -> None:
+) -> list[str]:
     if not document_ids:
-        return
+        return []
     result = await db.execute(
         select(BackgroundJob).where(
             BackgroundJob.job_type == "document_ingest",
@@ -99,18 +102,19 @@ async def cancel_document_jobs(
         job.status = "cancelled"
         job.error_message = "文档已删除，任务取消"
         job.finished_at = datetime.now(timezone.utc)
-    await db.commit()
-    if not jobs:
+    return [job.arq_job_id for job in jobs if job.arq_job_id]
+
+
+async def abort_queued_jobs(arq_job_ids: list[str]) -> None:
+    if not arq_job_ids:
         return
     try:
         arq = await get_arq_pool()
     except Exception:
         return
-    for job in jobs:
-        if not job.arq_job_id:
-            continue
+    for arq_job_id in arq_job_ids:
         try:
-            await Job(job.arq_job_id, arq).abort(timeout=2)
+            await Job(arq_job_id, arq).abort(timeout=2)
         except Exception:
-            # 数据库取消标记是最终依据；worker 提交前会再次检查。
+            # The committed database cancellation remains authoritative.
             pass

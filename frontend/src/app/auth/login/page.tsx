@@ -6,6 +6,8 @@ import { useAuth } from "@/hooks/useAuth";
 import Link from "next/link";
 import { User, Mail, Lock, AlertCircle, Loader2, Code2, ArrowRight, ArrowLeft } from "lucide-react";
 import { ThemeToggle } from "@/components/ThemeToggle";
+import { isRealAccount } from "@/lib/accountAccess";
+import { safeReturnPath } from "@/lib/authNavigation";
 
 export default function AuthPage() {
   const [mode, setMode] = useState<"login" | "register">("login");
@@ -18,7 +20,14 @@ export default function AuthPage() {
   const { login, register, user, init } = useAuth();
 
   useEffect(() => { init(); }, [init]);
-  useEffect(() => { if (user) router.push("/"); }, [user, router]);
+  useEffect(() => {
+    // 匿名签发会话不算已登录：否则点「登录」会立刻被弹回首页。
+    if (!isRealAccount(user)) return;
+    const returnTo = safeReturnPath(
+      new URLSearchParams(window.location.search).get("returnTo")
+    );
+    router.replace(returnTo);
+  }, [user, router]);
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -30,7 +39,10 @@ export default function AuthPage() {
       } else {
         await register(email, password, nickname || "Learner");
       }
-      router.push("/");
+      const returnTo = safeReturnPath(
+        new URLSearchParams(window.location.search).get("returnTo")
+      );
+      router.replace(returnTo);
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : "操作失败");
     } finally {

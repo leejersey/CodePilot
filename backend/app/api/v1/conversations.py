@@ -7,16 +7,24 @@ from app.db.database import get_db
 from app.core.deps import get_current_user
 from app.models.models import Conversation, Message, User
 from app.schemas.schemas import ConversationCreate, ConversationResponse, MessageResponse
+from app.services.course_access import can_access_legacy_chapter
 
 router = APIRouter()
 
 
-@router.post("/", response_model=ConversationResponse, status_code=201)
+@router.post("", response_model=ConversationResponse, status_code=201)
 async def create_conversation(
     body: ConversationCreate,
     db: AsyncSession = Depends(get_db),
     user: User = Depends(get_current_user),
 ):
+    if body.chapter_id and not await can_access_legacy_chapter(
+        db,
+        body.chapter_id,
+        user,
+        require_enrollment=True,
+    ):
+        raise HTTPException(status_code=403, detail="未加入课程或无权访问该章节")
     conv = Conversation(
         user_id=user.id,
         chapter_id=body.chapter_id,

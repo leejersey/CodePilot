@@ -7,7 +7,7 @@ import { Card } from "@/components/common/Card";
  * 技能分布柱状图 — 按主题显示掌握度
  * 纯 SVG + CSS 动画
  */
-interface Skill { topic: string; total: number; completed: number; mastery: number }
+interface Skill { topic: string; total: number; completed: number; mastery: number; attempts?: number }
 
 export function SkillRadar({ data }: { data: Skill[] }) {
   if (!data || data.length === 0) {
@@ -47,7 +47,9 @@ export function SkillRadar({ data }: { data: Skill[] }) {
                 <span className="text-xs font-medium text-slate-800 dark:text-slate-200">{skill.topic}</span>
                 <div className="flex items-center gap-2 font-mono">
                   <span className="text-[10px] text-slate-500">
-                    {skill.completed}/{skill.total} 章节
+                    {skill.attempts !== undefined
+                      ? `${skill.attempts} 次可信作答`
+                      : `${skill.completed}/${skill.total} 章节`}
                   </span>
                   <span className={`text-xs font-bold ${color.text}`}>{skill.mastery}%</span>
                 </div>

@@ -225,9 +225,14 @@ async def ingest_uploaded_file(
 
 
 async def delete_document_files_and_chunks(db: AsyncSession, doc: KnowledgeDocument) -> None:
-    """删除文档记录、chunks 与本地文件。"""
+    """Delete database records; callers remove the file only after commit."""
     await db.execute(delete(KnowledgeChunk).where(KnowledgeChunk.document_id == doc.id))
-    path = Path(doc.storage_path)
+    await db.delete(doc)
+
+
+def cleanup_document_file(storage_path: str) -> None:
+    """Best-effort post-commit file cleanup."""
+    path = Path(storage_path)
     try:
         if path.is_file():
             path.unlink()
@@ -236,4 +241,3 @@ async def delete_document_files_and_chunks(db: AsyncSession, doc: KnowledgeDocum
             parent.rmdir()
     except OSError:
         pass
-    await db.delete(doc)

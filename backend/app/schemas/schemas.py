@@ -68,6 +68,23 @@ class ChapterStatusUpdate(BaseModel):
     status: str = Field(..., pattern="^(locked|unlocked|in_progress|completed)$")
 
 
+class ChapterStatusResponse(ChapterResponse):
+    """preview=True 表示作者/管理员在未报名的情况下预览，进度未被记录。"""
+
+    preview: bool = False
+
+
+class LearningHeartbeatRequest(BaseModel):
+    session_id: uuid.UUID | None = None
+    active: bool = True
+
+
+class LearningHeartbeatResponse(BaseModel):
+    session_id: uuid.UUID
+    counted_seconds: int
+    session_seconds: int
+
+
 # ── Conversation ──
 
 class ConversationCreate(BaseModel):
@@ -144,6 +161,17 @@ class ExerciseResponse(BaseModel):
     model_config = {"from_attributes": True}
 
 
+class ChapterExerciseRecommendation(ExerciseResponse):
+    attempted: bool = False
+    passed: bool = False
+    best_score: int | None = None
+
+
+class ChapterPracticeResponse(BaseModel):
+    exercises: list[ChapterExerciseRecommendation]
+    next_chapter: ChapterResponse | None = None
+
+
 class ExerciseSubmitRequest(BaseModel):
     code: str = Field(..., min_length=1, max_length=100_000)
 
@@ -182,6 +210,7 @@ class ExerciseValidationResponse(BaseModel):
 
 class SubmissionResponse(BaseModel):
     submission_id: uuid.UUID
+    submitted_code: str | None = None
     result: str
     score: int | None
     ai_feedback: str | None
@@ -190,6 +219,7 @@ class SubmissionResponse(BaseModel):
     memory: int | None = None
     trusted: bool = True
     judge_source: str = "judge0"
+    created_at: datetime | None = None
 
 
 # ── Error ──
@@ -246,7 +276,7 @@ class AdminUserResponse(BaseModel):
     nickname: str
     avatar_url: str | None
     auth_provider: str
-    role: Literal["learner", "admin", "super_admin"]
+    role: Literal["learner", "creator", "admin", "super_admin"]
     status: Literal["active", "disabled"]
     created_at: datetime
     updated_at: datetime
@@ -263,7 +293,7 @@ class AdminUserListResponse(BaseModel):
 
 
 class UserRoleUpdate(BaseModel):
-    role: Literal["learner", "admin", "super_admin"]
+    role: Literal["learner", "creator", "admin", "super_admin"]
 
 
 class UserAccountStatusUpdate(BaseModel):
@@ -303,6 +333,18 @@ class KnowledgeBaseUpdate(BaseModel):
     description: str | None = Field(None, max_length=2000)
 
 
+class KnowledgeBaseReviewUpdate(BaseModel):
+    decision: Literal["approve", "reject"]
+    platform_public: bool = False
+    note: str | None = Field(None, max_length=2000)
+
+    @model_validator(mode="after")
+    def require_rejection_note(self):
+        if self.decision == "reject" and not (self.note or "").strip():
+            raise ValueError("拒绝知识库时必须填写审核意见")
+        return self
+
+
 class KnowledgeDocumentResponse(BaseModel):
     id: uuid.UUID
     kb_id: uuid.UUID
@@ -325,6 +367,10 @@ class KnowledgeBaseResponse(BaseModel):
     created_at: datetime
     updated_at: datetime
     document_count: int = 0
+    ready_document_count: int = 0
+    visibility: str = "private"
+    approval_status: str = "pending"
+    review_note: str | None = None
 
     model_config = {"from_attributes": True}
 
@@ -335,4 +381,129 @@ class KnowledgeBaseDetailResponse(KnowledgeBaseResponse):
 
 class PathKnowledgeBindRequest(BaseModel):
     knowledge_base_ids: list[uuid.UUID] = Field(default_factory=list)
+
+
+# ── Courses ──
+
+class CourseGenerateRequest(BaseModel):
+    topic: str = Field(..., min_length=2, max_length=200)
+    difficulty: str = Field("intermediate", pattern="^(beginner|intermediate|advanced)$")
+    user_background: str = Field("", max_length=500)
+    pure_ai: bool
+    knowledge_base_ids: list[uuid.UUID] = Field(default_factory=list)
+
+    @model_validator(mode="after")
+    def require_explicit_source(self):
+        if self.pure_ai and self.knowledge_base_ids:
+            raise ValueError("纯 AI 生成不能选择知识库")
+        if not self.pure_ai and not self.knowledge_base_ids:
+            raise ValueError("知识库生成至少选择一个知识库")
+        self.knowledge_base_ids = list(dict.fromkeys(self.knowledge_base_ids))
+        return self
+
+
+class CourseRebuildRequest(CourseGenerateRequest):
+    topic: str | None = Field(None, min_length=2, max_length=200)
+
+class CourseCatalogItem(BaseModel):
+    """公开目录条目：匿名访客也能读到，因此不含任何内部主体 ID。"""
+
+    id: uuid.UUID
+    topic: str
+    difficulty: str
+    status: str
+    visibility: str
+    created_at: datetime
+    updated_at: datetime
+
+    model_config = {"from_attributes": True}
+
+
+class AuthoredCourseItem(CourseCatalogItem):
+    """需要分辨「自己的课程」与「平台课程」的已登录视图才附带作者身份。"""
+
+    author_id: uuid.UUID
+
+
+class CourseDetailResponse(CourseCatalogItem):
+    current_version_id: uuid.UUID | None
+    learning_path_id: uuid.UUID | None = None
+
+
+class CourseCatalogResponse(BaseModel):
+    items: list[CourseCatalogItem]
+    total: int
+    page: int
+    page_size: int
+
+
+class CourseChapterResponse(BaseModel):
+    id: uuid.UUID
+    version_id: uuid.UUID
+    sort_order: int
+    title: str
+    summary: str | None
+    content: dict | None
+    status: str | None = None
+    completed_at: datetime | None = None
+
+    model_config = {"from_attributes": True}
+
+
+class EnrollmentResponse(BaseModel):
+    id: uuid.UUID
+    course_id: uuid.UUID
+    active_version_id: uuid.UUID
+    status: str
+    enrolled_at: datetime
+
+    model_config = {"from_attributes": True}
+
+
+class EnrollmentCourseResponse(EnrollmentResponse):
+    course: AuthoredCourseItem
+    learning_path_id: uuid.UUID | None = None
+    completed_chapters: int
+    total_chapters: int
+    progress: int
+
+
+class CourseReviewUpdate(BaseModel):
+    decision: Literal["approve", "reject"]
+    note: str | None = Field(None, max_length=2000)
+
+    @model_validator(mode="after")
+    def require_rejection_note(self):
+        if self.decision == "reject" and not (self.note or "").strip():
+            raise ValueError("拒绝课程时必须填写审核意见")
+        return self
+
+
+class CourseStatusUpdate(BaseModel):
+    status: Literal["published", "archived"]
+
+
+class CourseSubmitReviewResponse(CourseDetailResponse):
+    review_note: str | None = None
+    submitted_for_review_at: datetime | None = None
+
+
+class AdminCourseResponse(CourseDetailResponse):
+    author_id: uuid.UUID
+    current_version_number: int | None = None
+    source_type: Literal["ai_generated", "knowledge_base"] | None = None
+    knowledge_base_ids: list[uuid.UUID] = Field(default_factory=list)
+    knowledge_base_names: list[str] = Field(default_factory=list)
+    review_note: str | None = None
+    reviewer_id: uuid.UUID | None = None
+    submitted_for_review_at: datetime | None = None
+    reviewed_at: datetime | None = None
+    published_at: datetime | None = None
+
+
+class AdminCourseListResponse(BaseModel):
+    items: list[AdminCourseResponse]
+    total: int
+    page: int
+    page_size: int
 

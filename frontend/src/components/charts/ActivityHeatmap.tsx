@@ -54,7 +54,6 @@ export function ActivityHeatmap({ data }: { data: ActivityItem[] }) {
         <svg width={svgWidth} height={svgHeight} className="mx-auto">
           {data.map((item, i) => {
             const x = i * (cellSize + gap);
-            const dayOfWeek = new Date(item.date).getDay();
             return (
               <g key={item.date}>
                 <rect
@@ -66,7 +65,7 @@ export function ActivityHeatmap({ data }: { data: ActivityItem[] }) {
                   fill={getColor(item.count)}
                   className="transition-all duration-200 hover:stroke-cyan-400 hover:stroke-1"
                 >
-                  <title>{`${item.date}: ${item.count} 次学习活动`}</title>
+                  <title>{`${item.date}: ${item.count} 分钟有效学习`}</title>
                 </rect>
                 {/* 每 7 天显示一个日期标签 */}
                 {i % 7 === 0 && (
@@ -83,7 +82,7 @@ export function ActivityHeatmap({ data }: { data: ActivityItem[] }) {
       <div className="flex items-center justify-between mt-3 text-xs text-slate-500">
         <span>最近 30 天</span>
         <span className="text-cyan-400 font-mono font-medium">
-          {data.reduce((s, d) => s + d.count, 0)} 次活动
+          {data.reduce((s, d) => s + d.count, 0)} 分钟
         </span>
       </div>
     </Card>

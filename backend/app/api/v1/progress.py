@@ -1,14 +1,181 @@
 """学习进度追踪 API"""
 
+import uuid
+
 from fastapi import APIRouter, Depends
-from sqlalchemy import select, func
+from sqlalchemy import Select, case, select, func
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.db.database import get_db
 from app.core.deps import get_current_user
-from app.models.models import User, LearningPath, Chapter, ExerciseSubmission
+from app.models.models import (
+    User,
+    LearningPath,
+    Chapter,
+    ChapterProgress,
+    CourseChapter,
+    Enrollment,
+    Exercise,
+    ExerciseSubmission,
+    LearningSession,
+)
+from app.services.learning_analytics import calculate_knowledge_mastery
 
 router = APIRouter()
+
+
+class _EffectiveChapterState:
+    """Chapter status/completed_at as one caller actually experiences them.
+
+    Once a chapter is mapped into a course version, learner state lives in that
+    user's ``ChapterProgress`` row and ``Chapter.status`` is frozen at whatever
+    the migration found. Only genuinely unmapped personal paths still carry live
+    state on ``Chapter`` itself, so analytics have to prefer the per-enrollment
+    row and fall back to the shared columns.
+    """
+
+    def __init__(self, user_id: uuid.UUID):
+        # legacy_chapter_id is globally unique, and enrollments are unique per
+        # (user, course), so scoping through active_version_id yields at most
+        # one progress row per legacy chapter and cannot fan the outer join out.
+        self._scoped = (
+            select(
+                CourseChapter.legacy_chapter_id.label("legacy_chapter_id"),
+                ChapterProgress.status.label("status"),
+                ChapterProgress.completed_at.label("completed_at"),
+            )
+            .select_from(ChapterProgress)
+            .join(Enrollment, Enrollment.id == ChapterProgress.enrollment_id)
+            .join(
+                CourseChapter,
+                (CourseChapter.id == ChapterProgress.chapter_id)
+                & (CourseChapter.version_id == Enrollment.active_version_id),
+            )
+            .where(
+                Enrollment.user_id == user_id,
+                ChapterProgress.version_id == Enrollment.active_version_id,
+                CourseChapter.legacy_chapter_id.isnot(None),
+            )
+            .subquery()
+        )
+        mapped = self._scoped.c.status.isnot(None)
+        self.status = case((mapped, self._scoped.c.status), else_=Chapter.status)
+        # completed_at is legitimately NULL on an in-progress enrollment row, so
+        # the fallback keys off the join hitting rather than off a NULL value.
+        self.completed_at = case(
+            (mapped, self._scoped.c.completed_at), else_=Chapter.completed_at
+        )
+
+    def join(self, stmt: Select) -> Select:
+        """Attach the per-enrollment rows to a statement selecting from Chapter."""
+        return stmt.outerjoin(
+            self._scoped, self._scoped.c.legacy_chapter_id == Chapter.id
+        )
+
+
+@router.get("/learning-time")
+async def get_learning_time(
+    db: AsyncSession = Depends(get_db),
+    user: User = Depends(get_current_user),
+):
+    from datetime import datetime, timedelta, timezone
+
+    now = datetime.now(timezone.utc)
+    today_start = datetime(now.year, now.month, now.day, tzinfo=timezone.utc)
+    total_seconds = await db.scalar(
+        select(func.coalesce(func.sum(LearningSession.duration_seconds), 0))
+        .where(LearningSession.user_id == user.id)
+    )
+    today_seconds = await db.scalar(
+        select(func.coalesce(func.sum(LearningSession.duration_seconds), 0))
+        .where(
+            LearningSession.user_id == user.id,
+            LearningSession.started_at >= today_start,
+        )
+    )
+    daily_start = today_start - timedelta(days=29)
+    rows = (
+        await db.execute(
+            select(
+                func.date(LearningSession.started_at).label("day"),
+                func.sum(LearningSession.duration_seconds).label("seconds"),
+            )
+            .where(
+                LearningSession.user_id == user.id,
+                LearningSession.started_at >= daily_start,
+            )
+            .group_by(func.date(LearningSession.started_at))
+            .order_by(func.date(LearningSession.started_at))
+        )
+    ).all()
+    by_day = {str(row.day): int(row.seconds or 0) for row in rows}
+    daily = [
+        {
+            "date": str((daily_start + timedelta(days=index)).date()),
+            "seconds": by_day.get(str((daily_start + timedelta(days=index)).date()), 0),
+        }
+        for index in range(30)
+    ]
+    return {
+        "today_seconds": int(today_seconds or 0),
+        "total_seconds": int(total_seconds or 0),
+        "daily": daily,
+    }
+
+
+@router.get("/weak-points")
+async def get_weak_points(
+    db: AsyncSession = Depends(get_db),
+    user: User = Depends(get_current_user),
+):
+    rows = (
+        await db.execute(
+            select(
+                ExerciseSubmission.exercise_id,
+                ExerciseSubmission.score,
+                ExerciseSubmission.trusted,
+                Exercise.tags,
+            )
+            .join(Exercise, Exercise.id == ExerciseSubmission.exercise_id)
+            .where(ExerciseSubmission.user_id == user.id)
+            .order_by(ExerciseSubmission.created_at)
+        )
+    ).all()
+    mastery = calculate_knowledge_mastery([
+        {
+            "exercise_id": str(row.exercise_id),
+            "score": row.score,
+            "trusted": row.trusted,
+            "tags": row.tags,
+        }
+        for row in rows
+    ])
+    weak_topics = {item["topic"] for item in mastery if item["weak"]}
+    recommendations: dict[str, list[dict]] = {topic: [] for topic in weak_topics}
+    if weak_topics:
+        exercises = (
+            await db.execute(
+                select(Exercise)
+                .where(Exercise.status == "published")
+                .order_by(Exercise.created_at.desc())
+            )
+        ).scalars().all()
+        for exercise in exercises:
+            for tag in set(exercise.tags or []) & weak_topics:
+                if len(recommendations[tag]) < 3:
+                    recommendations[tag].append({
+                        "id": str(exercise.id),
+                        "title": exercise.title,
+                        "chapter_id": str(exercise.chapter_id) if exercise.chapter_id else None,
+                    })
+    return {
+        "knowledge_points": mastery,
+        "weak_points": [
+            {**item, "recommended_exercises": recommendations.get(item["topic"], [])}
+            for item in mastery
+            if item["weak"]
+        ],
+    }
 
 
 @router.get("/stats")
@@ -25,15 +192,19 @@ async def get_progress_stats(
     )
     total_paths = path_result.scalar() or 0
 
+    effective = _EffectiveChapterState(user.id)
+
     # 2. 章节统计
     chapter_result = await db.execute(
-        select(
-            func.count(Chapter.id).label("total"),
-            func.count(Chapter.id).filter(Chapter.status == "completed").label("completed"),
-            func.count(Chapter.id).filter(Chapter.status == "in_progress").label("in_progress"),
-        )
-        .join(LearningPath, Chapter.path_id == LearningPath.id)
-        .where(LearningPath.user_id == user.id)
+        effective.join(
+            select(
+                func.count(Chapter.id).label("total"),
+                func.count(Chapter.id).filter(effective.status == "completed").label("completed"),
+                func.count(Chapter.id).filter(effective.status == "in_progress").label("in_progress"),
+            )
+            .select_from(Chapter)
+            .join(LearningPath, Chapter.path_id == LearningPath.id)
+        ).where(LearningPath.user_id == user.id)
     )
     ch = chapter_result.one()
 
@@ -49,12 +220,15 @@ async def get_progress_stats(
 
     # 4. 连续学习天数（最近完成的章节去重按天计算）
     streak_result = await db.execute(
-        select(func.date(Chapter.completed_at))
-        .join(LearningPath, Chapter.path_id == LearningPath.id)
+        effective.join(
+            select(func.date(effective.completed_at))
+            .select_from(Chapter)
+            .join(LearningPath, Chapter.path_id == LearningPath.id)
+        )
         .where(LearningPath.user_id == user.id)
-        .where(Chapter.completed_at.isnot(None))
+        .where(effective.completed_at.isnot(None))
         .distinct()
-        .order_by(func.date(Chapter.completed_at).desc())
+        .order_by(func.date(effective.completed_at).desc())
         .limit(30)
     )
     dates = [row[0] for row in streak_result.all()]
@@ -99,19 +273,35 @@ async def get_user_paths(
     """获取用户所有学习路线的进度"""
     paths = await db.execute(
         select(LearningPath)
-        .where(LearningPath.user_id == user.id)
+        .where(
+            LearningPath.user_id == user.id,
+            LearningPath.status != "archived",
+        )
         .order_by(LearningPath.updated_at.desc())
     )
-    result = []
-    for path in paths.scalars().all():
-        ch_result = await db.execute(
+    path_rows = paths.scalars().all()
+    if not path_rows:
+        return []
+    effective = _EffectiveChapterState(user.id)
+    counts_result = await db.execute(
+        effective.join(
             select(
+                Chapter.path_id.label("path_id"),
                 func.count(Chapter.id).label("total"),
-                func.count(Chapter.id).filter(Chapter.status == "completed").label("completed"),
+                func.count(Chapter.id).filter(effective.status == "completed").label("completed"),
             )
-            .where(Chapter.path_id == path.id)
+            .select_from(Chapter)
         )
-        ch = ch_result.one()
+        .where(Chapter.path_id.in_([path.id for path in path_rows]))
+        .group_by(Chapter.path_id)
+    )
+    counts = {row.path_id: row for row in counts_result.all()}
+
+    result = []
+    for path in path_rows:
+        ch = counts.get(path.id)
+        total = ch.total if ch else 0
+        completed = ch.completed if ch else 0
         rag = path.outline.get("rag") if isinstance(path.outline, dict) else None
         if isinstance(rag, dict) and rag.get("source_type"):
             source_type = rag["source_type"]
@@ -127,9 +317,9 @@ async def get_user_paths(
             "topic": path.topic,
             "difficulty": path.difficulty,
             "status": path.status,
-            "total_chapters": ch.total,
-            "completed_chapters": ch.completed,
-            "progress": round(ch.completed / ch.total * 100) if ch.total > 0 else 0,
+            "total_chapters": total,
+            "completed_chapters": completed,
+            "progress": round(completed / total * 100) if total > 0 else 0,
             "source_type": source_type,
             "kb_names": kb_names,
             "created_at": path.created_at.isoformat() if path.created_at else None,
@@ -182,13 +372,17 @@ async def get_skill_distribution(
     user: User = Depends(get_current_user),
 ):
     """获取技能分布（按主题的章节完成情况）"""
+    effective = _EffectiveChapterState(user.id)
     result = await db.execute(
-        select(
-            LearningPath.topic,
-            func.count(Chapter.id).label("total"),
-            func.count(Chapter.id).filter(Chapter.status == "completed").label("completed"),
+        effective.join(
+            select(
+                LearningPath.topic,
+                func.count(Chapter.id).label("total"),
+                func.count(Chapter.id).filter(effective.status == "completed").label("completed"),
+            )
+            .select_from(Chapter)
+            .join(LearningPath, Chapter.path_id == LearningPath.id)
         )
-        .join(Chapter, Chapter.path_id == LearningPath.id)
         .where(LearningPath.user_id == user.id)
         .group_by(LearningPath.topic)
     )

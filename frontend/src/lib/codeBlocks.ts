@@ -1,6 +1,7 @@
 /**
  * 从 Markdown 中提取 fenced 代码块，供右侧编辑器 Tab 绑定。
  */
+import { normalizeLanguage } from "./languageRuntime";
 
 export interface ExtractedCodeBlock {
   language: string;
@@ -32,7 +33,7 @@ export function isRunnableSnippet(code: string, language: string): boolean {
   // 至少 2 行，或单行但含可执行痕迹
   const joined = lines.join("\n");
   if (lines.length === 1) {
-    return /^(print|console\.|def |class |function |const |let |var |if |for |while |return |#include|fn |package )/m.test(
+    return /^(print|console\.|def |class |function |const |let |var |if |for |while |return |#include|fn |package |<[\w!]|[@.#\w-]+\s*\{)/m.test(
       joined
     );
   }
@@ -50,7 +51,7 @@ export function extractCodeBlocks(markdown: string): ExtractedCodeBlock[] {
   let m: RegExpExecArray | null;
   const re = new RegExp(FENCE_RE);
   while ((m = re.exec(markdown)) !== null) {
-    const language = (m[1] || "text").toLowerCase();
+    const language = normalizeLanguage(m[1] || "text");
     const code = m[2].replace(/\n$/, "");
     if (!code.trim()) continue;
     if (language === "text" || language === "plain" || language === "markdown" || language === "md") {
@@ -76,6 +77,14 @@ export function defaultFilename(language: string, index: number): string {
     rust: "rs",
     cpp: "cpp",
     c: "c",
+    csharp: "cs",
+    kotlin: "kt",
+    swift: "swift",
+    ruby: "rb",
+    php: "php",
+    bash: "sh",
+    html: "html",
+    css: "css",
   };
   const ext = map[language] || "txt";
   return `代码${index + 1}.${ext}`;

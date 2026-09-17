@@ -1,13 +1,14 @@
 import uuid
 import logging
 from datetime import datetime, timezone
+from collections.abc import Awaitable, Callable
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy import delete, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
 from app.db.database import get_db
-from app.core.deps import get_current_user, is_admin_role, require_admin
+from app.core.deps import get_current_user, get_optional_user, is_admin_role, require_admin
 from app.models.models import (
     LearningPath,
     Chapter,
@@ -17,6 +18,10 @@ from app.models.models import (
     Message,
     Exercise,
     ExerciseSubmission,
+    ChapterProgress,
+    Course,
+    CourseChapter,
+    Enrollment,
 )
 from app.schemas.schemas import (
     PathGenerateRequest,
@@ -24,7 +29,9 @@ from app.schemas.schemas import (
     ChapterResponse,
     KnowledgeBaseResponse,
     PathKnowledgeBindRequest,
+    BackgroundJobResponse,
 )
+from app.services.background_jobs import create_and_enqueue_job
 from app.services.llm import call_llm_json, llm_user_context
 from app.services.kb_retrieve import (
     count_ready_documents,
@@ -35,9 +42,52 @@ from app.services.kb_retrieve import (
     load_kbs_by_ids,
 )
 from app.db.redis import cache_get, cache_set, cache_delete
+from app.services.course_access import (
+    can_access_legacy_path,
+    get_mapped_course_for_path,
+    serialize_legacy_chapter,
+)
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
+
+# 课程状态：仅这些状态下删除映射路径不会破坏任何学员的学习入口。
+DELETABLE_MAPPED_COURSE_STATES = frozenset({"draft", "rejected"})
+
+
+def legacy_rebuild_eligibility(
+    *,
+    path: LearningPath,
+    mapped_course: Course | None,
+    user: User,
+) -> dict:
+    """旧版重建入口只对真正私人的、未纳入课程治理的路径开放。"""
+    if mapped_course is not None:
+        return {
+            "can_rebuild": False,
+            "reason": "governed_course",
+            "mapped_course_id": mapped_course.id,
+            "mapped_course_status": mapped_course.status,
+        }
+    owned = path.user_id == user.id or is_admin_role(getattr(user, "role", None))
+    return {
+        "can_rebuild": owned,
+        "reason": "eligible" if owned else "forbidden",
+        "mapped_course_id": None,
+        "mapped_course_status": None,
+    }
+
+
+def _governed_course_conflict(course: Course, action: str) -> HTTPException:
+    return HTTPException(
+        status_code=409,
+        detail=(
+            f"该学习路线已纳入课程治理（课程 {course.id}，状态 {course.status}），"
+            f"旧版{action}入口已停用。请改用受管流程 "
+            f"POST /api/v1/courses/{course.id}/rebuild，"
+            "以便校验发布权限、保留学员进度并留下版本审计记录。"
+        ),
+    )
 
 
 def _attach_rag_provenance(
@@ -152,7 +202,9 @@ B. 把大纲拆成可顺序学习的 chapters。
     ...
   ]
 }}"""
-    outline = await call_llm_json(prompt)
+    outline = await call_llm_json(
+        prompt, request_type="path_generate"
+    )
     chapters = outline.get("chapters") or []
     if isinstance(chapters, list) and chapters:
         # 规范化 order，并与 total_chapters 对齐
@@ -164,18 +216,38 @@ B. 把大纲拆成可顺序学习的 chapters。
     return outline
 
 
-@router.post("/generate", response_model=PathResponse, status_code=201)
+@router.post("/generate", response_model=BackgroundJobResponse, status_code=202)
 async def generate_path(
     req: PathGenerateRequest,
     db: AsyncSession = Depends(get_db),
     user: User = Depends(get_current_user),
 ):
+    """创建异步学习路径生成任务。"""
+    return await create_and_enqueue_job(
+        db,
+        user=user,
+        job_type="path_generate",
+        payload=req.model_dump(mode="json"),
+    )
+
+
+async def generate_path_record(
+    db: AsyncSession,
+    payload: dict,
+    user: User,
+    progress: Callable[[int], Awaitable[None]] | None = None,
+) -> LearningPath:
     """调用 LLM 生成学习路线；仅当存在与主题相关的平台知识库时才走 RAG"""
+    req = PathGenerateRequest.model_validate(payload)
+    if progress:
+        await progress(20)
     all_ids = await list_platform_ready_kb_ids(db)
     all_kbs = await load_kbs_by_ids(db, all_ids)
     kbs, doc_filenames = await filter_kbs_relevant_to_topic(
         db, topic=req.topic, kbs=all_kbs
     )
+    if progress:
+        await progress(35)
     kb_context = ""
     doc_count = 0
     if kbs:
@@ -191,6 +263,8 @@ async def generate_path(
             doc_filenames = []
             kb_context = ""
 
+    if progress:
+        await progress(50)
     with llm_user_context(user):
         outline = await _generate_outline(
             req.topic,
@@ -199,6 +273,8 @@ async def generate_path(
             kb_context=kb_context,
             doc_count=doc_count,
         )
+    if progress:
+        await progress(80)
     outline = _attach_rag_provenance(
         outline,
         kbs=kbs,
@@ -227,22 +303,9 @@ async def generate_path(
         )
         db.add(chapter)
 
-    await db.commit()
-    await db.refresh(path)
-
-    # 缓存路线详情（10 分钟）
-    try:
-        await cache_set("path", str(path.id), value={
-            "id": str(path.id),
-            "user_id": str(path.user_id),
-            "topic": path.topic,
-            "difficulty": path.difficulty,
-            "outline": path.outline,
-            "status": path.status,
-            "created_at": path.created_at.isoformat() if path.created_at else None,
-        }, ttl=600)
-    except Exception as e:
-        logger.warning(f"Redis cache_set failed for generated path {path.id}: {e}")
+    await db.flush()
+    if progress:
+        await progress(90)
 
     return path
 
@@ -259,10 +322,8 @@ async def get_path_knowledge_bases(
         .where(LearningPath.id == path_id)
     )
     path = result.scalar_one_or_none()
-    if not path:
+    if not path or not await can_access_legacy_path(db, path, user):
         raise HTTPException(status_code=404, detail="学习路线不存在")
-    if path.user_id != user.id:
-        raise HTTPException(status_code=403, detail="无权查看该路线的知识库")
 
     return [
         KnowledgeBaseResponse(
@@ -321,6 +382,23 @@ async def bind_path_knowledge_bases(
     ]
 
 
+@router.get("/{path_id}/rebuild-eligibility")
+async def get_path_rebuild_eligibility(
+    path_id: uuid.UUID,
+    db: AsyncSession = Depends(get_db),
+    user: User = Depends(get_current_user),
+):
+    """告知前端旧版重建入口是否可用，以及是否应改走课程治理流程。"""
+    path = await db.scalar(select(LearningPath).where(LearningPath.id == path_id))
+    if not path or not await can_access_legacy_path(db, path, user):
+        raise HTTPException(status_code=404, detail="学习路线不存在")
+    return legacy_rebuild_eligibility(
+        path=path,
+        mapped_course=await get_mapped_course_for_path(db, path_id),
+        user=user,
+    )
+
+
 @router.post("/{path_id}/rebuild-from-kb", response_model=PathResponse)
 async def rebuild_path_from_kb(
     path_id: uuid.UUID,
@@ -328,7 +406,7 @@ async def rebuild_path_from_kb(
     db: AsyncSession = Depends(get_db),
     user: User = Depends(get_current_user),
 ):
-    """根据平台知识库重新生成大纲与章节（会替换现有章节）。"""
+    """根据平台知识库重新生成未纳入课程治理的私人路径大纲与章节。"""
     result = await db.execute(
         select(LearningPath)
         .options(selectinload(LearningPath.knowledge_bases), selectinload(LearningPath.chapters))
@@ -337,8 +415,16 @@ async def rebuild_path_from_kb(
     path = result.scalar_one_or_none()
     if not path:
         raise HTTPException(status_code=404, detail="学习路线不存在")
+    mapped_course = await get_mapped_course_for_path(db, path_id)
+    if mapped_course is not None:
+        # 课程内容只能经 validate_rebuild_permission 把关的受管流程更新。
+        raise _governed_course_conflict(mapped_course, "重建")
     if path.user_id != user.id and not is_admin_role(getattr(user, "role", None)):
         raise HTTPException(status_code=403, detail="无权修改该路线")
+
+    old_outline = path.outline
+    old_kbs = list(path.knowledge_bases)
+    old_chapter_ids = [ch.id for ch in path.chapters]
 
     # 管理员可指定库；否则仅使用与主题相关的平台 ready 库
     if body and body.knowledge_base_ids and is_admin_role(getattr(user, "role", None)):
@@ -351,13 +437,13 @@ async def rebuild_path_from_kb(
             db, topic=path.topic, kbs=all_kbs
         )
 
-    path.knowledge_bases = kbs
-
     if not kbs:
         raise HTTPException(
             status_code=400,
             detail="没有与本课程主题相关的知识库。请上传匹配的资料，或生成纯 AI 课程。",
         )
+
+    path.knowledge_bases = kbs
 
     kb_ids_for_rag = [kb.id for kb in kbs]
     doc_count = len(doc_filenames)
@@ -382,15 +468,24 @@ async def rebuild_path_from_kb(
         rag_context_ok=True,
     )
 
-    old_chapter_ids = [ch.id for ch in path.chapters]
     if old_chapter_ids:
-        await db.execute(
-            update(Conversation)
-            .where(Conversation.chapter_id.in_(old_chapter_ids))
-            .values(chapter_id=None)
+        # 旧章节改挂归档快照路径：练习、提交记录与对话历史全部原样保留。
+        snapshot = LearningPath(
+            user_id=path.user_id,
+            topic=f"{path.topic}（历史快照）",
+            difficulty=path.difficulty,
+            outline=old_outline,
+            status="archived",
+            knowledge_bases=old_kbs,
         )
-        await db.execute(delete(Exercise).where(Exercise.chapter_id.in_(old_chapter_ids)))
-        await db.execute(delete(Chapter).where(Chapter.id.in_(old_chapter_ids)))
+        db.add(snapshot)
+        await db.flush()
+        await db.execute(
+            update(Chapter)
+            .where(Chapter.id.in_(old_chapter_ids))
+            .values(path_id=snapshot.id)
+        )
+        await db.flush()
 
     path.outline = outline
     for ch in outline.get("chapters", []):
@@ -431,7 +526,23 @@ async def delete_path(
     path = result.scalar_one_or_none()
     if not path:
         raise HTTPException(status_code=404, detail="学习路线不存在")
-    if path.user_id != user.id and not is_admin_role(getattr(user, "role", None)):
+    mapped_course = await get_mapped_course_for_path(db, path_id)
+    if mapped_course is not None:
+        # Course.legacy_path_id 是 SET NULL：删除后课程将永久失去学习入口。
+        if mapped_course.status not in DELETABLE_MAPPED_COURSE_STATES:
+            raise HTTPException(
+                status_code=409,
+                detail=(
+                    f"该学习路线是课程 {mapped_course.id}（状态 {mapped_course.status}）"
+                    "的学习入口，删除后课程将永久无法学习。请改用课程归档 / 删除流程。"
+                ),
+            )
+        if not is_admin_role(getattr(user, "role", None)):
+            raise HTTPException(
+                status_code=403,
+                detail="该学习路线已绑定课程，仅管理员可以删除",
+            )
+    elif path.user_id != user.id and not is_admin_role(getattr(user, "role", None)):
         raise HTTPException(status_code=403, detail="无权删除该路线")
 
     chapter_ids = [ch.id for ch in path.chapters]
@@ -471,9 +582,18 @@ async def delete_path(
 
 
 @router.get("/{path_id}", response_model=PathResponse)
-async def get_path(path_id: uuid.UUID, db: AsyncSession = Depends(get_db)):
+async def get_path(
+    path_id: uuid.UUID,
+    db: AsyncSession = Depends(get_db),
+    user: User | None = Depends(get_optional_user),
+):
     """获取学习路线详情（Redis 缓存）"""
-    # 1. 先查缓存
+    result = await db.execute(select(LearningPath).where(LearningPath.id == path_id))
+    path = result.scalar_one_or_none()
+    if not path or not await can_access_legacy_path(db, path, user):
+        raise HTTPException(status_code=404, detail="学习路线不存在")
+
+    # Authorization always precedes cache access to prevent private-ID leakage.
     try:
         cached = await cache_get("path", str(path_id))
         if cached:
@@ -481,13 +601,6 @@ async def get_path(path_id: uuid.UUID, db: AsyncSession = Depends(get_db)):
     except Exception as e:
         logger.warning(f"Redis cache_get failed for path {path_id}: {e}")
 
-    # 2. 缓存未命中 → 查库
-    result = await db.execute(select(LearningPath).where(LearningPath.id == path_id))
-    path = result.scalar_one_or_none()
-    if not path:
-        raise HTTPException(status_code=404, detail="学习路线不存在")
-
-    # 3. 写入缓存（10 分钟）
     try:
         await cache_set("path", str(path_id), value={
             "id": str(path.id),
@@ -505,39 +618,49 @@ async def get_path(path_id: uuid.UUID, db: AsyncSession = Depends(get_db)):
 
 
 @router.get("/{path_id}/chapters", response_model=list[ChapterResponse])
-async def get_chapters(path_id: uuid.UUID, db: AsyncSession = Depends(get_db)):
+async def get_chapters(
+    path_id: uuid.UUID,
+    db: AsyncSession = Depends(get_db),
+    user: User | None = Depends(get_optional_user),
+):
     """获取路线下的所有章节（Redis 缓存）"""
-    # 1. 先查缓存
-    try:
-        cached = await cache_get("chapters", str(path_id))
-        if cached:
-            return cached
-    except Exception as e:
-        logger.warning(f"Redis cache_get failed for chapters of path {path_id}: {e}")
+    path = await db.scalar(select(LearningPath).where(LearningPath.id == path_id))
+    if not path or not await can_access_legacy_path(db, path, user):
+        raise HTTPException(status_code=404, detail="学习路线不存在")
+    mapped_course = await db.scalar(
+        select(Course).where(Course.legacy_path_id == path_id)
+    )
 
-    # 2. 缓存未命中 → 查库
     result = await db.execute(
         select(Chapter).where(Chapter.path_id == path_id).order_by(Chapter.sort_order)
     )
-    chapters = result.scalars().all()
+    chapters = list(result.scalars().all())
+    if not mapped_course:
+        return chapters
 
-    # 3. 写入缓存（5 分钟，章节状态变化时会失效）
-    try:
-        chapter_list = [
-            {
-                "id": str(ch.id),
-                "path_id": str(ch.path_id),
-                "sort_order": ch.sort_order,
-                "title": ch.title,
-                "summary": ch.summary,
-                "status": ch.status,
-                "completed_at": ch.completed_at.isoformat() if ch.completed_at else None,
-                "created_at": ch.created_at.isoformat() if ch.created_at else None,
-            }
-            for ch in chapters
-        ]
-        await cache_set("chapters", str(path_id), value=chapter_list, ttl=300)
-    except Exception as e:
-        logger.warning(f"Redis cache_set failed for chapters of path {path_id}: {e}")
-
-    return chapters
+    progress_by_chapter = {}
+    if user:
+        progress_rows = (
+            await db.execute(
+                select(ChapterProgress, CourseChapter)
+                .join(Enrollment, Enrollment.id == ChapterProgress.enrollment_id)
+                .join(CourseChapter, CourseChapter.id == ChapterProgress.chapter_id)
+                .where(
+                    Enrollment.user_id == user.id,
+                    Enrollment.course_id == mapped_course.id,
+                )
+            )
+        ).all()
+        progress_by_chapter = {
+            course_chapter.legacy_chapter_id: progress
+            for progress, course_chapter in progress_rows
+            if course_chapter.legacy_chapter_id
+        }
+    return [
+        serialize_legacy_chapter(
+            chapter,
+            progress_by_chapter.get(chapter.id),
+            mapped=True,
+        )
+        for chapter in chapters
+    ]

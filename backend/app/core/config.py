@@ -4,6 +4,10 @@ from pathlib import Path
 
 _BACKEND_DIR = Path(__file__).resolve().parents[2]
 _REPO_ROOT = _BACKEND_DIR.parent
+_DEFAULT_JWT_SECRETS = frozenset({
+    "",
+    "codepilot-dev-secret-change-in-production",
+})
 
 
 class Settings(BaseSettings):
@@ -28,8 +32,16 @@ class Settings(BaseSettings):
 
     # LLM — DeepSeek (OpenAI 兼容)
     LLM_API_KEY: str = ""
-    LLM_MODEL: str = "deepseek-chat"
+    LLM_MODEL: str = "deepseek-flash"
     LLM_BASE_URL: str = "https://api.deepseek.com"
+    LLM_RATE_LIMIT_PER_MINUTE: int = 20
+    LLM_MAX_CONCURRENT_REQUESTS: int = 3
+    LLM_MONTHLY_PLATFORM_TOKEN_QUOTA: int = 1_000_000
+    LLM_QUOTA_RESERVE_OUTPUT_TOKENS: int = 4096
+    LLM_PRICING_JSON: str = "{}"
+
+    # General REST API fixed-window limit per authenticated user or IP
+    API_RATE_LIMIT_PER_MINUTE: int = 120
 
     # Embeddings — 阿里云百炼（OpenAI 兼容模式）
     EMBEDDING_API_KEY: str = ""
@@ -44,6 +56,12 @@ class Settings(BaseSettings):
     # App
     APP_ENV: str = "development"
     APP_DEBUG: bool = True
+    LOG_LEVEL: str = "INFO"
+    SENTRY_DSN: str = ""
+    SENTRY_TRACES_SAMPLE_RATE: float = 0.1
+    ALERT_WEBHOOK_URL: str = ""
+    ALERT_COOLDOWN_SECONDS: int = 300
+    ALERT_5XX_THRESHOLD_PER_MINUTE: int = 5
 
     # JWT
     JWT_SECRET_KEY: str = "codepilot-dev-secret-change-in-production"
@@ -67,6 +85,17 @@ class Settings(BaseSettings):
 @lru_cache
 def get_settings() -> Settings:
     return Settings()
+
+
+def validate_runtime_security(settings: Settings) -> None:
+    """Fail closed when a deployable environment uses a known weak JWT secret."""
+    if (
+        settings.APP_ENV.strip().lower() in {"production", "staging"}
+        and settings.JWT_SECRET_KEY.strip() in _DEFAULT_JWT_SECRETS
+    ):
+        raise RuntimeError(
+            "JWT_SECRET_KEY must be set to a non-default value in production/staging"
+        )
 
 
 def is_admin_email(email: str | None) -> bool:

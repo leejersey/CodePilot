@@ -3,21 +3,44 @@
 import uuid
 
 from fastapi import APIRouter, Depends, HTTPException, Query
-from sqlalchemy import select
+from sqlalchemy import case, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.core.deps import require_admin
+from app.core.deps import get_current_user, is_admin_role, require_admin, require_creator
 from app.db.arq import get_arq_pool
 from app.db.database import get_db
-from app.models.models import BackgroundJob, User
+from app.models.models import BackgroundJob, Course, User
 from app.schemas.schemas import BackgroundJobResponse
 from app.services.background_jobs import FUNCTION_BY_TYPE
+from app.services.course_generation import (
+    require_course_job_actor,
+    validate_rebuild_permission,
+)
 
 router = APIRouter()
 
 
 def _can_access(user: User, job: BackgroundJob) -> bool:
     return user.role == "super_admin" or job.user_id == user.id
+
+
+async def _authorize_retry(
+    db: AsyncSession,
+    user: User,
+    job: BackgroundJob,
+) -> None:
+    if job.job_type not in {"course_generate", "course_rebuild"}:
+        return
+    try:
+        require_course_job_actor(user)
+    except PermissionError as exc:
+        raise HTTPException(status_code=403, detail=str(exc)) from exc
+    if job.job_type == "course_rebuild":
+        course_id = (job.payload or {}).get("course_id")
+        course = await db.get(Course, uuid.UUID(str(course_id))) if course_id else None
+        if not course:
+            raise HTTPException(status_code=409, detail="待重建课程已不存在")
+        validate_rebuild_permission(course, user)
 
 
 @router.get("", response_model=list[BackgroundJobResponse])
@@ -39,11 +62,31 @@ async def list_jobs(
     return list(result.scalars().all())
 
 
+@router.get("/admin/courses", response_model=list[BackgroundJobResponse])
+async def list_course_jobs(
+    limit: int = Query(200, ge=1, le=200),
+    db: AsyncSession = Depends(get_db),
+    user: User = Depends(require_creator),
+):
+    active_statuses = ("queued", "processing", "retrying")
+    query = select(BackgroundJob).where(
+        BackgroundJob.job_type.in_(("course_generate", "course_rebuild"))
+    )
+    if not is_admin_role(user.role):
+        query = query.where(BackgroundJob.user_id == user.id)
+    query = query.order_by(
+        case((BackgroundJob.status.in_(active_statuses), 0), else_=1),
+        BackgroundJob.created_at.desc(),
+    ).limit(limit)
+    result = await db.execute(query)
+    return list(result.scalars().all())
+
+
 @router.get("/{job_id}", response_model=BackgroundJobResponse)
 async def get_job(
     job_id: uuid.UUID,
     db: AsyncSession = Depends(get_db),
-    user: User = Depends(require_admin),
+    user: User = Depends(get_current_user),
 ):
     job = await db.get(BackgroundJob, job_id)
     if not job or not _can_access(user, job):
@@ -55,7 +98,7 @@ async def get_job(
 async def retry_job(
     job_id: uuid.UUID,
     db: AsyncSession = Depends(get_db),
-    user: User = Depends(require_admin),
+    user: User = Depends(get_current_user),
 ):
     result = await db.execute(
         select(BackgroundJob)
@@ -67,6 +110,7 @@ async def retry_job(
         raise HTTPException(status_code=404, detail="任务不存在")
     if job.status != "failed":
         raise HTTPException(status_code=409, detail="只有失败任务可以重试")
+    await _authorize_retry(db, user, job)
     function_name = FUNCTION_BY_TYPE.get(job.job_type)
     if not function_name:
         raise HTTPException(status_code=422, detail="此任务不支持重试")

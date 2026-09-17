@@ -5,8 +5,10 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import {
   ArrowLeft,
+  Activity,
   BookOpen,
   ClipboardList,
+  GraduationCap,
   LayoutDashboard,
   Menu,
   ShieldCheck,
@@ -20,7 +22,9 @@ import { ThemeToggle } from "@/components/ThemeToggle";
 
 const navItems = [
   { label: "管理概览", href: "/admin", icon: LayoutDashboard, exact: true },
+  { label: "运行监控", href: "/admin/observability", icon: Activity },
   { label: "知识库管理", href: "/admin/knowledge", icon: BookOpen },
+  { label: "课程管理", href: "/admin/courses", icon: GraduationCap },
   { label: "练习管理", href: "/admin/exercises", icon: ClipboardList },
 ];
 

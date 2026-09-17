@@ -57,7 +57,9 @@ async def generate_exercise(
   "tags": ["标签1", "标签2"]
 }}"""
 
-    return await call_llm_json(prompt, temperature=0.7)
+    return await call_llm_json(
+        prompt, temperature=0.7, request_type="exercise_generate"
+    )
 
 
 async def judge_submission(description: str, test_cases: list | None, code: str, language: str = "python") -> dict:
@@ -84,7 +86,9 @@ async def judge_submission(description: str, test_cases: list | None, code: str,
 ```{language}
 {code}
 ```"""
-        raw = await call_llm_json(fallback_prompt, temperature=0.1)
+        raw = await call_llm_json(
+            fallback_prompt, temperature=0.1, request_type="judge_fallback"
+        )
         raw_results = raw.get("test_results") if isinstance(raw.get("test_results"), list) else []
         sanitized = []
         for index, case in enumerate(cases):
@@ -123,7 +127,9 @@ async def judge_submission(description: str, test_cases: list | None, code: str,
 }}"""
 
     try:
-        feedback = await call_llm_json(prompt, temperature=0.2)
+        feedback = await call_llm_json(
+            prompt, temperature=0.2, request_type="judge_feedback"
+        )
         judgement["ai_feedback"] = feedback.get("ai_feedback", "")
     except Exception:
         judgement["ai_feedback"] = "判题已完成，请根据测试点状态检查输入输出与边界条件。"

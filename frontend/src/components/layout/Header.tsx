@@ -8,23 +8,26 @@ import {
   ChevronDown,
   Code2,
   Compass,
+  GraduationCap,
   History,
   LayoutDashboard,
   LogIn,
   LogOut,
   Menu,
+  PenLine,
   Search,
   Settings,
   ShieldCheck,
   Sparkles,
-  User,
   X,
 } from "lucide-react";
 import { CommandMenu } from "./CommandMenu";
 import { ThemeToggle } from "@/components/ThemeToggle";
+import { isRealAccount } from "@/lib/accountAccess";
+import { isActiveNavRoute } from "@/lib/courseExperience";
 
 export function Header() {
-  const { user, init, logout, loading, isAdmin } = useAuth();
+  const { user, init, logout, loading, isAdmin, isCreator } = useAuth();
   const pathname = usePathname();
   const [menuOpen, setMenuOpen] = useState(false);
   const [mobileNavOpen, setMobileNavOpen] = useState(false);
@@ -38,8 +41,11 @@ export function Header() {
     init();
   }, [init]);
 
+  const signedIn = isRealAccount(user);
+
   // 全局快捷键 Cmd+K / Ctrl+K 监听
   useEffect(() => {
+    if (!signedIn) return;
     const handleKeyDown = (e: KeyboardEvent) => {
       if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "k") {
         e.preventDefault();
@@ -48,7 +54,7 @@ export function Header() {
     };
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
-  }, []);
+  }, [signedIn]);
 
   // 点击外部关闭菜单
   useEffect(() => {
@@ -62,14 +68,16 @@ export function Header() {
   }, []);
 
   const navItems = [
-    { label: "学习路径", href: "/learn", icon: Compass },
-    ...(isAdmin
-      ? [
-          { label: "后台管理", href: "/admin", icon: ShieldCheck },
-        ]
-      : []),
+    { label: "课程中心", href: "/courses", icon: Compass },
+    { label: "我的课程", href: "/learn", icon: GraduationCap },
     { label: "练习", href: "/exercises", icon: Code2 },
     { label: "仪表盘", href: "/dashboard", icon: LayoutDashboard },
+    ...(isCreator
+      ? [{ label: "创作台", href: "/creator/courses", icon: PenLine }]
+      : []),
+    ...(isAdmin
+      ? [{ label: "后台管理", href: "/admin", icon: ShieldCheck }]
+      : []),
   ];
 
   return (
@@ -86,9 +94,9 @@ export function Header() {
             </span>
           </Link>
 
-          <nav className="hidden md:flex items-center gap-1 font-headline text-sm tracking-wide">
+          {signedIn && <nav className="hidden md:flex items-center gap-1 font-headline text-sm tracking-wide">
             {navItems.map((item) => {
-              const isActive = pathname.startsWith(item.href);
+              const isActive = isActiveNavRoute(pathname, item.href);
               return (
                 <Link
                   key={item.href}
@@ -104,13 +112,13 @@ export function Header() {
                 </Link>
               );
             })}
-          </nav>
+          </nav>}
         </div>
 
         {/* Right Actions */}
         <div className="flex items-center gap-3">
           {/* Quick Command Trigger */}
-          <button
+          {signedIn && <button
             onClick={() => setCommandMenuOpen(true)}
             className="hidden sm:flex items-center gap-2.5 px-3 py-1.5 rounded-xl bg-slate-100/80 hover:bg-slate-200/80 dark:bg-surface-container-low/70 dark:hover:bg-surface-container-high/80 border border-slate-200/80 dark:border-white/10 hover:border-primary/40 text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-200 text-xs transition-all shadow-xs group"
           >
@@ -119,13 +127,13 @@ export function Header() {
             <kbd className="px-1.5 py-0.5 rounded bg-white dark:bg-white/5 border border-slate-200 dark:border-white/10 text-[10px] font-mono text-slate-500 dark:text-slate-400 group-hover:border-primary/30">
               ⌘K
             </kbd>
-          </button>
+          </button>}
 
           {/* Theme Switcher Toggle */}
           <ThemeToggle />
 
           {/* History */}
-          <Link
+          {signedIn && <Link
             href="/history"
             className={`p-2 rounded-xl border transition-all ${
               pathname === "/history"
@@ -135,12 +143,12 @@ export function Header() {
             title="学习历史"
           >
             <History size={18} />
-          </Link>
+          </Link>}
 
           {/* User Section */}
           {loading ? (
             <div className="w-9 h-9 rounded-full bg-slate-200 dark:bg-surface-container-low border border-slate-300 dark:border-white/10 animate-pulse" />
-          ) : user ? (
+          ) : signedIn && user ? (
             /* Logged in */
             <div className="relative" ref={menuRef}>
               <button
@@ -228,17 +236,17 @@ export function Header() {
           )}
 
           {/* Mobile Hamburger */}
-          <button
+          {signedIn && <button
             onClick={() => setMobileNavOpen(!mobileNavOpen)}
             className="md:hidden p-2 rounded-xl text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-200 hover:bg-slate-100 dark:hover:bg-white/5"
           >
             {mobileNavOpen ? <X size={20} /> : <Menu size={20} />}
-          </button>
+          </button>}
         </div>
       </header>
 
       {/* Mobile Drawer Navigation */}
-      {mobileNavOpen && (
+      {signedIn && mobileNavOpen && (
         <div className="md:hidden fixed top-[61px] inset-x-0 bg-white/95 dark:bg-surface-container-high/95 backdrop-blur-2xl border-b border-slate-200 dark:border-white/10 z-30 p-4 space-y-2 animate-in slide-in-from-top duration-200">
           {navItems.map((item) => (
             <Link
@@ -269,7 +277,7 @@ export function Header() {
       )}
 
       {/* Command Menu Modal */}
-      <CommandMenu isOpen={commandMenuOpen} onClose={() => setCommandMenuOpen(false)} />
+      {signedIn && <CommandMenu isOpen={commandMenuOpen} onClose={() => setCommandMenuOpen(false)} />}
     </>
   );
 }

@@ -55,7 +55,9 @@ async def run_code(
 {body.code}
 ```"""
         with llm_user_context(user):
-            simulated = await call_llm_json(prompt, temperature=0.0)
+            simulated = await call_llm_json(
+                prompt, temperature=0.0, request_type="code_fallback"
+            )
         return CodeRunResponse(
             output=str(simulated.get("output") or ""),
             has_error=bool(simulated.get("has_error")),

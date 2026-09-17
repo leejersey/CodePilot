@@ -81,7 +81,7 @@ REDIS_URL=redis://localhost:6380/0
 
 # LLM — DeepSeek
 LLM_API_KEY=your-deepseek-api-key-here
-LLM_MODEL=deepseek-chat
+LLM_MODEL=deepseek-flash
 LLM_BASE_URL=https://api.deepseek.com
 
 # Embeddings — 阿里云百炼（知识库 RAG）

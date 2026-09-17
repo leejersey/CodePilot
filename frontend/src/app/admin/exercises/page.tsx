@@ -47,6 +47,10 @@ export default function AdminExercisesPage() {
   const [statusFilter, setStatusFilter] = useState("");
   const [error, setError] = useState("");
   const [generationJobs, setGenerationJobs] = useState<BackgroundJob[]>([]);
+  const [dismissedJobIds, setDismissedJobIds] = useState<Set<string>>(
+    () => new Set()
+  );
+  const [jobClock, setJobClock] = useState(() => Date.now());
 
   const [showGenerate, setShowGenerate] = useState(false);
   const [kbs, setKbs] = useState<ExerciseSourceKb[]>([]);
@@ -93,6 +97,24 @@ export default function AdminExercisesPage() {
       window.clearTimeout(timer);
     };
   }, [generationJobs, refresh]);
+
+  useEffect(() => {
+    const hasRecentTerminalJob = generationJobs.some((job) => {
+      if (!["completed", "failed", "cancelled"].includes(job.status)) return false;
+      const finishedAt = Date.parse(job.finished_at || job.updated_at);
+      return Number.isFinite(finishedAt) && Date.now() - finishedAt < 15_000;
+    });
+    if (!hasRecentTerminalJob) return;
+    const timer = window.setInterval(() => setJobClock(Date.now()), 1000);
+    return () => window.clearInterval(timer);
+  }, [generationJobs]);
+
+  const visibleGenerationJobs = generationJobs.filter((job) => {
+    if (dismissedJobIds.has(job.id)) return false;
+    if (["queued", "processing", "retrying"].includes(job.status)) return true;
+    const finishedAt = Date.parse(job.finished_at || job.updated_at);
+    return Number.isFinite(finishedAt) && jobClock - finishedAt < 15_000;
+  });
 
   const openGenerate = async () => {
     setShowGenerate(true);
@@ -225,14 +247,39 @@ export default function AdminExercisesPage() {
               ))}
             </div>
 
-            {generationJobs.slice(0, 3).map((job) => (
+            {visibleGenerationJobs.slice(0, 3).map((job) => (
               <div key={job.id} className={`flex items-center justify-between rounded-xl border px-4 py-3 text-xs ${job.status === "failed" ? "border-rose-500/25 bg-rose-500/10 text-rose-300" : "border-cyan-500/20 bg-cyan-500/10 text-cyan-200"}`}>
                 <span>
-                  {job.status === "completed" ? "出题完成" : job.status === "failed" ? `出题失败：${job.error_message}` : `后台出题中 · ${job.status} · 尝试 ${job.attempts || 1}`}
+                  {job.status === "completed" ? "出题完成，草稿已保存" : job.status === "failed" ? `出题失败：${job.error_message}` : `后台出题中 · ${job.status} · 尝试 ${job.attempts || 1}`}
                 </span>
-                {job.status === "failed" && (
-                  <button onClick={async () => { await retryBackgroundJob(job.id); await refresh(); }} className="rounded-lg border border-rose-400/30 px-3 py-1">重试</button>
-                )}
+                <div className="flex items-center gap-2">
+                  {job.status === "failed" && (
+                    <button
+                      onClick={async () => {
+                        setDismissedJobIds((ids) => {
+                          const next = new Set(ids);
+                          next.delete(job.id);
+                          return next;
+                        });
+                        await retryBackgroundJob(job.id);
+                        await refresh();
+                      }}
+                      className="rounded-lg border border-rose-400/30 px-3 py-1"
+                    >
+                      重试
+                    </button>
+                  )}
+                  {["completed", "failed", "cancelled"].includes(job.status) && (
+                    <button
+                      type="button"
+                      aria-label="关闭任务提示"
+                      onClick={() => setDismissedJobIds((ids) => new Set(ids).add(job.id))}
+                      className="rounded-md p-1 opacity-70 hover:bg-white/10 hover:opacity-100"
+                    >
+                      <X size={14} />
+                    </button>
+                  )}
+                </div>
               </div>
             ))}
 
@@ -388,9 +435,18 @@ export default function AdminExercisesPage() {
                   >
                     <option value="python">Python</option>
                     <option value="javascript">JavaScript</option>
+                    <option value="typescript">TypeScript</option>
                     <option value="go">Go</option>
                     <option value="rust">Rust</option>
+                    <option value="java">Java</option>
                     <option value="cpp">C++</option>
+                    <option value="c">C</option>
+                    <option value="csharp">C#</option>
+                    <option value="kotlin">Kotlin</option>
+                    <option value="swift">Swift</option>
+                    <option value="ruby">Ruby</option>
+                    <option value="php">PHP</option>
+                    <option value="bash">Bash</option>
                   </select>
                 </div>
                 <div>

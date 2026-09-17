@@ -11,10 +11,15 @@ from app.core.security import verify_token
 
 
 ADMIN_ROLES = frozenset({"admin", "super_admin"})
+CREATOR_ROLES = frozenset({"creator", "admin", "super_admin"})
 
 
 def is_admin_role(role: str | None) -> bool:
     return role in ADMIN_ROLES
+
+
+def is_creator_role(role: str | None) -> bool:
+    return role in CREATOR_ROLES
 
 
 def is_super_admin_role(role: str | None) -> bool:
@@ -26,62 +31,58 @@ async def get_current_user(
     authorization: str | None = Header(None),
     x_anonymous_id: str | None = Header(None, alias="X-Anonymous-ID"),
 ) -> User:
-    """
-    获取当前用户。
+    """Authenticate registered and anonymous users only through signed JWTs."""
+    _ = x_anonymous_id  # Explicitly ignored; retained only for graceful old-client rejection.
+    if not authorization or not authorization.startswith("Bearer "):
+        raise HTTPException(status_code=401, detail="请先获取签名登录会话")
 
-    优先级：
-    1. Authorization: Bearer <JWT> → 验证 Token，获取已注册用户
-    2. X-Anonymous-ID: <uuid> → 匿名模式（向下兼容）
-    3. 都没有 → 自动创建匿名用户
-    """
-
-    # ── 方式 1：JWT 认证 ──
-    if authorization and authorization.startswith("Bearer "):
-        token = authorization[7:]
-        payload = verify_token(token)
-        if not payload or "sub" not in payload:
-            raise HTTPException(status_code=401, detail="Token 无效或已过期")
-
-        user_id = uuid.UUID(payload["sub"])
-        result = await db.execute(select(User).where(User.id == user_id))
-        user = result.scalar_one_or_none()
-        if not user:
-            raise HTTPException(status_code=401, detail="用户不存在")
-        if getattr(user, "status", "active") != "active":
-            raise HTTPException(status_code=403, detail="账号已被禁用")
-        if payload.get("auth_version") != getattr(user, "auth_version", 1):
-            raise HTTPException(status_code=401, detail="登录状态已失效，请重新登录")
-        return user
-
-    # ── 方式 2：匿名模式（兼容 MVP）──
-    if not x_anonymous_id:
-        x_anonymous_id = str(uuid.uuid4())
-
+    token = authorization[7:]
+    payload = verify_token(token)
+    if not payload or "sub" not in payload:
+        raise HTTPException(status_code=401, detail="Token 无效或已过期")
     try:
-        anon_uuid = uuid.UUID(x_anonymous_id)
-    except ValueError:
-        raise HTTPException(status_code=400, detail="无效的 X-Anonymous-ID 格式")
-
-    result = await db.execute(select(User).where(User.id == anon_uuid))
+        user_id = uuid.UUID(payload["sub"])
+    except (TypeError, ValueError, AttributeError):
+        raise HTTPException(status_code=401, detail="Token 无效或已过期") from None
+    result = await db.execute(select(User).where(User.id == user_id))
     user = result.scalar_one_or_none()
-
     if not user:
-        user = User(
-            id=anon_uuid,
-            nickname="Learner",
-            auth_provider="anonymous",
-            role="learner",
-        )
-        db.add(user)
-        await db.flush()
-
+        raise HTTPException(status_code=401, detail="用户不存在")
+    if getattr(user, "status", "active") != "active":
+        raise HTTPException(status_code=403, detail="账号已被禁用")
+    if payload.get("auth_version") != getattr(user, "auth_version", 1):
+        raise HTTPException(status_code=401, detail="登录状态已失效，请重新登录")
     return user
+
+
+async def get_optional_user(
+    db: AsyncSession = Depends(get_db),
+    authorization: str | None = Header(None),
+    x_anonymous_id: str | None = Header(None, alias="X-Anonymous-ID"),
+) -> User | None:
+    """Return a requester when credentials are supplied, without creating guests."""
+    if not authorization:
+        return None
+    return await get_current_user(
+        db=db,
+        authorization=authorization,
+        x_anonymous_id=x_anonymous_id,
+    )
 
 
 async def require_admin(user: User = Depends(get_current_user)) -> User:
     """仅管理员可访问。"""
     if not is_admin_role(getattr(user, "role", None)):
         raise HTTPException(status_code=403, detail="需要管理员权限")
+    return user
+
+
+async def require_creator(user: User = Depends(get_current_user)) -> User:
+    """Creator accounts and administrators may manage creator courses."""
+    if getattr(user, "auth_provider", None) == "anonymous":
+        raise HTTPException(status_code=403, detail="匿名账号不能创建课程")
+    if not is_creator_role(getattr(user, "role", None)):
+        raise HTTPException(status_code=403, detail="需要创作者权限")
     return user
 
 

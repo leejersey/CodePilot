@@ -5,7 +5,7 @@ import Link from "next/link";
 import { FolderSearch, Plus, ArrowRight } from "lucide-react";
 
 interface EmptyStateProps {
-  icon?: React.ReactNode | React.ComponentType<{ className?: string; size?: number }>;
+  icon?: React.ReactNode | React.ElementType;
   title: string;
   description?: string;
   actionText?: string;
@@ -31,11 +31,9 @@ export function EmptyState({
     if (!icon) {
       return <FolderSearch size={28} className="text-cyan-400" />;
     }
-    if (typeof icon === "function") {
-      const IconComp = icon as React.ComponentType<{ className?: string; size?: number }>;
-      return <IconComp size={28} className="text-cyan-400" />;
-    }
-    return icon;
+    if (React.isValidElement(icon)) return icon;
+    const IconComp = icon as React.ElementType;
+    return <IconComp size={28} className="text-cyan-400" />;
   };
 
   const buttonLabel = action?.label || actionText;

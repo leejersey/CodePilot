@@ -14,6 +14,12 @@ def test_language_aliases_map_to_supported_judge0_ids():
     assert language_id_for("python") == 71
     assert language_id_for("javascript") == 63
     assert language_id_for("cpp") == 54
+    assert language_id_for("c") == 50
+    assert language_id_for("csharp") == 51
+    assert language_id_for("kotlin") == 78
+    assert language_id_for("ruby") == 72
+    assert language_id_for("php") == 68
+    assert language_id_for("bash") == 46
 
 
 def test_output_comparison_ignores_line_endings_and_trailing_space():

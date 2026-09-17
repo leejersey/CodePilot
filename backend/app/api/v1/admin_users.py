@@ -53,13 +53,24 @@ async def _ensure_not_last_super_admin(
 ) -> None:
     if target.role != "super_admin" or target.status != "active" or not removes_access:
         return
-    count = await db.scalar(
-        select(func.count(User.id)).where(
-            User.role == "super_admin",
-            User.status == "active",
+    locked_ids = list(
+        (
+            await db.execute(
+                select(User.id)
+                .where(
+                    User.role == "super_admin",
+                    User.status == "active",
+                )
+                .order_by(User.id)
+                .with_for_update()
+            )
         )
+        .scalars()
+        .all()
     )
-    if (count or 0) <= 1:
+    if target.id not in locked_ids:
+        return
+    if len(locked_ids) <= 1:
         raise HTTPException(status_code=400, detail="必须保留至少一个启用的超级管理员")
 
 
@@ -68,7 +79,7 @@ async def list_users(
     page: int = Query(1, ge=1),
     page_size: int = Query(20, ge=1, le=100),
     keyword: str | None = Query(None, max_length=100),
-    role: Literal["learner", "admin", "super_admin"] | None = None,
+    role: Literal["learner", "creator", "admin", "super_admin"] | None = None,
     status: Literal["active", "disabled"] | None = None,
     db: AsyncSession = Depends(get_db),
     _: User = Depends(require_super_admin),
@@ -105,6 +116,7 @@ async def list_users(
             "total": sum(role_counts.values()),
             "super_admin": role_counts.get("super_admin", 0),
             "admin": role_counts.get("admin", 0),
+            "creator": role_counts.get("creator", 0),
             "learner": role_counts.get("learner", 0),
             "active": status_counts.get("active", 0),
             "disabled": status_counts.get("disabled", 0),

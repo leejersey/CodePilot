@@ -807,7 +807,7 @@ graph TD
 | `DATABASE_URL` | Backend | PostgreSQL 连接串 |
 | `REDIS_URL` | Backend | Redis 连接串 |
 | `LLM_API_KEY` | Backend | DeepSeek / OpenAI API Key |
-| `LLM_MODEL` | Backend | 模型名称，如 `deepseek-chat` |
+| `LLM_MODEL` | Backend | 模型名称，如 `deepseek-flash` |
 | `LLM_BASE_URL` | Backend | API Base URL（方便切换） |
 | `SUPABASE_URL` | Both | Supabase 项目 URL |
 | `SUPABASE_ANON_KEY` | Frontend | Supabase 匿名公钥 |

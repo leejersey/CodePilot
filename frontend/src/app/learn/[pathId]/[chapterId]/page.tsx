@@ -2,7 +2,6 @@
 
 import { useEffect, useRef, useState, useCallback, type PointerEvent } from "react";
 import { useParams, useRouter } from "next/navigation";
-import Link from "next/link";
 import { useAuth } from "@/hooks/useAuth";
 import Editor from "@monaco-editor/react";
 import { useTheme } from "@/components/ThemeProvider";
@@ -17,20 +16,33 @@ import {
   getMessages,
   runCode as apiRunCode,
   generateSnippetExplain as apiGenerateSnippetExplain,
+  getChapterPractice,
+  recordLearningHeartbeat,
   updateChapterStatus,
+  type ChapterPractice,
 } from "@/lib/api";
 import { defaultFilename, extractCodeBlocks, fingerprintCode } from "@/lib/codeBlocks";
+import { chapterCompletionOutcome } from "@/lib/courseExperience";
+import { buildWebPreviewDocument, executionModeForLanguage, inferLearningLanguage, looksLikeHtmlDocument, normalizeLanguage } from "@/lib/languageRuntime";
 import { buildChapterArchive, safeArchiveName } from "@/lib/chapterExport";
+import {
+  appendChatImages,
+  CHAT_IMAGE_ACCEPT,
+  CHAT_IMAGE_MAX_COUNT,
+  composeUserMessageText,
+  type ChatImageAttachment,
+} from "@/lib/chatImages";
 import {
   DocumentLearningPanel,
   type DocAskContext,
 } from "@/components/DocumentLearningPanel";
-import { BookOpen, Bot, CheckCircle2, Download, Loader2, MessageSquare, Play, Send, User as UserIcon, X } from "lucide-react";
+import { ArrowRight, BookOpen, Bot, CheckCircle2, Download, Dumbbell, ImagePlus, Loader2, MessageSquare, Play, Send, Trophy, User as UserIcon, X } from "lucide-react";
 
 interface ChatMessage {
   id?: string;
   role: "user" | "assistant" | "system";
   content: string;
+  images?: ChatImageAttachment[];
 }
 
 interface EditorTab {
@@ -45,8 +57,17 @@ interface EditorTab {
 // 根据主题推断编辑器语言
 function detectLang(topic: string): { lang: string; file: string; comment: string; runtime: string } {
   const t = topic.toLowerCase();
-  if (t.includes("javascript") || t.includes("react") || t.includes("vue") || t.includes("node") || t.includes("next") || t.includes("typescript") || t.includes("ts")) {
-    return { lang: "javascript", file: "index.js", comment: "//", runtime: "Node.js 20 environment ready." };
+  if (t.includes("html") || t.includes("网页") || t.includes("web page")) {
+    return { lang: "html", file: "index.html", comment: "", runtime: "Browser preview ready." };
+  }
+  if (t.includes("css")) {
+    return { lang: "css", file: "styles.css", comment: "/*", runtime: "Browser preview ready." };
+  }
+  if (t.includes("typescript")) {
+    return { lang: "typescript", file: "index.ts", comment: "//", runtime: "TypeScript sandbox ready." };
+  }
+  if (t.includes("javascript") || t.includes("react") || t.includes("vue") || t.includes("node") || t.includes("next")) {
+    return { lang: "javascript", file: "index.js", comment: "//", runtime: "JavaScript sandbox ready." };
   }
   if (t.includes("go") || t.includes("golang")) {
     return { lang: "go", file: "main.go", comment: "//", runtime: "Go 1.22 environment ready." };
@@ -60,20 +81,52 @@ function detectLang(topic: string): { lang: string; file: string; comment: strin
   if (t.includes("c++") || t.includes("cpp")) {
     return { lang: "cpp", file: "main.cpp", comment: "//", runtime: "C++ 17 environment ready." };
   }
+  if (t.includes("c#") || t.includes("csharp")) {
+    return { lang: "csharp", file: "Program.cs", comment: "//", runtime: "C# sandbox ready." };
+  }
+  if (t.includes("kotlin")) return { lang: "kotlin", file: "Main.kt", comment: "//", runtime: "Kotlin sandbox ready." };
+  if (t.includes("swift")) return { lang: "swift", file: "main.swift", comment: "//", runtime: "Swift sandbox ready." };
+  if (t.includes("ruby")) return { lang: "ruby", file: "main.rb", comment: "#", runtime: "Ruby sandbox ready." };
+  if (t.includes("php")) return { lang: "php", file: "main.php", comment: "//", runtime: "PHP sandbox ready." };
+  if (t.includes("bash") || t.includes("shell")) return { lang: "bash", file: "main.sh", comment: "#", runtime: "Bash sandbox ready." };
+  if (/(^|[\s/])c([\s/]|$)/.test(t)) return { lang: "c", file: "main.c", comment: "//", runtime: "C sandbox ready." };
   return { lang: "python", file: "main.py", comment: "#", runtime: "Python 3.12 environment ready." };
 }
+
+function scratchCodeFor(language: string, comment: string): string {
+  if (language === "html") return "<!-- 在这里编写 HTML -->\n";
+  if (language === "css") return "/* 在这里编写 CSS */\n";
+  return `${comment} 在这里编写代码\n`;
+}
+
+const LANGUAGE_LABELS: Record<string, string> = {
+  html: "HTML",
+  css: "CSS",
+  javascript: "JavaScript",
+  typescript: "TypeScript",
+  python: "Python",
+  cpp: "C++",
+  csharp: "C#",
+  php: "PHP",
+  bash: "Bash",
+};
+
+const CONTEXT_SYNC_MARKER = "[CODEPILOT_CONTEXT_SYNC]";
 
 export default function LearningWorkspacePage() {
   const params = useParams();
   const pathId = params.pathId as string;
   const chapterId = params.chapterId as string;
-  const { token, init: authInit } = useAuth();
+  const { init: authInit } = useAuth();
   const { theme } = useTheme();
 
   useEffect(() => { authInit(); }, [authInit]);
 
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [input, setInput] = useState("");
+  const [pendingImages, setPendingImages] = useState<ChatImageAttachment[]>([]);
+  const [imageError, setImageError] = useState("");
+  const [lightboxUrl, setLightboxUrl] = useState<string | null>(null);
   const [streaming, setStreaming] = useState(false);
   const [convId, setConvId] = useState<string | null>(null);
   const [editorInfo, setEditorInfo] = useState({ lang: "python", file: "main.py", comment: "#", runtime: "Python 3.12 environment ready." });
@@ -89,10 +142,15 @@ export default function LearningWorkspacePage() {
   ]);
   const [activeTabId, setActiveTabId] = useState("scratch");
   const [consoleOutput, setConsoleOutput] = useState<string[]>(["环境加载中..."]);
+  const [webPreview, setWebPreview] = useState<string | null>(null);
   const [running, setRunning] = useState(false);
   const [chapterCompleted, setChapterCompleted] = useState(false);
   const [chapterTitle, setChapterTitle] = useState("本章内容");
   const [exporting, setExporting] = useState(false);
+  const [practice, setPractice] = useState<ChapterPractice | null>(null);
+  const [practiceOpen, setPracticeOpen] = useState(false);
+  const [practiceLoading, setPracticeLoading] = useState(false);
+  const [practiceError, setPracticeError] = useState("");
   const [completing, setCompleting] = useState(false);
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const [animationData, setAnimationData] = useState<any | null>(null);
@@ -105,6 +163,7 @@ export default function LearningWorkspacePage() {
   const wsRef = useRef<WebSocket | null>(null);
   const chatScrollRef = useRef<HTMLDivElement>(null);
   const docChatScrollRef = useRef<HTMLDivElement>(null);
+  const imageInputRef = useRef<HTMLInputElement>(null);
   const followChatRef = useRef(true);
   const followDocChatRef = useRef(true);
   const pendingTokensRef = useRef("");
@@ -116,6 +175,49 @@ export default function LearningWorkspacePage() {
   const SPLIT_KEY = "codepilot-learn-right-pct";
   const [rightPct, setRightPct] = useState(38);
   const [isDragging, setIsDragging] = useState(false);
+
+  useEffect(() => {
+    let disposed = false;
+    let sessionId: string | null = null;
+    let lastActivityAt = Date.now();
+    let sending = false;
+
+    const markActive = () => {
+      lastActivityAt = Date.now();
+    };
+    const sendHeartbeat = async (active: boolean) => {
+      if (sending || disposed) return;
+      sending = true;
+      try {
+        const result = await recordLearningHeartbeat(chapterId, sessionId, active);
+        if (!disposed) sessionId = result.session_id;
+      } catch {
+        // Learning analytics must never interrupt the learning workspace.
+      } finally {
+        sending = false;
+      }
+    };
+
+    void sendHeartbeat(false);
+    const timer = window.setInterval(() => {
+      const active =
+        document.visibilityState === "visible"
+        && document.hasFocus()
+        && Date.now() - lastActivityAt <= 120_000;
+      void sendHeartbeat(active);
+    }, 30_000);
+
+    window.addEventListener("pointerdown", markActive);
+    window.addEventListener("keydown", markActive);
+    window.addEventListener("scroll", markActive, true);
+    return () => {
+      disposed = true;
+      window.clearInterval(timer);
+      window.removeEventListener("pointerdown", markActive);
+      window.removeEventListener("keydown", markActive);
+      window.removeEventListener("scroll", markActive, true);
+    };
+  }, [chapterId]);
 
   useEffect(() => {
     try {
@@ -208,7 +310,23 @@ export default function LearningWorkspacePage() {
 
   const activeTab = tabs.find((t) => t.id === activeTabId) || tabs[0];
   const activeCode = activeTab?.code ?? "";
-  const activeLang = activeTab?.language || editorInfo.lang;
+  const activeLang = normalizeLanguage(activeTab?.language || editorInfo.lang);
+
+  const loadPractice = useCallback(async () => {
+    setPracticeLoading(true);
+    setPracticeError("");
+    try {
+      setPractice(await getChapterPractice(chapterId));
+    } catch (error) {
+      setPracticeError(error instanceof Error ? error.message : "章节练习加载失败");
+    } finally {
+      setPracticeLoading(false);
+    }
+  }, [chapterId]);
+
+  useEffect(() => {
+    void loadPractice();
+  }, [loadPractice]);
 
   const exportChapterCode = async () => {
     if (exporting || tabs.length === 0) return;
@@ -282,8 +400,8 @@ export default function LearningWorkspacePage() {
                 id: "scratch",
                 label: "草稿.py",
                 language: editorInfo.lang,
-                originCode: `${editorInfo.comment} 在这里编写代码\n`,
-                code: `${editorInfo.comment} 在这里编写代码\n`,
+                originCode: scratchCodeFor(editorInfo.lang, editorInfo.comment),
+                code: scratchCodeFor(editorInfo.lang, editorInfo.comment),
                 fingerprint: "scratch",
               } as EditorTab,
             ]),
@@ -379,13 +497,30 @@ export default function LearningWorkspacePage() {
     return new Promise((resolve, reject) => {
       if (wsRef.current) wsRef.current.close();
       const ws = new WebSocket(`${WS_BASE}/ws/chat/${conversationId}`);
+      const token = useAuth.getState().token;
+      let authenticated = false;
 
-      ws.onopen = () => { wsRef.current = ws; resolve(ws); };
-      ws.onerror = () => { setStreaming(false); reject(); };
+      ws.onopen = () => {
+        if (!token) {
+          ws.close(4401, "Authentication required");
+          reject(new Error("请先登录"));
+          return;
+        }
+        ws.send(JSON.stringify({ type: "auth", token }));
+      };
+      ws.onerror = () => {
+        flushStreamTokens();
+        setStreaming(false);
+        if (!authenticated) reject(new Error("WebSocket 连接失败"));
+      };
 
       ws.onmessage = (event) => {
         const data = JSON.parse(event.data);
-        if (data.type === "token") {
+        if (data.type === "authenticated") {
+          authenticated = true;
+          wsRef.current = ws;
+          resolve(ws);
+        } else if (data.type === "token") {
           appendStreamToken(data.content);
         } else if (data.type === "done") {
           flushStreamTokens();
@@ -394,10 +529,16 @@ export default function LearningWorkspacePage() {
           flushStreamTokens();
           setStreaming(false);
           appendSystemError(data.message || "未知错误");
+          if (!authenticated) reject(new Error(data.message || "WebSocket 身份验证失败"));
         }
       };
 
-      ws.onclose = () => { wsRef.current = null; };
+      ws.onclose = () => {
+        wsRef.current = null;
+        flushStreamTokens();
+        setStreaming(false);
+        if (!authenticated) reject(new Error("WebSocket 身份验证失败"));
+      };
     });
   }, [appendStreamToken, appendSystemError, flushStreamTokens]);
 
@@ -406,43 +547,51 @@ export default function LearningWorkspacePage() {
     let cancelled = false;
 
     async function initWorkspace() {
-      // 获取路线信息推断语言
-      let langLabel = "Python";
+      // 当前章节语言优先，路径主题只作为回退（混合语言路径不能统一按 Python）
+      let pathTopic = "";
       try {
         const p = await fetchPath(pathId);
         if (cancelled) return;
-        const info = detectLang(p.topic || "");
-        setEditorInfo(info);
-        const scratchCode = `${info.comment} 在这里编写代码\n`;
-        setTabs([
-          {
-            id: "scratch",
-            label: info.file.replace("main", "草稿").replace("Main", "草稿").replace("index", "草稿"),
-            language: info.lang,
-            originCode: scratchCode,
-            code: scratchCode,
-            fingerprint: "scratch",
-          },
-        ]);
-        setActiveTabId("scratch");
-        setConsoleOutput([info.runtime]);
-        langLabel = info.lang === "cpp" ? "C++" : info.lang.charAt(0).toUpperCase() + info.lang.slice(1);
+        pathTopic = p.topic || "";
       } catch { /* ignore */ }
 
       if (cancelled) return;
 
       // 获取章节信息
       let chapterTitle = "本章内容";
+      let chapterSummary = "";
       try {
         const ch = await fetchChapter(chapterId);
         if (cancelled) return;
         chapterTitle = ch.title || chapterTitle;
+        chapterSummary = ch.summary || "";
         setChapterTitle(chapterTitle);
+        setChapterCompleted(ch.status === "completed");
       } catch { /* ignore */ }
+
+      const inferredLanguage = inferLearningLanguage(pathTopic, chapterTitle, chapterSummary);
+      const info = detectLang(inferredLanguage);
+      const langLabel = LANGUAGE_LABELS[info.lang]
+        || info.lang.charAt(0).toUpperCase() + info.lang.slice(1);
+      setEditorInfo(info);
+      const scratchCode = scratchCodeFor(info.lang, info.comment);
+      setTabs([
+        {
+          id: "scratch",
+          label: info.file.replace("main", "草稿").replace("Main", "草稿").replace("index", "草稿"),
+          language: info.lang,
+          originCode: scratchCode,
+          code: scratchCode,
+          fingerprint: "scratch",
+        },
+      ]);
+      setActiveTabId("scratch");
+      setConsoleOutput([info.runtime]);
 
       // 优先恢复该章节已有对话
       let conversationId: string | null = null;
       let hasHistory = false;
+      let needsContextSync = false;
       try {
         const existing = await getConversationByChapter(chapterId);
         if (cancelled) return;
@@ -457,8 +606,20 @@ export default function LearningWorkspacePage() {
               role: m.role as ChatMessage["role"],
               content: m.content,
             }));
-          if (restored.length > 0) {
-            setMessages(restored);
+          let markerIndex = -1;
+          restored.forEach((message, index) => {
+            if (message.content.startsWith(CONTEXT_SYNC_MARKER)) markerIndex = index;
+          });
+          let visibleHistory = restored.slice(markerIndex + 1);
+          const stalePythonContext = info.lang !== "python" && visibleHistory.some(
+            (message) => /(?:当前|学习)?路径语言.{0,8}(?:是|为)\s*(?:\*\*)?Python/i.test(message.content)
+          );
+          if (stalePythonContext) {
+            visibleHistory = [];
+            needsContextSync = true;
+          }
+          if (visibleHistory.length > 0) {
+            setMessages(visibleHistory);
             hasHistory = true;
           }
         }
@@ -485,7 +646,7 @@ export default function LearningWorkspacePage() {
           }
           ws.send(JSON.stringify({
             type: "message",
-            content: `我刚进入「${chapterTitle}」章节的学习页面。我当前的学习路径语言是 ${langLabel}。请你作为 AI 编程导师，全程用 ${langLabel} 讲解并给代码示例，不要询问或切换其他语言。先简要介绍本章会学到什么，然后问问我有没有相关基础、想从哪个方面开始学起。用友好亲切的语气。`,
+            content: `${needsContextSync ? `${CONTEXT_SYNC_MARKER}\n请忽略此前错误的 Python 语言判断。` : ""}我刚进入「${chapterTitle}」章节的学习页面。当前章节的主要语言是 ${langLabel}。请你作为 AI 编程导师，本章用 ${langLabel} 讲解并给代码示例，不要擅自改成 Python。先简要介绍本章会学到什么，然后问问我有没有相关基础、想从哪个方面开始学起。用友好亲切的语气。`,
           }));
         }
       } catch {
@@ -510,7 +671,7 @@ export default function LearningWorkspacePage() {
   }, [chapterId, pathId, createConversation, connectWs]);
 
   // 5. 运行代码
-  const { runPython, loading: pyodideLoading, ready: pyodideReady } = usePyodide();
+  const { runPython, ready: pyodideReady } = usePyodide();
 
   const runCode = async () => {
     if (running || !activeCode.trim()) return;
@@ -518,8 +679,28 @@ export default function LearningWorkspacePage() {
     setConsoleOutput(prev => [...prev, "▶ Running..."]);
 
     try {
-      if (activeLang === "python") {
+      const executionMode = executionModeForLanguage(activeLang);
+      if (executionMode === "web" || looksLikeHtmlDocument(activeCode)) {
+        const webTabs = tabs.filter((tab) => {
+          const lang = normalizeLanguage(tab.language);
+          return (
+            ["html", "css", "javascript"].includes(lang)
+            || looksLikeHtmlDocument(tab.code)
+          );
+        });
+        // 当前标签排在最前，避免多份 HTML 时一直预览到「代码1」。
+        const ordered = [
+          ...webTabs.filter((tab) => tab.id === activeTabId),
+          ...webTabs.filter((tab) => tab.id !== activeTabId),
+        ];
+        const previewDocument = buildWebPreviewDocument(
+          ordered.map((tab) => ({ language: tab.language, code: tab.code }))
+        );
+        setWebPreview(previewDocument);
+        setConsoleOutput(["▶ Browser preview refreshed.", "HTML / CSS / JavaScript 已在隔离预览中运行。"]);
+      } else if (executionMode === "pyodide") {
         // Python → Pyodide 浏览器端真实执行
+        setWebPreview(null);
         if (!pyodideReady) {
           setConsoleOutput(prev => [...prev, "⚙️ 正在加载 Python 环境 (Pyodide)..."]);
         }
@@ -531,6 +712,7 @@ export default function LearningWorkspacePage() {
         ]);
       } else {
         // 非 Python → Judge0 隔离沙箱真实执行
+        setWebPreview(null);
         const data = await apiRunCode(activeCode, activeLang);
         setConsoleOutput(prev => [
           ...prev,
@@ -546,11 +728,30 @@ export default function LearningWorkspacePage() {
     }
   };
 
-  // 4. 发送消息
-  const sendMessage = async () => {
-    if (!input.trim() || streaming) return;
+  // 4. 发送消息（支持截图）
+  const addPendingImages = useCallback(async (files: File[]) => {
+    if (!files.length) return;
+    const { next, error } = await appendChatImages(pendingImages, files);
+    setPendingImages(next);
+    setImageError(error || "");
+  }, [pendingImages]);
 
-    const userMsg: ChatMessage = { role: "user", content: input.trim() };
+  const removePendingImage = useCallback((id: string) => {
+    setPendingImages((prev) => prev.filter((img) => img.id !== id));
+    setImageError("");
+  }, []);
+
+  const sendMessage = async () => {
+    const text = input.trim();
+    if ((!text && pendingImages.length === 0) || streaming) return;
+
+    const imagesForSend = pendingImages;
+    const displayText = composeUserMessageText(text, imagesForSend.length);
+    const userMsg: ChatMessage = {
+      role: "user",
+      content: displayText,
+      images: imagesForSend.length ? imagesForSend : undefined,
+    };
     const target = learnMode === "doc" ? "doc" : "ai";
     replyTargetRef.current = target;
     if (target === "doc") {
@@ -561,6 +762,8 @@ export default function LearningWorkspacePage() {
       setMessages((prev) => [...prev, userMsg]);
     }
     setInput("");
+    setPendingImages([]);
+    setImageError("");
     setStreaming(true);
 
     let currentConvId = convId;
@@ -576,7 +779,15 @@ export default function LearningWorkspacePage() {
     wsRef.current?.send(
       JSON.stringify({
         type: "message",
-        content: userMsg.content,
+        content: text,
+        ...(imagesForSend.length
+          ? {
+              images: imagesForSend.map((img) => ({
+                dataUrl: img.dataUrl,
+                mime: img.mime,
+              })),
+            }
+          : {}),
         ...(target === "doc" && docAskContext
           ? { doc_context: docAskContext }
           : {}),
@@ -668,6 +879,21 @@ export default function LearningWorkspacePage() {
                   msg.role === "user" ? (
                     <div key={i} className="text-xs text-right">
                       <span className="inline-block bg-primary/15 border border-primary/25 rounded-xl rounded-tr-sm px-3 py-1.5 text-on-surface max-w-[90%] text-left whitespace-pre-wrap">
+                        {msg.images && msg.images.length > 0 && (
+                          <span className="flex flex-wrap gap-1.5 mb-1.5 justify-end">
+                            {msg.images.map((img) => (
+                              <button
+                                key={img.id}
+                                type="button"
+                                onClick={() => setLightboxUrl(img.dataUrl)}
+                                className="block overflow-hidden rounded-md border border-white/20"
+                              >
+                                {/* eslint-disable-next-line @next/next/no-img-element */}
+                                <img src={img.dataUrl} alt={img.name} className="h-14 w-14 object-cover" />
+                              </button>
+                            ))}
+                          </span>
+                        )}
                         {msg.content}
                       </span>
                     </div>
@@ -719,6 +945,21 @@ export default function LearningWorkspacePage() {
                     <UserIcon size={15} />
                   </div>
                   <div className="p-4 rounded-2xl rounded-tr-none bg-sky-50 dark:bg-primary/10 border border-sky-200/90 dark:border-primary/20 shadow-xs dark:shadow-lg text-slate-900 dark:text-on-surface">
+                    {msg.images && msg.images.length > 0 && (
+                      <div className="flex flex-wrap gap-2 mb-2 justify-end">
+                        {msg.images.map((img) => (
+                          <button
+                            key={img.id}
+                            type="button"
+                            onClick={() => setLightboxUrl(img.dataUrl)}
+                            className="block overflow-hidden rounded-lg border border-sky-200/80 dark:border-primary/30 hover:opacity-90"
+                          >
+                            {/* eslint-disable-next-line @next/next/no-img-element */}
+                            <img src={img.dataUrl} alt={img.name} className="h-20 w-20 object-cover" />
+                          </button>
+                        ))}
+                      </div>
+                    )}
                     <p className="leading-relaxed whitespace-pre-wrap text-[14.5px]">{msg.content}</p>
                   </div>
                 </div>
@@ -770,6 +1011,22 @@ export default function LearningWorkspacePage() {
           }`}
         >
           <div className="relative flex items-end gap-3 max-w-4xl mx-auto">
+            <button
+              type="button"
+              onClick={() => {
+                setPracticeOpen(true);
+                void loadPractice();
+              }}
+              className="flex-shrink-0 flex items-center gap-1.5 px-4 py-3 bg-sky-50 hover:bg-sky-100 dark:bg-primary/10 dark:hover:bg-primary/20 text-sky-700 dark:text-primary border border-sky-200 dark:border-primary/25 rounded-2xl text-xs font-bold transition-all active:scale-95 shadow-xs"
+            >
+              <Dumbbell size={15} />
+              章节练习
+              {practice && practice.exercises.length > 0 && (
+                <span className="px-1.5 py-0.5 rounded-full bg-sky-200/70 dark:bg-primary/20 text-[10px]">
+                  {practice.exercises.filter((item) => item.passed).length}/{practice.exercises.length}
+                </span>
+              )}
+            </button>
             {!chapterCompleted ? (
               <button
                 className="flex-shrink-0 flex items-center gap-1.5 px-4 py-3 bg-purple-50 hover:bg-purple-100 dark:bg-secondary/20 dark:hover:bg-secondary/30 text-purple-700 dark:text-secondary border border-purple-200 dark:border-secondary/30 rounded-2xl text-xs font-bold transition-all active:scale-95 disabled:opacity-50 shadow-xs"
@@ -777,9 +1034,18 @@ export default function LearningWorkspacePage() {
                   if (completing) return;
                   setCompleting(true);
                   try {
-                    await updateChapterStatus(chapterId, "completed");
+                    const updated = await updateChapterStatus(chapterId, "completed");
+                    const outcome = chapterCompletionOutcome(updated);
+                    if (outcome.kind === "preview") {
+                      const notice = { role: "system" as const, content: outcome.message };
+                      if (learnMode === "doc") setDocMessages((prev) => [...prev, notice]);
+                      else setMessages((prev) => [...prev, notice]);
+                      return;
+                    }
                     setChapterCompleted(true);
                     window.dispatchEvent(new Event("chapter-status-changed"));
+                    await loadPractice();
+                    setPracticeOpen(true);
                     if (learnMode === "doc") {
                       setDocMessages((prev) => [
                         ...prev,
@@ -814,30 +1080,231 @@ export default function LearningWorkspacePage() {
                 已完成
               </div>
             )}
-            <div className="flex-1 relative flex items-center rounded-2xl bg-white dark:bg-surface-container-low border border-slate-300 dark:border-white/10 shadow-xs focus-within:border-sky-500 dark:focus-within:border-primary focus-within:ring-2 focus-within:ring-sky-500/20 transition-all">
-              <input
-                className="w-full bg-transparent py-3.5 pl-4 pr-12 text-slate-900 dark:text-on-surface text-sm placeholder:text-slate-400 dark:placeholder:text-slate-500 outline-none font-body"
-                placeholder={
-                  learnMode === "doc"
-                    ? "针对当前文档阶段提问…（可先选中文中片段）"
-                    : "向 AI 导师提问或探讨当前知识点..."
-                }
-                type="text"
-                value={input}
-                onChange={(e) => setInput(e.target.value)}
-                onKeyDown={(e) => e.key === "Enter" && !e.shiftKey && sendMessage()}
-                disabled={streaming}
-              />
-              <button
-                className="absolute right-3.5 text-sky-600 dark:text-primary hover:scale-105 transition-transform disabled:opacity-40 p-1.5 rounded-xl hover:bg-sky-50 dark:hover:bg-primary/10"
-                onClick={sendMessage}
-                disabled={streaming || !input.trim()}
-              >
-                <Send size={17} />
-              </button>
+            <div className="flex-1 flex flex-col gap-1.5">
+              {pendingImages.length > 0 && (
+                <div className="flex flex-wrap gap-2 px-1">
+                  {pendingImages.map((img) => (
+                    <div key={img.id} className="relative group">
+                      <button
+                        type="button"
+                        onClick={() => setLightboxUrl(img.dataUrl)}
+                        className="block overflow-hidden rounded-lg border border-slate-200 dark:border-white/15"
+                      >
+                        {/* eslint-disable-next-line @next/next/no-img-element */}
+                        <img src={img.dataUrl} alt={img.name} className="h-14 w-14 object-cover" />
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => removePendingImage(img.id)}
+                        className="absolute -top-1.5 -right-1.5 w-5 h-5 rounded-full bg-slate-800 text-white flex items-center justify-center opacity-90 hover:opacity-100"
+                        aria-label="移除图片"
+                      >
+                        <X size={11} />
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              )}
+              {imageError && (
+                <p className="text-[11px] text-amber-600 dark:text-amber-400 px-1">{imageError}</p>
+              )}
+              <div className="relative flex items-center rounded-2xl bg-white dark:bg-surface-container-low border border-slate-300 dark:border-white/10 shadow-xs focus-within:border-sky-500 dark:focus-within:border-primary focus-within:ring-2 focus-within:ring-sky-500/20 transition-all">
+                <input
+                  ref={imageInputRef}
+                  type="file"
+                  accept={CHAT_IMAGE_ACCEPT}
+                  multiple
+                  className="hidden"
+                  onChange={(e) => {
+                    const files = Array.from(e.target.files || []);
+                    void addPendingImages(files);
+                    e.target.value = "";
+                  }}
+                />
+                <button
+                  type="button"
+                  className="ml-2 p-2 rounded-xl text-slate-500 hover:text-sky-600 dark:hover:text-primary hover:bg-sky-50 dark:hover:bg-primary/10 disabled:opacity-40"
+                  onClick={() => imageInputRef.current?.click()}
+                  disabled={streaming || pendingImages.length >= CHAT_IMAGE_MAX_COUNT}
+                  title={`上传截图（最多 ${CHAT_IMAGE_MAX_COUNT} 张）`}
+                  aria-label="上传截图"
+                >
+                  <ImagePlus size={17} />
+                </button>
+                <input
+                  className="w-full bg-transparent py-3.5 pl-1 pr-12 text-slate-900 dark:text-on-surface text-sm placeholder:text-slate-400 dark:placeholder:text-slate-500 outline-none font-body"
+                  placeholder={
+                    learnMode === "doc"
+                      ? "针对当前文档阶段提问…（可粘贴/上传截图）"
+                      : "向 AI 提问，或粘贴/上传报错截图..."
+                  }
+                  type="text"
+                  value={input}
+                  onChange={(e) => setInput(e.target.value)}
+                  onPaste={(e) => {
+                    const files = Array.from(e.clipboardData?.files || []).filter((f) =>
+                      f.type.startsWith("image/")
+                    );
+                    if (files.length) {
+                      e.preventDefault();
+                      void addPendingImages(files);
+                    }
+                  }}
+                  onKeyDown={(e) => e.key === "Enter" && !e.shiftKey && sendMessage()}
+                  disabled={streaming}
+                />
+                <button
+                  className="absolute right-3.5 text-sky-600 dark:text-primary hover:scale-105 transition-transform disabled:opacity-40 p-1.5 rounded-xl hover:bg-sky-50 dark:hover:bg-primary/10"
+                  onClick={sendMessage}
+                  disabled={streaming || (!input.trim() && pendingImages.length === 0)}
+                >
+                  <Send size={17} />
+                </button>
+              </div>
             </div>
           </div>
         </div>
+
+        {lightboxUrl && (
+          <div
+            className="fixed inset-0 z-50 bg-black/75 flex items-center justify-center p-6"
+            onClick={() => setLightboxUrl(null)}
+            role="dialog"
+            aria-modal="true"
+            aria-label="图片预览"
+          >
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img
+              src={lightboxUrl}
+              alt="预览"
+              className="max-h-full max-w-full rounded-lg shadow-2xl object-contain"
+              onClick={(e) => e.stopPropagation()}
+            />
+            <button
+              type="button"
+              className="absolute top-4 right-4 p-2 rounded-full bg-white/10 text-white hover:bg-white/20"
+              onClick={() => setLightboxUrl(null)}
+              aria-label="关闭预览"
+            >
+              <X size={18} />
+            </button>
+          </div>
+        )}
+
+        {practiceOpen && (
+          <div className="absolute inset-0 z-30 bg-slate-950/45 dark:bg-black/65 backdrop-blur-sm flex items-end sm:items-center justify-center p-3 sm:p-6">
+            <div className="w-full max-w-2xl max-h-[88%] overflow-hidden rounded-3xl bg-white dark:bg-surface-container-high border border-slate-200 dark:border-white/10 shadow-2xl flex flex-col">
+              <div className="shrink-0 flex items-start justify-between gap-4 p-5 border-b border-slate-200 dark:border-white/10">
+                <div>
+                  <div className="flex items-center gap-2">
+                    <Trophy size={18} className="text-amber-500" />
+                    <h2 className="font-headline font-bold text-lg text-slate-900 dark:text-white">
+                      {chapterCompleted ? "本章学习完成" : "章节练习"}
+                    </h2>
+                  </div>
+                  <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">
+                    练习不会阻塞下一章，建议通过实战巩固本章知识。
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setPracticeOpen(false)}
+                  className="p-2 rounded-xl text-slate-500 hover:bg-slate-100 dark:hover:bg-white/10"
+                  aria-label="关闭章节练习"
+                >
+                  <X size={17} />
+                </button>
+              </div>
+
+              <div className="flex-1 min-h-0 overflow-y-auto p-5 space-y-3">
+                {practiceLoading && !practice ? (
+                  <div className="py-10 flex items-center justify-center gap-2 text-sm text-slate-500">
+                    <Loader2 size={17} className="animate-spin" /> 正在加载章节练习…
+                  </div>
+                ) : practiceError ? (
+                  <div className="py-8 text-center">
+                    <p className="text-sm text-rose-500 mb-3">{practiceError}</p>
+                    <button type="button" onClick={() => void loadPractice()} className="text-xs text-primary font-bold">
+                      重新加载
+                    </button>
+                  </div>
+                ) : practice?.exercises.length ? (
+                  practice.exercises.map((exercise, index) => (
+                    <div
+                      key={exercise.id}
+                      className="p-4 rounded-2xl border border-slate-200 dark:border-white/10 bg-slate-50 dark:bg-surface-container-low"
+                    >
+                      <div className="flex items-start justify-between gap-4">
+                        <div className="min-w-0">
+                          <div className="flex items-center gap-2 mb-1.5">
+                            <span className="text-[10px] font-mono text-slate-400">练习 {index + 1}</span>
+                            <span className={`text-[10px] px-2 py-0.5 rounded-full border ${
+                              exercise.passed
+                                ? "text-emerald-600 border-emerald-300 bg-emerald-50 dark:text-emerald-400 dark:border-emerald-500/30 dark:bg-emerald-500/10"
+                                : exercise.attempted
+                                  ? "text-amber-600 border-amber-300 bg-amber-50 dark:text-amber-400 dark:border-amber-500/30 dark:bg-amber-500/10"
+                                  : "text-slate-500 border-slate-300 dark:border-white/10 dark:bg-white/5"
+                            }`}>
+                              {exercise.passed
+                                ? "已通过"
+                                : exercise.attempted
+                                  ? `已尝试${exercise.best_score !== null ? ` · ${exercise.best_score}分` : ""}`
+                                  : "未尝试"}
+                            </span>
+                          </div>
+                          <h3 className="text-sm font-bold text-slate-900 dark:text-white truncate">{exercise.title}</h3>
+                          <p className="text-xs text-slate-500 dark:text-slate-400 mt-1 line-clamp-2">{exercise.description}</p>
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() => router.push(
+                            `/exercise/${exercise.id}?returnTo=${encodeURIComponent(`/learn/${pathId}/${chapterId}`)}`
+                          )}
+                          className="shrink-0 flex items-center gap-1 px-3 py-2 rounded-xl bg-sky-600 dark:bg-primary text-white dark:text-on-primary text-xs font-bold hover:brightness-110"
+                        >
+                          {exercise.passed ? "再次练习" : "开始练习"}
+                          <ArrowRight size={12} />
+                        </button>
+                      </div>
+                    </div>
+                  ))
+                ) : (
+                  <div className="py-9 text-center">
+                    <Dumbbell size={26} className="mx-auto text-slate-300 dark:text-slate-600 mb-2" />
+                    <p className="text-sm text-slate-500">本章暂未发布关联练习</p>
+                  </div>
+                )}
+              </div>
+
+              <div className="shrink-0 p-5 border-t border-slate-200 dark:border-white/10 flex items-center justify-between gap-4">
+                <p className="text-xs text-slate-500">
+                  {chapterCompleted
+                    ? practice?.next_chapter
+                      ? `下一章：${practice.next_chapter.title}`
+                      : "你已完成学习路径的最后一章"
+                    : "完成本章后将自动解锁下一章"}
+                </p>
+                {chapterCompleted && practice?.next_chapter ? (
+                  <button
+                    type="button"
+                    onClick={() => router.push(`/learn/${pathId}/${practice.next_chapter!.id}`)}
+                    className="shrink-0 flex items-center gap-1.5 px-4 py-2.5 rounded-xl bg-primary text-white dark:text-on-primary text-xs font-bold"
+                  >
+                    进入下一章 <ArrowRight size={13} />
+                  </button>
+                ) : chapterCompleted ? (
+                  <button
+                    type="button"
+                    onClick={() => router.push(`/learn/${pathId}`)}
+                    className="shrink-0 px-4 py-2.5 rounded-xl bg-primary text-white dark:text-on-primary text-xs font-bold"
+                  >
+                    返回学习路径
+                  </button>
+                ) : null}
+              </div>
+            </div>
+          </div>
+        )}
       </main>
 
       {/* Drag handle — 左右分栏可调宽 */}
@@ -901,7 +1368,11 @@ export default function LearningWorkspacePage() {
                 </>
               ) : (
                 <>
-                  <Play size={13} className="fill-current" /> Run
+                  <Play size={13} className="fill-current" />
+                  {executionModeForLanguage(activeLang) === "web"
+                    || looksLikeHtmlDocument(activeCode)
+                    ? "Preview"
+                    : "Run"}
                 </>
               )}
             </button>
@@ -941,25 +1412,36 @@ export default function LearningWorkspacePage() {
         {/* Console */}
         <div className="h-1/3 flex flex-col min-h-0 bg-slate-50 dark:bg-[#000000] border-t border-slate-200 dark:border-white/5">
           <div className="flex items-center px-4 py-2 bg-slate-100/90 dark:bg-surface-container-high/80 border-b border-slate-200 dark:border-white/5">
-            <span className="text-[10px] font-bold text-slate-600 dark:text-slate-400 uppercase tracking-widest font-mono">Console Output</span>
+            <span className="text-[10px] font-bold text-slate-600 dark:text-slate-400 uppercase tracking-widest font-mono">
+              {webPreview ? "Browser Preview" : "Console Output"}
+            </span>
           </div>
-          <div className="flex-1 p-4 font-mono text-xs space-y-1 overflow-y-auto">
-            {consoleOutput.map((line, i) => (
-              <div
-                key={i}
-                className={
-                  line.startsWith("▶")
-                    ? "text-sky-600 dark:text-cyan-400 font-semibold"
-                    : line.includes("Error") || line.includes("error")
-                    ? "text-rose-600 dark:text-rose-400"
-                    : "text-slate-800 dark:text-slate-300"
-                }
-              >
-                {line}
-              </div>
-            ))}
-            <div className="w-2 h-4 bg-sky-500/60 dark:bg-primary/40 inline-block animate-pulse align-middle ml-1"></div>
-          </div>
+          {webPreview ? (
+            <iframe
+              title="HTML 运行预览"
+              sandbox="allow-scripts"
+              srcDoc={webPreview}
+              className="flex-1 min-h-0 w-full border-0 bg-white"
+            />
+          ) : (
+            <div className="flex-1 p-4 font-mono text-xs space-y-1 overflow-y-auto">
+              {consoleOutput.map((line, i) => (
+                <div
+                  key={i}
+                  className={
+                    line.startsWith("▶")
+                      ? "text-sky-600 dark:text-cyan-400 font-semibold"
+                      : line.includes("Error") || line.includes("error")
+                      ? "text-rose-600 dark:text-rose-400"
+                      : "text-slate-800 dark:text-slate-300"
+                  }
+                >
+                  {line}
+                </div>
+              ))}
+              <div className="w-2 h-4 bg-sky-500/60 dark:bg-primary/40 inline-block animate-pulse align-middle ml-1"></div>
+            </div>
+          )}
         </div>
       </section>
 

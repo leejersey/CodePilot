@@ -7,7 +7,7 @@ from app.core.deps import get_current_user
 from app.models.models import User
 import httpx
 
-from app.services.judge0 import run_code
+from app.services.judge0 import JudgeUnavailable, run_code
 from app.services.llm import call_llm_json, llm_user_context
 
 router = APIRouter()
@@ -49,6 +49,7 @@ SNIPPET_PROMPT = """你是编程课短视频编剧。只讲「这一段代码」
 {output}
 ---
 - 是否报错：{has_error}
+- 运行来源：{run_source}（{trust_note}）
 
 请输出严格 JSON（不要代码围栏）：
 {{
@@ -97,16 +98,48 @@ SNIPPET_PROMPT = """你是编程课短视频编剧。只讲「这一段代码」
 """
 
 
-async def _run_snippet(code: str, language: str) -> tuple[str, bool]:
+async def _run_snippet(code: str, language: str) -> tuple[str, bool, bool, str]:
     try:
         result = await run_code(code, language)
+    except JudgeUnavailable:
+        simulated = await call_llm_json(
+            f"""远程代码沙箱当前不可用。请静态模拟以下代码，只返回 JSON：
+{{
+  "output": "控制台输出或错误",
+  "has_error": true或false,
+  "status": "简短状态"
+}}
+语言：{language}
+代码：
+```{language}
+{code}
+```""",
+            temperature=0.0,
+            request_type="animation_run_fallback",
+        )
+        return (
+            str(simulated.get("output") or "(LLM 未推断出输出)").strip(),
+            bool(simulated.get("has_error")),
+            False,
+            "llm",
+        )
     except (httpx.HTTPError, TimeoutError, ValueError) as exc:
         raise HTTPException(status_code=503, detail=f"代码沙箱暂不可用: {exc}") from exc
     output = result.stdout or result.stderr or result.compile_output or result.message
-    return (output or "(无输出)").strip(), result.status_id != 3
+    return (output or "(无输出)").strip(), result.status_id != 3, True, "judge0"
 
 
-def _normalize_snippet(result: dict, *, title_fallback: str, code: str, language: str, output: str, has_error: bool) -> dict:
+def _normalize_snippet(
+    result: dict,
+    *,
+    title_fallback: str,
+    code: str,
+    language: str,
+    output: str,
+    has_error: bool,
+    run_trusted: bool,
+    run_source: str,
+) -> dict:
     if not isinstance(result, dict):
         result = {}
     result["type"] = "snippet_explain"
@@ -114,6 +147,8 @@ def _normalize_snippet(result: dict, *, title_fallback: str, code: str, language
     result["language"] = language
     result["run_output"] = output
     result["has_error"] = has_error
+    result["run_trusted"] = run_trusted
+    result["run_source"] = run_source
     result.setdefault("title", title_fallback)
     result.setdefault("takeaway", "抓住这段代码的核心行为与返回值。")
 
@@ -179,7 +214,7 @@ async def build_snippet_explain(req: SnippetExplainRequest, user: User | None = 
     context = (req.context or "").strip() or "（无额外上下文）"
 
     with llm_user_context(user):
-        output, has_error = await _run_snippet(code, language)
+        output, has_error, run_trusted, run_source = await _run_snippet(code, language)
 
         title_fb = "知识点讲解"
         for line in context.splitlines():
@@ -194,8 +229,12 @@ async def build_snippet_explain(req: SnippetExplainRequest, user: User | None = 
             code=code[:6000],
             output=output[:3000],
             has_error=str(has_error).lower(),
+            run_source=run_source,
+            trust_note="真实沙箱结果" if run_trusted else "LLM 临时模拟，非真实执行",
         )
-        raw = await call_llm_json(prompt, temperature=0.3)
+        raw = await call_llm_json(
+            prompt, temperature=0.3, request_type="animation"
+        )
 
     return _normalize_snippet(
         raw if isinstance(raw, dict) else {},
@@ -204,6 +243,8 @@ async def build_snippet_explain(req: SnippetExplainRequest, user: User | None = 
         language=language,
         output=output,
         has_error=has_error,
+        run_trusted=run_trusted,
+        run_source=run_source,
     )
 
 

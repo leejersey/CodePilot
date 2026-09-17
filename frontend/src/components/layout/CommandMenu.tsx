@@ -4,6 +4,7 @@ import React, { useEffect, useState, useMemo } from "react";
 import { useRouter } from "next/navigation";
 import { useAuth } from "@/hooks/useAuth";
 import {
+  BookOpen,
   Code2,
   Compass,
   FolderGit2,
@@ -32,15 +33,23 @@ export function CommandMenu({ isOpen, onClose }: CommandMenuProps) {
       {
         id: "home",
         title: "探索首页",
-        desc: "输入任意技术栈生成专属学习大纲",
+        desc: "了解平台能力并进入课程中心",
         icon: Compass,
         action: () => router.push("/"),
         category: "导航",
       },
       {
+        id: "courses",
+        title: "课程中心",
+        desc: "浏览平台已发布的课程并加入学习",
+        icon: BookOpen,
+        action: () => router.push("/courses"),
+        category: "导航",
+      },
+      {
         id: "learn",
-        title: "学习路径",
-        desc: "查看已生成的技能大纲与章节进度",
+        title: "我的课程",
+        desc: "查看已加入课程的章节进度",
         icon: FolderGit2,
         action: () => router.push("/learn"),
         category: "导航",

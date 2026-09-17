@@ -81,7 +81,7 @@ export function TrendChart({ data }: { data: ActivityItem[] }) {
           p.count > 0 && (
             <g key={i}>
               <circle cx={p.x} cy={p.y} r={3} fill="#0a0f1e" stroke="#22d3ee" strokeWidth={2}>
-                <title>{`${p.date}: ${p.count} 次`}</title>
+                <title>{`${p.date}: ${p.count} 分钟`}</title>
               </circle>
             </g>
           )
@@ -91,7 +91,7 @@ export function TrendChart({ data }: { data: ActivityItem[] }) {
       <div className="flex items-center justify-between mt-3 text-xs text-slate-500">
         <span>最近 30 天趋势</span>
         <span className="text-emerald-400 font-mono font-medium">
-          日均 {(data.reduce((s, d) => s + d.count, 0) / data.length).toFixed(1)} 次
+          日均 {(data.reduce((s, d) => s + d.count, 0) / data.length).toFixed(1)} 分钟
         </span>
       </div>
     </Card>

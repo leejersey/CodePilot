@@ -8,13 +8,19 @@ import {
   CheckCircle2,
   ClipboardList,
   Database,
+  DollarSign,
   FileText,
+  GraduationCap,
   Loader2,
   PenLine,
+  Sparkles,
 } from "lucide-react";
 import {
   adminListExercises,
+  adminListCourses,
+  getAdminLlmUsage,
   listKnowledgeBases,
+  type AdminLlmUsageSummary,
   type Exercise,
   type KnowledgeBase,
 } from "@/lib/api";
@@ -22,6 +28,8 @@ import {
 export default function AdminOverviewPage() {
   const [knowledgeBases, setKnowledgeBases] = useState<KnowledgeBase[]>([]);
   const [exercises, setExercises] = useState<Exercise[]>([]);
+  const [courseCount, setCourseCount] = useState(0);
+  const [llmUsage, setLlmUsage] = useState<AdminLlmUsageSummary | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
 
@@ -29,13 +37,17 @@ export default function AdminOverviewPage() {
     let cancelled = false;
     async function load() {
       try {
-        const [kbData, exerciseData] = await Promise.all([
+        const [kbData, exerciseData, courseData, usageData] = await Promise.all([
           listKnowledgeBases(),
           adminListExercises(),
+          adminListCourses({ pageSize: 100 }),
+          getAdminLlmUsage(),
         ]);
         if (cancelled) return;
         setKnowledgeBases(kbData);
         setExercises(exerciseData);
+        setCourseCount(courseData.total);
+        setLlmUsage(usageData);
       } catch (err) {
         if (!cancelled) {
           setError(err instanceof Error ? err.message : "管理数据加载失败");
@@ -61,6 +73,12 @@ export default function AdminOverviewPage() {
 
   const stats = [
     {
+      label: "课程",
+      value: courseCount,
+      icon: GraduationCap,
+      hint: "平台课程总数",
+    },
+    {
       label: "知识库",
       value: knowledgeBases.length,
       icon: Database,
@@ -83,6 +101,20 @@ export default function AdminOverviewPage() {
       value: publishedCount,
       icon: CheckCircle2,
       hint: "学员可见题目",
+    },
+    {
+      label: "LLM Token",
+      value: llmUsage?.total_tokens.toLocaleString() || "0",
+      icon: Sparkles,
+      hint: `${llmUsage?.request_count || 0} 次调用`,
+    },
+    {
+      label: "预估费用",
+      value: llmUsage?.pricing_configured
+        ? `$${llmUsage.estimated_cost_usd.toFixed(4)}`
+        : "待配置",
+      icon: DollarSign,
+      hint: "本月 USD",
     },
   ];
 
@@ -111,7 +143,7 @@ export default function AdminOverviewPage() {
         </div>
       ) : (
         <>
-          <section className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+          <section className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
             {stats.map((stat) => (
               <div
                 key={stat.label}
@@ -131,7 +163,57 @@ export default function AdminOverviewPage() {
             ))}
           </section>
 
+          {llmUsage && llmUsage.top_users.length > 0 && (
+            <section className="rounded-2xl border border-slate-200/80 dark:border-white/[0.07] bg-white/90 dark:bg-surface-container-low/50 p-6">
+              <div className="mb-4 flex items-center justify-between">
+                <div>
+                  <h2 className="font-headline text-lg font-bold text-slate-900 dark:text-white">LLM 高用量用户</h2>
+                  <p className="mt-1 text-xs text-slate-500">{llmUsage.month} · 平台与 BYOK 合计</p>
+                </div>
+                {!llmUsage.pricing_configured && (
+                  <span className="text-[10px] text-amber-500">配置 LLM_PRICING_JSON 后显示费用</span>
+                )}
+              </div>
+              <div className="space-y-2">
+                {llmUsage.top_users.map((item, index) => (
+                  <div key={item.user_id} className="flex items-center justify-between gap-4 rounded-xl border border-slate-200 dark:border-white/5 px-4 py-3">
+                    <div className="min-w-0">
+                      <p className="truncate text-sm font-medium text-slate-800 dark:text-slate-200">
+                        {index + 1}. {item.nickname || item.email || "匿名用户"}
+                      </p>
+                      <p className="truncate text-[10px] text-slate-500">{item.email || item.user_id}</p>
+                    </div>
+                    <div className="shrink-0 text-right font-mono">
+                      <p className="text-xs font-bold text-primary">{item.tokens.toLocaleString()} tokens</p>
+                      {llmUsage.pricing_configured && (
+                        <p className="text-[10px] text-slate-500">${item.estimated_cost_usd.toFixed(4)}</p>
+                      )}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </section>
+          )}
+
           <section className="grid gap-5 lg:grid-cols-2">
+            <Link
+              href="/admin/courses"
+              className="group rounded-2xl border border-slate-200/80 bg-white/90 p-6 shadow-xs transition-all hover:-translate-y-0.5 hover:border-violet-500/40 hover:shadow-md dark:border-white/[0.07] dark:bg-surface-container-low/50 dark:shadow-none"
+            >
+              <div className="mb-5 flex items-start justify-between">
+                <div className="flex h-11 w-11 items-center justify-center rounded-xl border border-violet-500/25 bg-violet-500/10 text-violet-600 dark:text-violet-300">
+                  <GraduationCap size={21} />
+                </div>
+                <ArrowRight size={18} className="text-slate-400 transition-transform group-hover:translate-x-1 group-hover:text-violet-500" />
+              </div>
+              <h2 className="font-headline text-lg font-bold text-slate-900 dark:text-white">
+                课程管理
+              </h2>
+              <p className="mt-2 text-sm leading-relaxed text-slate-600 dark:text-slate-400">
+                创建、审核、发布和重建平台课程，维护当前内容版本。
+              </p>
+            </Link>
+
             <Link
               href="/admin/knowledge"
               className="group rounded-2xl border border-slate-200/80 dark:border-white/[0.07] bg-white/90 dark:bg-surface-container-low/50 p-6 shadow-xs dark:shadow-none transition-all hover:border-cyan-500/40 hover:-translate-y-0.5 hover:shadow-md dark:hover:shadow-none"

@@ -22,7 +22,16 @@ LANGUAGE_IDS = {
     "rust": 73,
     "cpp": 54,
     "c++": 54,
+    "c": 50,
+    "csharp": 51,
+    "c#": 51,
     "java": 62,
+    "kotlin": 78,
+    "ruby": 72,
+    "php": 68,
+    "bash": 46,
+    "shell": 46,
+    "swift": 83,
 }
 
 

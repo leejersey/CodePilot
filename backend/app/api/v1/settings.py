@@ -294,13 +294,23 @@ async def test_llm_settings(user: User = Depends(get_current_user)):
     try:
         with llm_user_context(user):
             client = AsyncOpenAI(api_key=cfg.api_key, base_url=cfg.base_url)
+            # Gemini 等模型可能占用 thinking token；max_tokens 过小会出现「连通成功但回复空」。
             resp = await client.chat.completions.create(
                 model=cfg.model,
                 messages=[{"role": "user", "content": "Reply with exactly: ok"}],
-                max_tokens=8,
+                max_tokens=64,
                 temperature=0,
+                timeout=30.0,
             )
             text = (resp.choices[0].message.content or "").strip()
+        if not text:
+            raise HTTPException(
+                status_code=400,
+                detail=(
+                    "接口可达，但模型返回空内容。请检查模型 ID 是否正确，"
+                    "或换用 gemini-2.0-flash / gemini-2.5-flash 等稳定型号后再测。"
+                ),
+            )
         return {
             "ok": True,
             "source": cfg.source,
@@ -308,5 +318,7 @@ async def test_llm_settings(user: User = Depends(get_current_user)):
             "model": cfg.model,
             "reply": text[:200],
         }
+    except HTTPException:
+        raise
     except Exception as e:
         raise HTTPException(status_code=400, detail=f"连通失败: {e}") from e

@@ -1,5 +1,7 @@
 """认证 API：注册 / 登录 / 获取当前用户"""
 
+import uuid
+
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -30,6 +32,31 @@ def _issue_token(user: User) -> str:
         "sub": str(user.id),
         "auth_version": user.auth_version,
     })
+
+
+@router.post("/anonymous", response_model=TokenResponse, status_code=201)
+async def create_anonymous_session(db: AsyncSession = Depends(get_db)):
+    """Create a server-owned anonymous identity with a short-lived signed token."""
+    user = User(
+        id=uuid.uuid4(),
+        nickname="Learner",
+        auth_provider="anonymous",
+        role="learner",
+        status="active",
+        auth_version=1,
+    )
+    db.add(user)
+    await db.commit()
+    await db.refresh(user)
+    token = create_access_token(
+        {
+            "sub": str(user.id),
+            "auth_version": user.auth_version,
+            "token_kind": "anonymous",
+        },
+        expires_hours=1,
+    )
+    return TokenResponse(access_token=token, user=UserResponse.model_validate(user))
 
 
 @router.post("/register", response_model=TokenResponse, status_code=201)
