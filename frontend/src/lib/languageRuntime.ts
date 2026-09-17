@@ -15,6 +15,10 @@ const LANGUAGE_ALIASES: Record<string, string> = {
   sh: "bash",
   shell: "bash",
   htm: "html",
+  // 前端框架标签：同步沙箱 / 预览时落到可执行语言
+  vue: "html",
+  vue3: "html",
+  react: "javascript",
 };
 
 export function normalizeLanguage(language: string): string {

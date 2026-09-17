@@ -21,7 +21,7 @@ import {
   updateChapterStatus,
   type ChapterPractice,
 } from "@/lib/api";
-import { defaultFilename, extractCodeBlocks, fingerprintCode } from "@/lib/codeBlocks";
+import { defaultFilename, fingerprintCode } from "@/lib/codeBlocks";
 import { chapterCompletionOutcome } from "@/lib/courseExperience";
 import { buildWebPreviewDocument, executionModeForLanguage, inferLearningLanguage, looksLikeHtmlDocument, normalizeLanguage } from "@/lib/languageRuntime";
 import { buildChapterArchive, safeArchiveName } from "@/lib/chapterExport";
@@ -357,79 +357,18 @@ export default function LearningWorkspacePage() {
     }
   };
 
-  // 从课程消息同步代码 Tab（保留用户已修改内容）
-  useEffect(() => {
-    if (streaming) return;
-    const assistantText = messages
-      .filter((m) => m.role === "assistant")
-      .map((m) => m.content)
-      .join("\n\n");
-    const blocks = extractCodeBlocks(assistantText);
-    if (blocks.length === 0) return;
-
-    setTabs((prev) => {
-      const scratch = prev.find((t) => t.id === "scratch");
-      const byFp = new Map(prev.map((t) => [t.fingerprint, t]));
-      const nextLessonTabs: EditorTab[] = blocks.map((b, i) => {
-        const existing = byFp.get(b.fingerprint);
-        if (existing) {
-          const edited = existing.code !== existing.originCode;
-          return {
-            ...existing,
-            label: defaultFilename(b.language, i),
-            language: b.language,
-            originCode: b.code,
-            code: edited ? existing.code : b.code,
-          };
-        }
-        return {
-          id: `lesson-${b.fingerprint}`,
-          label: defaultFilename(b.language, i),
-          language: b.language,
-          originCode: b.code,
-          code: b.code,
-          fingerprint: b.fingerprint,
-        };
-      });
-
-      const merged = [
-        ...(scratch
-          ? [scratch]
-          : [
-              {
-                id: "scratch",
-                label: "草稿.py",
-                language: editorInfo.lang,
-                originCode: scratchCodeFor(editorInfo.lang, editorInfo.comment),
-                code: scratchCodeFor(editorInfo.lang, editorInfo.comment),
-                fingerprint: "scratch",
-              } as EditorTab,
-            ]),
-        ...nextLessonTabs,
-      ];
-      return merged;
-    });
-
-    setActiveTabId((curr) => {
-      if (curr === "scratch") {
-        const first = blocks[0];
-        return first ? `lesson-${first.fingerprint}` : curr;
-      }
-      return curr;
-    });
-  }, [messages, streaming, editorInfo.lang, editorInfo.comment]);
-
   const openInEditor = useCallback((code: string, language: string) => {
-    const lang = language.toLowerCase();
+    const lang = normalizeLanguage(language);
     const fp = fingerprintCode(lang, code);
+    const tabId = `lesson-${fp}`;
     setTabs((prev) => {
-      const existing = prev.find((t) => t.fingerprint === fp || t.id === `lesson-${fp}`);
+      const existing = prev.find((t) => t.fingerprint === fp || t.id === tabId);
       if (existing) return prev;
       const lessonCount = prev.filter((t) => t.id.startsWith("lesson-")).length;
       return [
         ...prev,
         {
-          id: `lesson-${fp}`,
+          id: tabId,
           label: defaultFilename(lang, lessonCount),
           language: lang,
           originCode: code,
@@ -438,7 +377,21 @@ export default function LearningWorkspacePage() {
         },
       ];
     });
-    setActiveTabId(`lesson-${fp}`);
+    setActiveTabId(tabId);
+  }, []);
+
+  const closeTab = useCallback((tabId: string) => {
+    if (tabId === "scratch") return;
+    setTabs((prev) => {
+      const index = prev.findIndex((t) => t.id === tabId);
+      if (index < 0) return prev;
+      const next = prev.filter((t) => t.id !== tabId);
+      setActiveTabId((curr) => {
+        if (curr !== tabId) return curr;
+        return (next[Math.max(0, index - 1)] || next[0])?.id || "scratch";
+      });
+      return next;
+    });
   }, []);
 
   const explainSnippet = useCallback(
@@ -1332,19 +1285,37 @@ export default function LearningWorkspacePage() {
           <div className="flex items-center justify-between gap-2 px-3 py-2 bg-slate-100/90 dark:bg-surface-container-high/50 border-b border-slate-200 dark:border-white/5">
             <div className="flex items-center gap-1.5 overflow-x-auto min-w-0 flex-1 scrollbar-none">
               {tabs.map((tab) => (
-                <button
+                <div
                   key={tab.id}
-                  type="button"
-                  onClick={() => setActiveTabId(tab.id)}
-                  className={`flex-shrink-0 px-2.5 py-1 rounded-md text-[11px] font-mono transition-all ${
+                  className={`flex-shrink-0 flex items-center gap-0.5 rounded-md text-[11px] font-mono transition-all ${
                     tab.id === activeTabId
                       ? "bg-white dark:bg-primary/20 text-sky-700 dark:text-primary border border-slate-300 dark:border-primary/30 shadow-xs font-semibold"
                       : "text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-200 hover:bg-slate-200/60 dark:hover:bg-white/5"
                   }`}
-                  title={tab.label}
                 >
-                  {tab.label}
-                </button>
+                  <button
+                    type="button"
+                    onClick={() => setActiveTabId(tab.id)}
+                    className="pl-2.5 pr-1 py-1 max-w-[9rem] truncate"
+                    title={tab.label}
+                  >
+                    {tab.label}
+                  </button>
+                  {tab.id !== "scratch" && (
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        closeTab(tab.id);
+                      }}
+                      className="pr-1.5 py-1 text-slate-400 hover:text-slate-700 dark:hover:text-slate-200"
+                      aria-label={`关闭 ${tab.label}`}
+                      title="关闭"
+                    >
+                      <X size={11} />
+                    </button>
+                  )}
+                </div>
               ))}
             </div>
             <button

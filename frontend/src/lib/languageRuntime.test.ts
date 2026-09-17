@@ -13,6 +13,8 @@ test("normalizes common language aliases", () => {
   assert.equal(normalizeLanguage("JSX"), "javascript");
   assert.equal(normalizeLanguage("C++"), "cpp");
   assert.equal(normalizeLanguage("C#"), "csharp");
+  assert.equal(normalizeLanguage("vue"), "html");
+  assert.equal(normalizeLanguage("react"), "javascript");
 });
 
 test("selects browser preview for web documents", () => {

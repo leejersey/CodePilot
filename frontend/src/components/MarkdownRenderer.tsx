@@ -27,11 +27,27 @@ const LANG_ALIASES: Record<string, string> = {
   kt: "kotlin",
   plaintext: "text",
   text: "text",
+  htm: "html",
+};
+
+/** Prism 实际高亮语言：vue/react 等标签需映射到已内置的 grammar */
+const PRISM_HIGHLIGHT_LANG: Record<string, string> = {
+  vue: "markup",
+  vue3: "markup",
+  svelte: "markup",
+  html: "markup",
+  react: "jsx",
+  "react-jsx": "jsx",
+  "react-tsx": "tsx",
 };
 
 function normalizeLang(raw: string): string {
   const key = raw.trim().toLowerCase();
   return LANG_ALIASES[key] || key;
+}
+
+function prismLanguage(displayLang: string): string {
+  return PRISM_HIGHLIGHT_LANG[displayLang] || displayLang;
 }
 
 // 经典的暗色代码主题 (One Dark 增强版)
@@ -64,6 +80,14 @@ const darkCodeTheme: Record<string, CSSProperties> = {
   operator: { color: "#79c0ff" },
   punctuation: { color: "#c9d1d9" },
   builtin: { color: "#ffa657" },
+  // markup / vue / html
+  tag: { color: "#7ee787" },
+  "attr-name": { color: "#79c0ff" },
+  "attr-value": { color: "#a5d6ff" },
+  // jsx / react
+  "property-access": { color: "#e6edf3" },
+  script: { color: "#e6edf3" },
+  style: { color: "#e6edf3" },
 };
 
 // 专业的亮色代码主题 (GitHub Light / VS Code Light 工业级高对比度规范)
@@ -159,6 +183,7 @@ export function MarkdownRenderer({
           if (!isInline && (match || codeStr.includes("\n"))) {
             const rawLang = match?.[1] || "text";
             const lang = normalizeLang(rawLang);
+            const highlightLang = prismLanguage(lang);
             const fp = fingerprintCode(lang, codeStr);
             const isActive = activeFingerprint === fp;
             return (
@@ -221,7 +246,7 @@ export function MarkdownRenderer({
                 {/* 代码高亮主体 */}
                 <SyntaxHighlighter
                   style={isDark ? darkCodeTheme : lightCodeTheme}
-                  language={lang}
+                  language={highlightLang}
                   PreTag="div"
                   codeTagProps={{
                     style: {
