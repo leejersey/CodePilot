@@ -5,7 +5,7 @@
 <h1 align="center">CodePilot — AI 编程学习平台</h1>
 
 <p align="center">
-  <strong>问答式 AI 导师 · 文档学习模式 · 知识库 RAG · 管理员出题 · 浏览器沙箱 · 实时判题</strong>
+  <strong>问答式 AI 导师 · 截图多模态 · 文档学习模式 · 知识库 RAG · 管理员出题 · 浏览器沙箱 · 实时判题</strong>
 </p>
 
 <p align="center">
@@ -23,7 +23,7 @@
 
 | 特性 | 描述 |
 |------|------|
-| 🤖 **AI 教学** | DeepSeek 流式讲解；章节对话可续聊；支持个人 LLM 配置覆盖平台默认 |
+| 🤖 **AI 教学** | DeepSeek（默认 `deepseek-flash`）流式讲解；可上传/粘贴报错截图多模态问答；章节对话可续聊；个人 LLM 配置可覆盖平台默认 |
 | 📖 **文档学习** | 章节页切换「AI 教学 / 文档学习」；讲义摘要 + 知识库原文分阶段阅读；提问带当前阶段上下文 |
 | 📚 **知识库 RAG** | 管理员上传文档 → 向量检索；主题匹配时生成知识库课程，否则纯 AI 生成 |
 | 🎯 **个性化路径** | 按水平与目标定制路线；进度追踪；可删除路线 |
@@ -79,7 +79,7 @@ cp .env.example backend/.env
 DATABASE_URL=postgresql+asyncpg://codepilot:dev_password@localhost:5433/codepilot
 REDIS_URL=redis://localhost:6380/0
 
-# LLM — DeepSeek
+# LLM — DeepSeek（deepseek-flash 支持识图；需官方开通视觉能力）
 LLM_API_KEY=your-deepseek-api-key-here
 LLM_MODEL=deepseek-flash
 LLM_BASE_URL=https://api.deepseek.com
@@ -147,10 +147,17 @@ npm run dev
 
 | 模式 | 说明 |
 |------|------|
-| **AI 教学** | WebSocket 流式导师对话；课文代码可同步沙箱 / 动画讲解 |
-| **文档学习** | 课程讲义（摘要）或知识库原文；按大标题分阶段解锁；提问携带当前阶段与选中文本 |
+| **AI 教学** | WebSocket 流式导师对话；可 **+ 上传 / 粘贴截图**（最多 4 张）做报错识图；课文代码可同步沙箱 / 动画讲解 |
+| **文档学习** | 课程讲义（摘要）或知识库原文；按大标题分阶段解锁；提问同样可带截图与当前阶段上下文 |
 
 左右分栏可拖拽调宽。
+
+**截图对话（demo）**
+
+1. 输入框旁点 **+** 选图，或直接 **Ctrl/Cmd+V** 粘贴剪贴板截图。
+2. 可只发图，也可图文一起发；气泡内显示缩略图，点击可放大。
+3. 图片仅随**当前这一轮**以 base64 发给模型；历史消息只存文字 + `[已附 N 张图片]` 占位，不落库图片文件。
+4. 平台默认模型为 `deepseek-flash`；若改用无视觉能力的模型，识图会失败或被忽略。
 
 ### 练习演练场
 
@@ -175,6 +182,7 @@ CodePilot/
 │   │   ├── settings/             # 个人中心（LLM Profiles）
 │   │   ├── history/
 │   │   └── …
+│   ├── src/lib/chatImages.ts     # 截图压缩 / 校验（最多 4 张）
 │   ├── src/components/
 │   │   ├── DocumentLearningPanel.tsx
 │   │   ├── MarkdownRenderer.tsx
@@ -188,8 +196,9 @@ CodePilot/
 │   │   ├── exercises.py          # 学员列表 + 管理员出题/状态
 │   │   ├── settings.py           # 用户 LLM 偏好
 │   │   └── …
-│   ├── app/api/ws/chat.py        # 流式对话（RAG + doc_context）
+│   ├── app/api/ws/chat.py        # 流式对话（RAG + doc_context + images）
 │   ├── app/services/
+│   │   ├── chat_images.py        # 对话附图校验与多模态组装
 │   │   ├── learning_docs.py      # 文档分阶段（忽略代码块内 # 注释）
 │   │   ├── kb_retrieve.py / kb_ingest.py
 │   │   ├── exercise.py / llm.py / embeddings.py
@@ -220,7 +229,7 @@ CodePilot/
 | `DELETE` | `/api/v1/paths/{id}` | 删除路线 |
 | `GET` | `/api/v1/chapters/{id}/learning-docs` | 文档学习：讲义阶段 + KB 文档列表 |
 | `GET` | `/api/v1/chapters/{id}/learning-docs/kb/{doc_id}` | 知识库原文分阶段 |
-| `WebSocket` | `/ws/chat/{conv_id}` | 流式对话；可带 `doc_context` |
+| `WebSocket` | `/ws/chat/{conv_id}` | 流式对话；可带 `doc_context`、`images`（data URL，最多 4 张） |
 
 ### 知识库（管理员）
 
@@ -278,7 +287,7 @@ CodePilot/
     <td align="center" valign="top">
       <img src="docs/screenshots/learning_detail.png" alt="章节详情" width="100%" />
       <br />
-      <sub>流式讲解 · 文档分阶段阅读 · 代码同步沙箱 · 可调左右分栏</sub>
+      <sub>流式讲解 · 截图识图 · 文档分阶段阅读 · 代码同步沙箱 · 可调左右分栏</sub>
     </td>
   </tr>
   <tr>
@@ -317,7 +326,8 @@ CodePilot/
 - [x] **V1.3** — 知识库 RAG + 管理员角色 + 主题相关检索 + 路线删除 / 溯源
 - [x] **V1.4** — 文档学习模式 · 知识点 Remotion 讲解 · 个人 LLM Profiles · 管理员出题发布流
 - [x] **V2** — Judge0 真实判题 · 练习编辑器 · ARQ 异步入库/出题
-- [ ] **V3** — 多语言产品化 · 社区 · 成就系统
+- [x] **V2.1** — 章节对话截图上传 / 粘贴 · deepseek-flash 多模态识图（demo：当前轮 base64）
+- [ ] **V3** — 多语言产品化 · 社区 · 成就系统 · 图片持久化与对象存储
 
 ## 📄 License
 
