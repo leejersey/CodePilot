@@ -168,6 +168,13 @@ export default function AdminExercisesPage() {
   };
 
   const setStatus = async (ex: Exercise, status: "draft" | "published" | "archived") => {
+    if (status === "published" && ex.validation_status !== "verified") {
+      await alert({
+        title: "尚未验证，无法发布",
+        message: "请先点「编辑」→「验证参考答案」，用 Judge0 跑通全部测试后再发布。生成出的草稿默认都是待验证。",
+      });
+      return;
+    }
     setBusyId(ex.id);
     try {
       await updateExerciseStatus(ex.id, status);
@@ -336,9 +343,18 @@ export default function AdminExercisesPage() {
                         {ex.status !== "published" && (
                           <button
                             type="button"
-                            disabled={busyId === ex.id || ex.validation_status !== "verified"}
+                            disabled={busyId === ex.id}
                             onClick={() => setStatus(ex, "published")}
-                            className="inline-flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-lg border border-emerald-500/30 text-emerald-600 dark:text-emerald-300 hover:bg-emerald-500/10 font-medium"
+                            title={
+                              ex.validation_status === "verified"
+                                ? "发布给学员"
+                                : "需先编辑并验证参考答案"
+                            }
+                            className={`inline-flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-lg border font-medium ${
+                              ex.validation_status === "verified"
+                                ? "border-emerald-500/30 text-emerald-600 dark:text-emerald-300 hover:bg-emerald-500/10"
+                                : "border-amber-500/30 text-amber-700 dark:text-amber-300 hover:bg-amber-500/10"
+                            }`}
                           >
                             <Eye size={13} />
                             发布

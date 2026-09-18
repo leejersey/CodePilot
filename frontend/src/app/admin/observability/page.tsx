@@ -20,10 +20,15 @@ import {
   type ServiceHealth,
 } from "@/lib/api";
 
+const ERROR_PAGE_SIZE = 10;
+
 export default function ObservabilityPage() {
   const [health, setHealth] = useState<ServiceHealth | null>(null);
   const [summary, setSummary] = useState<ObservabilitySummary | null>(null);
   const [errors, setErrors] = useState<ErrorEvent[]>([]);
+  const [page, setPage] = useState(1);
+  const [total, setTotal] = useState(0);
+  const [pageSize, setPageSize] = useState(ERROR_PAGE_SIZE);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState("");
@@ -34,11 +39,13 @@ export default function ObservabilityPage() {
       const [healthData, summaryData, errorData] = await Promise.all([
         getServiceHealth(),
         getObservabilitySummary(),
-        listErrorEvents({ pageSize: 30 }),
+        listErrorEvents({ page, pageSize: ERROR_PAGE_SIZE }),
       ]);
       setHealth(healthData);
       setSummary(summaryData);
       setErrors(errorData.items);
+      setTotal(errorData.total);
+      setPageSize(errorData.page_size);
       setError("");
     } catch (err) {
       setError(err instanceof Error ? err.message : "监控数据加载失败");
@@ -46,13 +53,15 @@ export default function ObservabilityPage() {
       setLoading(false);
       setRefreshing(false);
     }
-  }, []);
+  }, [page]);
 
   useEffect(() => {
     void load(true);
     const timer = window.setInterval(() => void load(true), 30_000);
     return () => window.clearInterval(timer);
   }, [load]);
+
+  const totalPages = Math.max(1, Math.ceil(total / pageSize));
 
   const resolve = async (eventId: string) => {
     const updated = await resolveErrorEvent(eventId);
@@ -168,7 +177,10 @@ export default function ObservabilityPage() {
       )}
 
       <section className="rounded-2xl border border-slate-200/80 dark:border-white/[0.07] bg-white/90 dark:bg-surface-container-low/50 p-6">
-        <h2 className="mb-4 font-headline text-lg font-bold text-slate-900 dark:text-white">最近错误</h2>
+        <div className="mb-4 flex items-center justify-between gap-3">
+          <h2 className="font-headline text-lg font-bold text-slate-900 dark:text-white">最近错误</h2>
+          <span className="text-xs text-slate-500">共 {total} 条</span>
+        </div>
         {errors.length === 0 ? (
           <p className="py-10 text-center text-sm text-slate-500">暂无错误记录</p>
         ) : (
@@ -202,6 +214,32 @@ export default function ObservabilityPage() {
                 </div>
               </article>
             ))}
+          </div>
+        )}
+        {total > 0 && (
+          <div className="mt-4 flex items-center justify-between border-t border-slate-200/80 dark:border-white/[0.07] pt-4 text-xs text-slate-500">
+            <span>
+              第 {(page - 1) * pageSize + 1}–{Math.min(page * pageSize, total)} 条
+            </span>
+            <div className="flex items-center gap-2">
+              <button
+                type="button"
+                disabled={page <= 1 || refreshing}
+                onClick={() => setPage((value) => value - 1)}
+                className="rounded-lg border border-slate-300 dark:border-white/10 px-3 py-1.5 text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-white/5 disabled:opacity-30"
+              >
+                上一页
+              </button>
+              <span className="font-mono">{page} / {totalPages}</span>
+              <button
+                type="button"
+                disabled={page >= totalPages || refreshing}
+                onClick={() => setPage((value) => value + 1)}
+                className="rounded-lg border border-slate-300 dark:border-white/10 px-3 py-1.5 text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-white/5 disabled:opacity-30"
+              >
+                下一页
+              </button>
+            </div>
           </div>
         )}
       </section>

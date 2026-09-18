@@ -33,10 +33,17 @@ import {
   type ChatImageAttachment,
 } from "@/lib/chatImages";
 import {
+  autoWindowStart,
+  buildChatOutline,
+  ensureMessageVisibleStart,
+  hiddenTurnCount,
+  loadEarlierStart,
+} from "@/lib/chatWindow";
+import {
   DocumentLearningPanel,
   type DocAskContext,
 } from "@/components/DocumentLearningPanel";
-import { ArrowRight, BookOpen, Bot, CheckCircle2, Download, Dumbbell, ImagePlus, Loader2, MessageSquare, Play, Send, Trophy, User as UserIcon, X } from "lucide-react";
+import { ArrowRight, BookOpen, Bot, CheckCircle2, Download, Dumbbell, ImagePlus, List, Loader2, MessageSquare, Play, Send, Trophy, User as UserIcon, X } from "lucide-react";
 
 interface ChatMessage {
   id?: string;
@@ -123,6 +130,9 @@ export default function LearningWorkspacePage() {
   useEffect(() => { authInit(); }, [authInit]);
 
   const [messages, setMessages] = useState<ChatMessage[]>([]);
+  const [chatWindowStart, setChatWindowStart] = useState(0);
+  const [chatHistoryPinned, setChatHistoryPinned] = useState(false);
+  const [outlineOpen, setOutlineOpen] = useState(false);
   const [input, setInput] = useState("");
   const [pendingImages, setPendingImages] = useState<ChatImageAttachment[]>([]);
   const [imageError, setImageError] = useState("");
@@ -268,6 +278,46 @@ export default function LearningWorkspacePage() {
     const frame = requestAnimationFrame(() => keepAtBottom(chatScrollRef.current));
     return () => cancelAnimationFrame(frame);
   }, [messages, keepAtBottom]);
+
+  useEffect(() => {
+    if (chatHistoryPinned) return;
+    setChatWindowStart(autoWindowStart(messages));
+  }, [messages, chatHistoryPinned]);
+
+  const visibleMessages = messages.slice(chatWindowStart);
+  const earlierTurnCount = hiddenTurnCount(messages, chatWindowStart);
+  const chatOutline = buildChatOutline(messages);
+
+  const loadEarlierMessages = useCallback(() => {
+    const scroller = chatScrollRef.current;
+    const prevHeight = scroller?.scrollHeight ?? 0;
+    const prevTop = scroller?.scrollTop ?? 0;
+    setChatHistoryPinned(true);
+    setChatWindowStart((start) => loadEarlierStart(messages, start));
+    requestAnimationFrame(() => {
+      requestAnimationFrame(() => {
+        const el = chatScrollRef.current;
+        if (!el) return;
+        el.scrollTop = el.scrollHeight - prevHeight + prevTop;
+        followChatRef.current = el.scrollHeight - el.scrollTop - el.clientHeight < 80;
+      });
+    });
+  }, [messages]);
+
+  const jumpToMessage = useCallback((messageIndex: number) => {
+    setChatHistoryPinned(true);
+    setChatWindowStart((start) => ensureMessageVisibleStart(messages, start, messageIndex));
+    setOutlineOpen(false);
+    requestAnimationFrame(() => {
+      requestAnimationFrame(() => {
+        document.getElementById(`chat-msg-${messageIndex}`)?.scrollIntoView({
+          behavior: "smooth",
+          block: "center",
+        });
+        followChatRef.current = false;
+      });
+    });
+  }, [messages]);
 
   useEffect(() => {
     if (!followDocChatRef.current) return;
@@ -609,6 +659,9 @@ export default function LearningWorkspacePage() {
 
     setMessages([]);
     setDocMessages([]);
+    setChatWindowStart(0);
+    setChatHistoryPinned(false);
+    setOutlineOpen(false);
     setConvId(null);
     setStreaming(false);
     setLearnMode("ai");
@@ -874,84 +927,142 @@ export default function LearningWorkspacePage() {
             </div>
           </>
         ) : (
-          <div
-            ref={chatScrollRef}
-            onScroll={(event) => {
-              const el = event.currentTarget;
-              followChatRef.current = el.scrollHeight - el.scrollTop - el.clientHeight < 80;
-            }}
-            className="flex-1 overflow-y-auto p-6 space-y-6 pb-32"
-          >
-            {messages.length === 0 && (
-              <div className="flex items-center justify-center h-full opacity-60">
-                <div className="flex flex-col items-center text-center">
-                  <Loader2 size={36} className="text-secondary animate-spin mb-3" />
-                  <p className="text-on-surface-variant text-sm font-headline">AI 导师正在准备引导与代码案例...</p>
-                </div>
+          <div className="flex-1 min-h-0 flex flex-col relative">
+            {chatOutline.length > 0 && (
+              <div className="absolute top-3 right-4 z-20 flex flex-col items-end gap-2">
+                <button
+                  type="button"
+                  onClick={() => setOutlineOpen((open) => !open)}
+                  className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-[11px] font-bold border shadow-xs transition-colors ${
+                    outlineOpen
+                      ? "bg-sky-600 text-white border-sky-600 dark:bg-primary dark:text-on-primary dark:border-primary"
+                      : "bg-white/95 dark:bg-surface-container-high/95 text-slate-600 dark:text-slate-300 border-slate-200 dark:border-white/10 hover:border-sky-400 dark:hover:border-primary/40"
+                  }`}
+                  title="对话大纲"
+                >
+                  <List size={13} />
+                  大纲
+                </button>
+                {outlineOpen && (
+                  <div className="w-64 max-h-[50vh] overflow-y-auto rounded-xl border border-slate-200 dark:border-white/10 bg-white dark:bg-surface-container-high shadow-xl p-2">
+                    <p className="px-2 py-1 text-[10px] font-bold uppercase tracking-wide text-slate-400">
+                      按提问跳转
+                    </p>
+                    {chatOutline.map((item, idx) => (
+                      <button
+                        key={`${item.messageIndex}-${idx}`}
+                        type="button"
+                        onClick={() => jumpToMessage(item.messageIndex)}
+                        className={`w-full text-left px-2.5 py-2 rounded-lg text-xs leading-snug transition-colors ${
+                          item.messageIndex >= chatWindowStart
+                            ? "text-slate-700 dark:text-slate-200 hover:bg-sky-50 dark:hover:bg-primary/10"
+                            : "text-slate-400 dark:text-slate-500 hover:bg-slate-50 dark:hover:bg-white/5"
+                        }`}
+                        title={item.label}
+                      >
+                        <span className="text-[10px] text-slate-400 mr-1.5">{idx + 1}.</span>
+                        {item.label}
+                      </button>
+                    ))}
+                  </div>
+                )}
               </div>
             )}
 
-            {messages.map((msg, i) => (
-              msg.role === "user" ? (
-                <div key={i} className="flex gap-4 max-w-3xl ml-auto flex-row-reverse">
-                  <div className="w-8 h-8 rounded-full bg-sky-100 text-sky-600 dark:bg-primary/20 dark:text-primary flex items-center justify-center flex-shrink-0 mt-1 border border-sky-300 dark:border-primary/30 shadow-xs">
-                    <UserIcon size={15} />
-                  </div>
-                  <div className="p-4 rounded-2xl rounded-tr-none bg-sky-50 dark:bg-primary/10 border border-sky-200/90 dark:border-primary/20 shadow-xs dark:shadow-lg text-slate-900 dark:text-on-surface">
-                    {msg.images && msg.images.length > 0 && (
-                      <div className="flex flex-wrap gap-2 mb-2 justify-end">
-                        {msg.images.map((img) => (
-                          <button
-                            key={img.id}
-                            type="button"
-                            onClick={() => setLightboxUrl(img.dataUrl)}
-                            className="block overflow-hidden rounded-lg border border-sky-200/80 dark:border-primary/30 hover:opacity-90"
-                          >
-                            {/* eslint-disable-next-line @next/next/no-img-element */}
-                            <img src={img.dataUrl} alt={img.name} className="h-20 w-20 object-cover" />
-                          </button>
-                        ))}
-                      </div>
-                    )}
-                    <p className="leading-relaxed whitespace-pre-wrap text-[14.5px]">{msg.content}</p>
+            <div
+              ref={chatScrollRef}
+              onScroll={(event) => {
+                const el = event.currentTarget;
+                followChatRef.current = el.scrollHeight - el.scrollTop - el.clientHeight < 80;
+              }}
+              className="flex-1 overflow-y-auto p-6 space-y-6 pb-32"
+            >
+              {messages.length === 0 && (
+                <div className="flex items-center justify-center h-full opacity-60">
+                  <div className="flex flex-col items-center text-center">
+                    <Loader2 size={36} className="text-secondary animate-spin mb-3" />
+                    <p className="text-on-surface-variant text-sm font-headline">AI 导师正在准备引导与代码案例...</p>
                   </div>
                 </div>
-              ) : msg.role === "system" ? (
-                <div key={i} className="text-center text-red-500 dark:text-red-400 text-sm py-2">{msg.content}</div>
-              ) : (
-                <div key={i} className="flex gap-4 max-w-3xl">
-                  <div className="w-8 h-8 rounded-full bg-violet-100 text-violet-600 dark:bg-secondary/20 dark:text-secondary flex items-center justify-center flex-shrink-0 mt-1 border border-violet-200 dark:border-secondary/30 shadow-xs">
-                    <Bot size={16} />
-                  </div>
-                  <div className="p-5 rounded-2xl rounded-tl-none bg-white dark:bg-surface-container-high/40 border border-slate-200/90 dark:border-white/5 shadow-sm dark:shadow-xl text-slate-800 dark:text-on-surface-variant">
-                    <StepAnimator
-                      content={msg.content}
-                      isStreaming={streaming && i === messages.length - 1}
-                      onOpenInEditor={openInEditor}
-                      onExplainSnippet={explainSnippet}
-                      explaining={generatingAnim}
-                      activeFingerprint={activeTab?.fingerprint}
-                    />
-                    {streaming && i === messages.length - 1 && (
-                      <span className="inline-block w-1.5 h-4 bg-sky-500 dark:bg-secondary ml-1 animate-pulse align-middle" />
-                    )}
-                  </div>
-                </div>
-              )
-            ))}
+              )}
 
-            {streaming && messages[messages.length - 1]?.role !== "assistant" && replyTargetRef.current === "ai" && (
-              <div className="flex gap-4 max-w-3xl">
-                <div className="w-8 h-8 rounded-full bg-secondary/20 flex items-center justify-center flex-shrink-0 mt-1 border border-secondary/30">
-                  <Bot size={16} className="text-secondary" />
+              {earlierTurnCount > 0 && (
+                <div className="flex justify-center">
+                  <button
+                    type="button"
+                    onClick={loadEarlierMessages}
+                    className="px-4 py-2 rounded-full text-xs font-semibold text-sky-700 dark:text-primary bg-sky-50 dark:bg-primary/10 border border-sky-200 dark:border-primary/25 hover:bg-sky-100 dark:hover:bg-primary/15 transition-colors"
+                  >
+                    加载更早的对话（还有 {earlierTurnCount} 轮）
+                  </button>
                 </div>
-                <div className="flex items-center gap-1.5 px-4 py-3 bg-surface-container-low rounded-full border border-white/5">
-                  <div className="w-1.5 h-1.5 bg-secondary/70 rounded-full animate-bounce"></div>
-                  <div className="w-1.5 h-1.5 bg-secondary/70 rounded-full animate-bounce [animation-delay:0.2s]"></div>
-                  <div className="w-1.5 h-1.5 bg-secondary/70 rounded-full animate-bounce [animation-delay:0.4s]"></div>
+              )}
+
+              {visibleMessages.map((msg, offset) => {
+                const i = chatWindowStart + offset;
+                return msg.role === "user" ? (
+                  <div key={i} id={`chat-msg-${i}`} className="flex gap-4 max-w-3xl ml-auto flex-row-reverse scroll-mt-24">
+                    <div className="w-8 h-8 rounded-full bg-sky-100 text-sky-600 dark:bg-primary/20 dark:text-primary flex items-center justify-center flex-shrink-0 mt-1 border border-sky-300 dark:border-primary/30 shadow-xs">
+                      <UserIcon size={15} />
+                    </div>
+                    <div className="p-4 rounded-2xl rounded-tr-none bg-sky-50 dark:bg-primary/10 border border-sky-200/90 dark:border-primary/20 shadow-xs dark:shadow-lg text-slate-900 dark:text-on-surface">
+                      {msg.images && msg.images.length > 0 && (
+                        <div className="flex flex-wrap gap-2 mb-2 justify-end">
+                          {msg.images.map((img) => (
+                            <button
+                              key={img.id}
+                              type="button"
+                              onClick={() => setLightboxUrl(img.dataUrl)}
+                              className="block overflow-hidden rounded-lg border border-sky-200/80 dark:border-primary/30 hover:opacity-90"
+                            >
+                              {/* eslint-disable-next-line @next/next/no-img-element */}
+                              <img src={img.dataUrl} alt={img.name} className="h-20 w-20 object-cover" />
+                            </button>
+                          ))}
+                        </div>
+                      )}
+                      <p className="leading-relaxed whitespace-pre-wrap text-[14.5px]">{msg.content}</p>
+                    </div>
+                  </div>
+                ) : msg.role === "system" ? (
+                  <div key={i} id={`chat-msg-${i}`} className="text-center text-red-500 dark:text-red-400 text-sm py-2 scroll-mt-24">
+                    {msg.content}
+                  </div>
+                ) : (
+                  <div key={i} id={`chat-msg-${i}`} className="flex gap-4 max-w-3xl scroll-mt-24">
+                    <div className="w-8 h-8 rounded-full bg-violet-100 text-violet-600 dark:bg-secondary/20 dark:text-secondary flex items-center justify-center flex-shrink-0 mt-1 border border-violet-200 dark:border-secondary/30 shadow-xs">
+                      <Bot size={16} />
+                    </div>
+                    <div className="p-5 rounded-2xl rounded-tl-none bg-white dark:bg-surface-container-high/40 border border-slate-200/90 dark:border-white/5 shadow-sm dark:shadow-xl text-slate-800 dark:text-on-surface-variant">
+                      <StepAnimator
+                        content={msg.content}
+                        isStreaming={streaming && i === messages.length - 1}
+                        onOpenInEditor={openInEditor}
+                        onExplainSnippet={explainSnippet}
+                        explaining={generatingAnim}
+                        activeFingerprint={activeTab?.fingerprint}
+                      />
+                      {streaming && i === messages.length - 1 && (
+                        <span className="inline-block w-1.5 h-4 bg-sky-500 dark:bg-secondary ml-1 animate-pulse align-middle" />
+                      )}
+                    </div>
+                  </div>
+                );
+              })}
+
+              {streaming && messages[messages.length - 1]?.role !== "assistant" && replyTargetRef.current === "ai" && (
+                <div className="flex gap-4 max-w-3xl">
+                  <div className="w-8 h-8 rounded-full bg-secondary/20 flex items-center justify-center flex-shrink-0 mt-1 border border-secondary/30">
+                    <Bot size={16} className="text-secondary" />
+                  </div>
+                  <div className="flex items-center gap-1.5 px-4 py-3 bg-surface-container-low rounded-full border border-white/5">
+                    <div className="w-1.5 h-1.5 bg-secondary/70 rounded-full animate-bounce"></div>
+                    <div className="w-1.5 h-1.5 bg-secondary/70 rounded-full animate-bounce [animation-delay:0.2s]"></div>
+                    <div className="w-1.5 h-1.5 bg-secondary/70 rounded-full animate-bounce [animation-delay:0.4s]"></div>
+                  </div>
                 </div>
-              </div>
-            )}
+              )}
+            </div>
           </div>
         )}
 

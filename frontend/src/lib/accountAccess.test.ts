@@ -10,6 +10,9 @@ test("account-scoped routes reject an anonymous session", () => {
   for (const pathname of [
     "/dashboard",
     "/settings",
+    "/settings/account",
+    "/settings/llm",
+    "/settings/usage",
     "/history",
     "/learn",
     "/creator/courses",
