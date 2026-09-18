@@ -29,9 +29,11 @@ import {
   appendChatImages,
   CHAT_IMAGE_ACCEPT,
   CHAT_IMAGE_MAX_COUNT,
+  chatImageSrc,
   composeUserMessageText,
   type ChatImageAttachment,
 } from "@/lib/chatImages";
+import { buildLearnLoopSteps, nextLearnLoopHint } from "@/lib/learnLoop";
 import {
   autoWindowStart,
   buildChatOutline,
@@ -43,7 +45,8 @@ import {
   DocumentLearningPanel,
   type DocAskContext,
 } from "@/components/DocumentLearningPanel";
-import { ArrowRight, BookOpen, Bot, CheckCircle2, Download, Dumbbell, ImagePlus, List, Loader2, MessageSquare, Play, Send, Trophy, User as UserIcon, X } from "lucide-react";
+import { ArrowRight, BookOpen, Bot, CheckCircle2, Download, Dumbbell, HelpCircle, ImagePlus, List, Loader2, MessageSquare, Play, Send, Trophy, User as UserIcon, X } from "lucide-react";
+import Link from "next/link";
 
 interface ChatMessage {
   id?: string;
@@ -155,6 +158,7 @@ export default function LearningWorkspacePage() {
   const [webPreview, setWebPreview] = useState<string | null>(null);
   const [running, setRunning] = useState(false);
   const [chapterCompleted, setChapterCompleted] = useState(false);
+  const [hasRunCode, setHasRunCode] = useState(false);
   const [chapterTitle, setChapterTitle] = useState("本章内容");
   const [exporting, setExporting] = useState(false);
   const [practice, setPractice] = useState<ChapterPractice | null>(null);
@@ -590,6 +594,7 @@ export default function LearningWorkspacePage() {
       ]);
       setActiveTabId("scratch");
       setConsoleOutput([info.runtime]);
+      setHasRunCode(false);
 
       // 优先恢复该章节已有对话
       let conversationId: string | null = null;
@@ -604,11 +609,23 @@ export default function LearningWorkspacePage() {
           if (cancelled) return;
           const restored = history
             .filter((m) => m.role === "user" || m.role === "assistant" || m.role === "system")
-            .map((m) => ({
-              id: m.id,
-              role: m.role as ChatMessage["role"],
-              content: m.content,
-            }));
+            .map((m) => {
+              const images = (m.metadata?.images || [])
+                .filter((img) => Boolean(img.url))
+                .map((img, index) => ({
+                  id: `${m.id}-img-${index}`,
+                  mime: img.mime || "image/jpeg",
+                  dataUrl: img.url as string,
+                  url: img.url,
+                  name: img.name || `image-${index + 1}`,
+                }));
+              return {
+                id: m.id,
+                role: m.role as ChatMessage["role"],
+                content: m.content,
+                images: images.length ? images : undefined,
+              };
+            });
           let markerIndex = -1;
           restored.forEach((message, index) => {
             if (message.content.startsWith(CONTEXT_SYNC_MARKER)) markerIndex = index;
@@ -704,6 +721,7 @@ export default function LearningWorkspacePage() {
         );
         setWebPreview(previewDocument);
         setConsoleOutput(["▶ Browser preview refreshed.", "HTML / CSS / JavaScript 已在隔离预览中运行。"]);
+        setHasRunCode(true);
       } else if (executionMode === "pyodide") {
         // Python → Pyodide 浏览器端真实执行
         setWebPreview(null);
@@ -716,6 +734,7 @@ export default function LearningWorkspacePage() {
           result.output,
           result.error ? "Program exited with error." : "Program finished.",
         ]);
+        setHasRunCode(true);
       } else {
         // 非 Python → Judge0 隔离沙箱真实执行
         setWebPreview(null);
@@ -726,6 +745,7 @@ export default function LearningWorkspacePage() {
           `${data.status}${data.time ? ` · ${data.time}s` : ""}`,
           data.trusted ? "Remote Judge0 verified." : "LLM fallback: untrusted temporary simulation.",
         ]);
+        setHasRunCode(true);
       }
     } catch {
       setConsoleOutput(prev => [...prev, "Error: 执行失败"]);
@@ -801,6 +821,20 @@ export default function LearningWorkspacePage() {
     );
   };
 
+  const hasChatted =
+    messages.some((m) => m.role === "user")
+    || docMessages.some((m) => m.role === "user");
+  const practiceTotal = practice?.exercises.length ?? 0;
+  const practicePassed = practice?.exercises.filter((item) => item.passed).length ?? 0;
+  const learnLoopSteps = buildLearnLoopSteps({
+    hasChatted,
+    hasRunCode,
+    practiceTotal,
+    practicePassed,
+    chapterCompleted,
+  });
+  const learnLoopHint = nextLearnLoopHint(learnLoopSteps);
+
   return (
     <div
       ref={splitRef}
@@ -809,39 +843,49 @@ export default function LearningWorkspacePage() {
       {/* Left: AI Chat / Document mode — 互斥，不叠在一起 */}
       <main className="flex-1 min-w-0 flex flex-col bg-surface overflow-hidden relative">
         {/* Mode switch */}
-        <div className="shrink-0 flex items-center gap-2 px-4 py-2 border-b border-white/5 bg-surface-container-low/30">
-          <button
-            type="button"
-            onClick={() => {
-              setLearnMode("ai");
-              setDocAskContext(null);
-            }}
-            className={`flex items-center gap-1.5 text-xs font-bold px-3 py-1.5 rounded-lg border transition-colors ${
-              learnMode === "ai"
-                ? "bg-primary/20 text-primary border-primary/40"
-                : "text-slate-400 border-white/10 hover:border-white/25"
-            }`}
-          >
-            <MessageSquare size={14} />
-            AI 教学
-          </button>
-          <button
-            type="button"
-            onClick={() => setLearnMode("doc")}
-            className={`flex items-center gap-1.5 text-xs font-bold px-3 py-1.5 rounded-lg border transition-colors ${
-              learnMode === "doc"
-                ? "bg-violet-500/20 text-violet-300 border-violet-500/40"
-                : "text-slate-400 border-white/10 hover:border-white/25"
-            }`}
-          >
-            <BookOpen size={14} />
-            文档学习
-          </button>
-          <span className="text-[10px] text-slate-500 ml-1 hidden sm:inline">
+        <div className="shrink-0 flex flex-col gap-2 px-4 py-2 border-b border-white/5 bg-surface-container-low/30">
+          <div className="flex items-center gap-2 flex-wrap">
+            <button
+              type="button"
+              onClick={() => {
+                setLearnMode("ai");
+                setDocAskContext(null);
+              }}
+              className={`flex items-center gap-1.5 text-xs font-bold px-3 py-1.5 rounded-lg border transition-colors ${
+                learnMode === "ai"
+                  ? "bg-primary/20 text-primary border-primary/40"
+                  : "text-slate-400 border-white/10 hover:border-white/25"
+              }`}
+            >
+              <MessageSquare size={14} />
+              AI 教学
+            </button>
+            <button
+              type="button"
+              onClick={() => setLearnMode("doc")}
+              className={`flex items-center gap-1.5 text-xs font-bold px-3 py-1.5 rounded-lg border transition-colors ${
+                learnMode === "doc"
+                  ? "bg-violet-500/20 text-violet-300 border-violet-500/40"
+                  : "text-slate-400 border-white/10 hover:border-white/25"
+              }`}
+            >
+              <BookOpen size={14} />
+              文档学习
+            </button>
+            <Link
+              href="/help"
+              className="ml-auto inline-flex items-center gap-1 text-[10px] text-slate-500 hover:text-primary"
+              title="常见问题"
+            >
+              <HelpCircle size={13} />
+              答疑
+            </Link>
+          </div>
+          <p className="text-[10px] text-slate-500 leading-relaxed">
             {learnMode === "doc"
-              ? "阅读讲义 / 原文 · 下方可针对当前阶段提问"
-              : "与 AI 导师对话学习 · 可随时切换到文档模式"}
-          </span>
+              ? "当前：文档学习 — 阅读讲义分阶段内容；下方提问只出现在文档区，不会写入 AI 教学对话。"
+              : "当前：AI 教学 — 与导师对话学习；需要看原文时切换到「文档学习」。两套记录互不混写。"}
+          </p>
         </div>
 
         {learnMode === "doc" ? (
@@ -891,11 +935,11 @@ export default function LearningWorkspacePage() {
                               <button
                                 key={img.id}
                                 type="button"
-                                onClick={() => setLightboxUrl(img.dataUrl)}
+                                onClick={() => setLightboxUrl(chatImageSrc(img))}
                                 className="block overflow-hidden rounded-md border border-white/20"
                               >
                                 {/* eslint-disable-next-line @next/next/no-img-element */}
-                                <img src={img.dataUrl} alt={img.name} className="h-14 w-14 object-cover" />
+                                <img src={chatImageSrc(img)} alt={img.name} className="h-14 w-14 object-cover" />
                               </button>
                             ))}
                           </span>
@@ -1012,11 +1056,11 @@ export default function LearningWorkspacePage() {
                             <button
                               key={img.id}
                               type="button"
-                              onClick={() => setLightboxUrl(img.dataUrl)}
+                              onClick={() => setLightboxUrl(chatImageSrc(img))}
                               className="block overflow-hidden rounded-lg border border-sky-200/80 dark:border-primary/30 hover:opacity-90"
                             >
                               {/* eslint-disable-next-line @next/next/no-img-element */}
-                              <img src={img.dataUrl} alt={img.name} className="h-20 w-20 object-cover" />
+                              <img src={chatImageSrc(img)} alt={img.name} className="h-20 w-20 object-cover" />
                             </button>
                           ))}
                         </div>
@@ -1074,6 +1118,25 @@ export default function LearningWorkspacePage() {
               : "bg-surface"
           }`}
         >
+          <div className="max-w-4xl mx-auto mb-3 rounded-xl border border-slate-200/70 dark:border-white/10 bg-white/80 dark:bg-surface-container-low/70 px-3 py-2.5">
+            <div className="flex flex-wrap items-center gap-2">
+              {learnLoopSteps.map((step) => (
+                <span
+                  key={step.id}
+                  className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-semibold border ${
+                    step.done
+                      ? "border-emerald-500/30 text-emerald-600 dark:text-emerald-400 bg-emerald-500/10"
+                      : "border-slate-200 dark:border-white/10 text-slate-500"
+                  }`}
+                >
+                  <CheckCircle2 size={11} className={step.done ? "opacity-100" : "opacity-30"} />
+                  {step.label}
+                  {step.detail ? ` ${step.detail}` : ""}
+                </span>
+              ))}
+            </div>
+            <p className="mt-1.5 text-[10px] text-slate-500 leading-relaxed">{learnLoopHint}</p>
+          </div>
           <div className="relative flex items-end gap-3 max-w-4xl mx-auto">
             <button
               type="button"
@@ -1151,11 +1214,11 @@ export default function LearningWorkspacePage() {
                     <div key={img.id} className="relative group">
                       <button
                         type="button"
-                        onClick={() => setLightboxUrl(img.dataUrl)}
+                        onClick={() => setLightboxUrl(chatImageSrc(img))}
                         className="block overflow-hidden rounded-lg border border-slate-200 dark:border-white/15"
                       >
                         {/* eslint-disable-next-line @next/next/no-img-element */}
-                        <img src={img.dataUrl} alt={img.name} className="h-14 w-14 object-cover" />
+                        <img src={chatImageSrc(img)} alt={img.name} className="h-14 w-14 object-cover" />
                       </button>
                       <button
                         type="button"

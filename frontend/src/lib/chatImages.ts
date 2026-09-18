@@ -10,8 +10,15 @@ const ALLOWED_MIME = new Set(["image/jpeg", "image/png", "image/gif", "image/web
 export interface ChatImageAttachment {
   id: string;
   mime: string;
+  /** 本地待发送 data URL，或历史回放时的远程 URL */
   dataUrl: string;
+  /** 持久化后的远程地址（可选） */
+  url?: string;
   name: string;
+}
+
+export function chatImageSrc(img: Pick<ChatImageAttachment, "dataUrl" | "url">): string {
+  return img.url || img.dataUrl;
 }
 
 export function isAllowedChatImageMime(mime: string): boolean {

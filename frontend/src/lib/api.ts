@@ -306,6 +306,9 @@ export interface Message {
   content: string;
   token_count: number | null;
   created_at: string;
+  metadata?: {
+    images?: { key?: string; url?: string; mime?: string; name?: string }[];
+  } | null;
 }
 
 export interface PathProgress {

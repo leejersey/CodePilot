@@ -8,8 +8,22 @@ from app.core.deps import get_current_user
 from app.models.models import Conversation, Message, User
 from app.schemas.schemas import ConversationCreate, ConversationResponse, MessageResponse
 from app.services.course_access import can_access_legacy_chapter
+from app.services.tos_storage import enrich_image_metadata
 
 router = APIRouter()
+
+
+def _serialize_message(message: Message) -> MessageResponse:
+    meta = enrich_image_metadata(message.metadata_)
+    return MessageResponse(
+        id=message.id,
+        conversation_id=message.conversation_id,
+        role=message.role,
+        content=message.content,
+        token_count=message.token_count,
+        created_at=message.created_at,
+        metadata=meta,
+    )
 
 
 @router.post("", response_model=ConversationResponse, status_code=201)
@@ -99,4 +113,4 @@ async def get_messages(
     result = await db.execute(
         select(Message).where(Message.conversation_id == conv_id).order_by(Message.created_at)
     )
-    return result.scalars().all()
+    return [_serialize_message(item) for item in result.scalars().all()]

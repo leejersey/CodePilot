@@ -53,6 +53,15 @@ class Settings(BaseSettings):
     UPLOAD_DIR: str = "uploads"
     MAX_UPLOAD_BYTES: int = 10 * 1024 * 1024  # 10MB
 
+    # 火山引擎 TOS（对话截图持久化）
+    TOS_ACCESS_KEY: str = ""
+    TOS_SECRET_KEY: str = ""
+    TOS_ENDPOINT: str = ""  # e.g. tos-cn-beijing.volces.com
+    TOS_REGION: str = ""  # e.g. cn-beijing
+    TOS_BUCKET: str = ""
+    # 可选：CDN / 自定义域名；留空则用预签名 URL
+    TOS_PUBLIC_BASE_URL: str = ""
+
     # App
     APP_ENV: str = "development"
     APP_DEBUG: bool = True

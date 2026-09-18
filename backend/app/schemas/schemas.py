@@ -109,6 +109,7 @@ class MessageResponse(BaseModel):
     content: str
     token_count: int | None
     created_at: datetime
+    metadata: dict | None = None
 
     model_config = {"from_attributes": True}
 

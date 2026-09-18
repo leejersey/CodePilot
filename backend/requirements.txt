@@ -16,3 +16,4 @@ python-multipart>=0.0.9
 pypdf>=4.0.0
 pgvector>=0.3.0
 sentry-sdk[fastapi]>=2.0.0
+tos>=2.7.0

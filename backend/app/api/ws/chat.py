@@ -14,6 +14,7 @@ from app.services.chat import detect_language_from_context, stream_chat_response
 from app.services.chat_images import (
     compose_stored_user_text,
     normalize_chat_images,
+    persist_chat_images,
 )
 from app.services.llm import llm_user_context
 from app.services.kb_retrieve import (
@@ -120,6 +121,11 @@ async def websocket_chat(websocket: WebSocket, conv_id: uuid.UUID):
                     continue
 
                 stored_content = compose_stored_user_text(user_content, len(images))
+                image_meta = persist_chat_images(
+                    images,
+                    user_id=str(chat_user.id),
+                    conversation_id=str(conv_id),
+                )
 
                 doc_context = data.get("doc_context")
                 doc_ctx_text = ""
@@ -144,6 +150,7 @@ async def websocket_chat(websocket: WebSocket, conv_id: uuid.UUID):
                     conversation_id=conv_id,
                     role="user",
                     content=stored_content,
+                    metadata_={"images": image_meta} if image_meta else None,
                 )
                 db.add(user_msg)
                 await db.flush()
