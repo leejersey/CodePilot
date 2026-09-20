@@ -93,25 +93,29 @@ export default function CourseCatalogPage() {
                 onChange={(event) => setSearchInput(event.target.value)}
                 onKeyDown={(event) => event.key === "Enter" && applySearch()}
                 placeholder="搜索课程主题，例如 Python 异步编程"
-                className="w-full rounded-xl border border-slate-200 bg-white py-2.5 pl-10 pr-3 text-sm outline-none focus:border-primary dark:border-white/10 dark:bg-surface-container-low"
+                className="w-full rounded-xl border border-slate-300/80 bg-white py-2.5 pl-10 pr-3 text-sm shadow-inner-soft focus-ring dark:border-white/10 dark:bg-surface-container-low"
               />
             </div>
             <button
               type="button"
               onClick={applySearch}
-              className="rounded-xl bg-primary px-5 py-2.5 text-sm font-bold text-white"
+              className="rounded-xl bg-primary px-5 py-2.5 text-sm font-bold text-white hover:bg-primary-dim transition-all active:scale-95 shadow-soft hover:shadow-elevated"
             >
               搜索
             </button>
           </div>
 
-          <div className="flex max-w-full gap-1 overflow-x-auto rounded-xl border border-slate-200 bg-slate-100 p-1 dark:border-white/5 dark:bg-white/5">
+          <div className="flex max-w-full gap-1 overflow-x-auto rounded-xl border border-slate-200/90 bg-slate-100/80 p-1 dark:border-white/5 dark:bg-white/5 shadow-inner-soft">
             {DIFFICULTY_TABS.map((tab) => (
               <button
                 key={tab.key || "all"}
                 type="button"
                 onClick={() => { setDifficulty(tab.key); setPage(1); }}
-                className={`shrink-0 rounded-lg px-3 py-1.5 text-xs ${difficulty === tab.key ? "bg-white font-bold text-primary shadow-xs dark:bg-primary/20" : "text-slate-500"}`}
+                className={`shrink-0 rounded-lg px-3 py-1.5 text-xs transition-all active:scale-95 ${
+                  difficulty === tab.key
+                    ? "bg-white font-bold text-sky-700 shadow-xs border border-slate-200/60 dark:bg-primary/20 dark:text-primary dark:border-transparent"
+                    : "text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-200 hover:bg-white/50 dark:hover:bg-white/5"
+                }`}
               >
                 {tab.label}
               </button>

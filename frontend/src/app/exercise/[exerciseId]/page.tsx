@@ -384,7 +384,7 @@ export default function ExercisePage() {
                   <textarea
                     value={stdin}
                     onChange={(event) => setStdin(event.target.value)}
-                    className="flex-1 resize-none rounded-lg border border-slate-200 dark:border-white/10 bg-white dark:bg-black/30 p-2 font-mono text-xs outline-none focus:border-primary"
+                    className="flex-1 resize-none rounded-xl border border-slate-300/90 dark:border-white/10 bg-white dark:bg-black/30 p-2.5 font-mono text-xs shadow-inner-soft focus-ring"
                     placeholder="输入程序需要读取的数据"
                   />
                 </label>
@@ -587,10 +587,10 @@ export default function ExercisePage() {
                   {submission.test_results.map((item) => (
                     <div
                       key={item.case}
-                      className={`rounded-lg border px-2.5 py-2 text-[10px] font-mono ${
+                      className={`rounded-lg border px-2.5 py-2 text-[10px] font-mono font-semibold shadow-2xs ${
                         item.passed
-                          ? "border-emerald-500/30 bg-emerald-50/50 dark:bg-emerald-500/10 text-emerald-800 dark:text-emerald-300"
-                          : "border-rose-500/30 bg-rose-50/50 dark:bg-rose-500/10 text-rose-800 dark:text-rose-300"
+                          ? "border-emerald-200 dark:border-emerald-500/30 bg-emerald-50 dark:bg-emerald-500/10 text-emerald-800 dark:text-emerald-300"
+                          : "border-rose-200 dark:border-rose-500/30 bg-rose-50 dark:bg-rose-500/10 text-rose-800 dark:text-rose-300"
                       }`}
                     >
                       测试点 {item.case} · {item.status || (item.passed ? "通过" : "失败")}

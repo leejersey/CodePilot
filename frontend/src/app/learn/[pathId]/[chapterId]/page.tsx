@@ -1258,8 +1258,8 @@ export default function LearningWorkspacePage() {
     >
       {/* Left: AI Chat / Document mode — 互斥，不叠在一起 */}
       <main className="flex-1 min-w-0 flex flex-col bg-surface overflow-hidden relative">
-        {/* Mode switch */}
-        <div className="shrink-0 flex items-center gap-2 px-3 py-1.5 border-b border-white/5 bg-surface-container-low/30">
+        {/* Mode switch (三阶色阶：沉稳微冷浅灰导航栏) */}
+        <div className="shrink-0 flex items-center gap-2 px-3.5 py-2 border-b border-slate-200/90 dark:border-white/5 bg-slate-50 dark:bg-surface-container-low/40 shadow-2xs">
           <button
             type="button"
             onClick={() => {
@@ -1267,10 +1267,10 @@ export default function LearningWorkspacePage() {
               setDocAskContext(null);
             }}
             title="与导师对话学习；需要看原文时切换到「文档学习」。两套记录互不混写。"
-            className={`flex items-center gap-1.5 text-xs font-bold px-3 py-1.5 rounded-lg border transition-colors ${
+            className={`flex items-center gap-1.5 text-xs font-bold px-3 py-1.5 rounded-lg border transition-all active:scale-95 shadow-2xs ${
               learnMode === "ai"
-                ? "bg-primary/20 text-primary border-primary/40"
-                : "text-slate-400 border-white/10 hover:border-white/25"
+                ? "bg-white text-sky-700 border-sky-300 shadow-xs dark:bg-primary/20 dark:text-primary dark:border-primary/40"
+                : "text-slate-600 dark:text-slate-400 bg-white/70 dark:bg-white/5 border-slate-200/90 dark:border-white/10 hover:bg-white dark:hover:bg-white/10 hover:text-slate-900 dark:hover:text-slate-200"
             }`}
           >
             <MessageSquare size={14} />
@@ -1283,10 +1283,10 @@ export default function LearningWorkspacePage() {
               if (docMessages.length > 0) setDocChatOpen(true);
             }}
             title="阅读讲义分阶段内容；提问只出现在文档浮层，不会写入 AI 教学对话。"
-            className={`flex items-center gap-1.5 text-xs font-bold px-3 py-1.5 rounded-lg border transition-colors ${
+            className={`flex items-center gap-1.5 text-xs font-bold px-3 py-1.5 rounded-lg border transition-all active:scale-95 shadow-2xs ${
               learnMode === "doc"
-                ? "bg-violet-500/20 text-violet-300 border-violet-500/40"
-                : "text-slate-400 border-white/10 hover:border-white/25"
+                ? "bg-white text-violet-700 border-violet-300 shadow-xs dark:bg-violet-500/20 dark:text-violet-300 dark:border-violet-500/40"
+                : "text-slate-600 dark:text-slate-400 bg-white/70 dark:bg-white/5 border-slate-200/90 dark:border-white/10 hover:bg-white dark:hover:bg-white/10 hover:text-slate-900 dark:hover:text-slate-200"
             }`}
           >
             <BookOpen size={14} />
@@ -1519,7 +1519,7 @@ export default function LearningWorkspacePage() {
                     <div className="w-8 h-8 rounded-full bg-violet-100 text-violet-600 dark:bg-secondary/20 dark:text-secondary flex items-center justify-center flex-shrink-0 mt-1 border border-violet-200 dark:border-secondary/30 shadow-xs">
                       <Bot size={16} />
                     </div>
-                    <div className="p-5 rounded-2xl rounded-tl-none bg-white dark:bg-surface-container-high/40 border border-slate-200/90 dark:border-white/5 shadow-sm dark:shadow-xl text-slate-800 dark:text-on-surface-variant">
+                    <div className="p-5 rounded-2xl rounded-tl-none bg-white dark:bg-surface-container-high/40 border border-slate-200/90 dark:border-white/5 border-l-4 border-l-violet-500/80 dark:border-l-secondary shadow-soft dark:shadow-xl text-slate-800 dark:text-on-surface-variant">
                       <StepAnimator
                         content={msg.content}
                         isStreaming={streaming && i === messages.length - 1}
@@ -1538,13 +1538,13 @@ export default function LearningWorkspacePage() {
 
               {streaming && messages[messages.length - 1]?.role !== "assistant" && replyTargetRef.current === "ai" && (
                 <div className="flex gap-4 max-w-3xl">
-                  <div className="w-8 h-8 rounded-full bg-secondary/20 flex items-center justify-center flex-shrink-0 mt-1 border border-secondary/30">
-                    <Bot size={16} className="text-secondary" />
+                  <div className="w-8 h-8 rounded-full bg-violet-100 text-violet-600 dark:bg-secondary/20 dark:text-secondary flex items-center justify-center flex-shrink-0 mt-1 border border-violet-200 dark:border-secondary/30 shadow-xs">
+                    <Bot size={16} className="text-violet-600 dark:text-secondary" />
                   </div>
-                  <div className="flex items-center gap-1.5 px-4 py-3 bg-surface-container-low rounded-full border border-white/5">
-                    <div className="w-1.5 h-1.5 bg-secondary/70 rounded-full animate-bounce"></div>
-                    <div className="w-1.5 h-1.5 bg-secondary/70 rounded-full animate-bounce [animation-delay:0.2s]"></div>
-                    <div className="w-1.5 h-1.5 bg-secondary/70 rounded-full animate-bounce [animation-delay:0.4s]"></div>
+                  <div className="flex items-center gap-1.5 px-4 py-2.5 bg-slate-100 dark:bg-surface-container-low rounded-full border border-slate-200/90 dark:border-white/5 shadow-2xs">
+                    <div className="w-1.5 h-1.5 bg-violet-500/80 dark:bg-secondary/70 rounded-full animate-bounce"></div>
+                    <div className="w-1.5 h-1.5 bg-violet-500/80 dark:bg-secondary/70 rounded-full animate-bounce [animation-delay:0.2s]"></div>
+                    <div className="w-1.5 h-1.5 bg-violet-500/80 dark:bg-secondary/70 rounded-full animate-bounce [animation-delay:0.4s]"></div>
                   </div>
                 </div>
               )}
@@ -1742,7 +1742,7 @@ export default function LearningWorkspacePage() {
               {imageError && (
                 <p className="text-[11px] text-amber-600 dark:text-amber-400 px-1">{imageError}</p>
               )}
-              <div className="relative flex items-center rounded-2xl bg-white dark:bg-surface-container-low border border-slate-300 dark:border-white/10 shadow-xs focus-within:border-sky-500 dark:focus-within:border-primary focus-within:ring-2 focus-within:ring-sky-500/20 transition-all">
+              <div className="relative flex items-center rounded-2xl bg-white dark:bg-surface-container-low border border-slate-300/90 dark:border-white/10 shadow-inner-soft focus-within-ring transition-all">
                 <input
                   ref={imageInputRef}
                   type="file"
@@ -2188,7 +2188,7 @@ export default function LearningWorkspacePage() {
               className="flex-1 min-h-0 w-full border-0 bg-white"
             />
           ) : (
-            <div className="flex-1 p-4 font-mono text-xs space-y-1 overflow-y-auto">
+            <div className="flex-1 p-4 font-mono text-xs space-y-1 overflow-y-auto shadow-inner-soft bg-slate-50/70 dark:bg-black/40">
               {consoleOutput.map((line, i) => (
                 <div
                   key={i}
