@@ -510,6 +510,68 @@ class Chapter(Base):
     path = relationship("LearningPath", back_populates="chapters")
     conversations = relationship("Conversation", back_populates="chapter")
     exercises = relationship("Exercise", back_populates="chapter")
+    skills = relationship("Skill", back_populates="chapter", order_by="Skill.sort_order")
+
+
+class Skill(Base):
+    """Chapter 下的学习原子：目标 +（后续）Checkpoint。"""
+
+    __tablename__ = "skills"
+    __table_args__ = (
+        UniqueConstraint("chapter_id", "sort_order", name="uq_skills_chapter_order"),
+        CheckConstraint(
+            "status IN ('draft', 'published')",
+            name="ck_skills_status",
+        ),
+    )
+
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    chapter_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("chapters.id", ondelete="CASCADE"), index=True
+    )
+    sort_order: Mapped[int] = mapped_column(Integer)
+    title: Mapped[str] = mapped_column(String(255))
+    goal: Mapped[str | None] = mapped_column(Text, nullable=True)
+    objectives: Mapped[list | None] = mapped_column(JSONB, nullable=True)
+    teach_prompt: Mapped[str | None] = mapped_column(Text, nullable=True)
+    status: Mapped[str] = mapped_column(String(20), default="published", index=True)
+    estimated_minutes: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), onupdate=func.now()
+    )
+
+    chapter = relationship("Chapter", back_populates="skills")
+    progress = relationship("SkillProgress", back_populates="skill", cascade="all, delete-orphan")
+
+
+class SkillProgress(Base):
+    __tablename__ = "skill_progress"
+    __table_args__ = (
+        UniqueConstraint("user_id", "skill_id", name="uq_skill_progress_user_skill"),
+        CheckConstraint(
+            "status IN ('locked', 'active', 'passed', 'needs_review')",
+            name="ck_skill_progress_status",
+        ),
+    )
+
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    user_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("users.id", ondelete="CASCADE"), index=True
+    )
+    skill_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("skills.id", ondelete="CASCADE"), index=True
+    )
+    status: Mapped[str] = mapped_column(String(20), default="locked", index=True)
+    mastery_score: Mapped[int] = mapped_column(Integer, default=0)
+    attempts: Mapped[int] = mapped_column(Integer, default=0)
+    passed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), onupdate=func.now()
+    )
+
+    skill = relationship("Skill", back_populates="progress")
 
 
 class LearningSession(Base):

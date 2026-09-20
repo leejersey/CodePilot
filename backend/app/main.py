@@ -5,7 +5,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy import select, text
 
 from app.core.config import get_settings, validate_runtime_security
-from app.api.v1 import admin_users, courses, jobs, observability, paths, chapters, conversations, exercises, code, auth, progress, animation, knowledge, usage, settings as user_settings
+from app.api.v1 import admin_users, courses, jobs, observability, paths, chapters, conversations, exercises, code, auth, progress, animation, knowledge, usage, skills, settings as user_settings
 from app.api.ws import chat
 
 from app.db.redis import get_redis, close_redis
@@ -100,6 +100,7 @@ async def llm_usage_limit_handler(_, exc: LLMUsageLimitError):
 app.include_router(paths.router, prefix="/api/v1/paths", tags=["Learning Paths"])
 app.include_router(courses.router, prefix="/api/v1/courses", tags=["Courses"])
 app.include_router(chapters.router, prefix="/api/v1/chapters", tags=["Chapters"])
+app.include_router(skills.router, prefix="/api/v1", tags=["Skills"])
 app.include_router(conversations.router, prefix="/api/v1/conversations", tags=["Conversations"])
 app.include_router(exercises.router, prefix="/api/v1/exercises", tags=["Exercises"])
 app.include_router(code.router, prefix="/api/v1/code", tags=["Code"])

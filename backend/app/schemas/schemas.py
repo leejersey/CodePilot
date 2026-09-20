@@ -13,11 +13,20 @@ class PathGenerateRequest(BaseModel):
     knowledge_base_ids: list[uuid.UUID] = Field(default_factory=list)
 
 
+class SkillOutline(BaseModel):
+    title: str
+    goal: str | None = None
+    objectives: list[str] = []
+    teach_prompt: str | None = None
+    estimated_minutes: int | None = None
+
+
 class ChapterOutline(BaseModel):
     order: int
     title: str
     summary: str
     covers: list[str] = []
+    skills: list[SkillOutline] = []
 
 
 class RagProvenance(BaseModel):
@@ -507,4 +516,25 @@ class AdminCourseListResponse(BaseModel):
     total: int
     page: int
     page_size: int
+
+
+class SkillResponse(BaseModel):
+    id: uuid.UUID
+    chapter_id: uuid.UUID
+    sort_order: int
+    title: str
+    goal: str | None = None
+    objectives: list | None = None
+    teach_prompt: str | None = None
+    status: str
+    estimated_minutes: int | None = None
+    progress_status: str
+    mastery_score: int = 0
+    attempts: int = 0
+    passed_at: datetime | None = None
+
+
+class SkillListResponse(BaseModel):
+    chapter_id: uuid.UUID
+    skills: list[SkillResponse]
 
