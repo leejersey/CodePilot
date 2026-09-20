@@ -146,6 +146,24 @@ async def websocket_chat(websocket: WebSocket, conv_id: uuid.UUID):
                         parts.append("用户选中的片段：\n" + selection[:2000])
                     doc_ctx_text = "\n".join(parts)
 
+                skill_context = data.get("skill_context")
+                skill_ctx_text = ""
+                if isinstance(skill_context, dict):
+                    skill_parts = ["【当前技能目标】"]
+                    st = (skill_context.get("title") or "").strip()
+                    if st:
+                        skill_parts.append(f"技能：{st}")
+                    sg = (skill_context.get("goal") or "").strip()
+                    if sg:
+                        skill_parts.append(f"目标：{sg}")
+                    objs = skill_context.get("objectives")
+                    if isinstance(objs, list) and objs:
+                        skill_parts.append(
+                            "学习结果：" + "；".join(str(o).strip() for o in objs if str(o).strip())[:500]
+                        )
+                    if len(skill_parts) > 1:
+                        skill_ctx_text = "\n".join(skill_parts)
+
                 user_msg = Message(
                     conversation_id=conv_id,
                     role="user",
@@ -158,9 +176,15 @@ async def websocket_chat(websocket: WebSocket, conv_id: uuid.UUID):
                 history.append({"role": "user", "content": stored_content})
 
                 chapter_context = base_context
+                if skill_ctx_text:
+                    chapter_context = (
+                        f"{chapter_context}\n\n{skill_ctx_text}"
+                        if chapter_context
+                        else skill_ctx_text
+                    )
                 if doc_ctx_text:
                     chapter_context = (
-                        f"{base_context}\n\n{doc_ctx_text}" if base_context else doc_ctx_text
+                        f"{chapter_context}\n\n{doc_ctx_text}" if chapter_context else doc_ctx_text
                     )
                 if kb_ids:
                     try:

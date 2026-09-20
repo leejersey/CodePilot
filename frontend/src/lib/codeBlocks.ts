@@ -85,6 +85,8 @@ export function defaultFilename(language: string, index: number): string {
     bash: "sh",
     html: "html",
     css: "css",
+    react: "jsx",
+    vue: "vue",
   };
   const ext = map[language] || "txt";
   return `代码${index + 1}.${ext}`;

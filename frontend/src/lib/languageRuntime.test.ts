@@ -5,16 +5,18 @@ import {
   buildWebPreviewDocument,
   executionModeForLanguage,
   inferLearningLanguage,
+  looksLikeReactSource,
   normalizeLanguage,
+  sandpackTemplateFor,
 } from "./languageRuntime.ts";
 
 test("normalizes common language aliases", () => {
   assert.equal(normalizeLanguage("py"), "python");
-  assert.equal(normalizeLanguage("JSX"), "javascript");
+  assert.equal(normalizeLanguage("JSX"), "react");
   assert.equal(normalizeLanguage("C++"), "cpp");
   assert.equal(normalizeLanguage("C#"), "csharp");
-  assert.equal(normalizeLanguage("vue"), "html");
-  assert.equal(normalizeLanguage("react"), "javascript");
+  assert.equal(normalizeLanguage("vue"), "vue");
+  assert.equal(normalizeLanguage("react"), "react");
 });
 
 test("selects browser preview for web documents", () => {
@@ -25,11 +27,28 @@ test("selects browser preview for web documents", () => {
   assert.equal(executionModeForLanguage("go"), "remote");
 });
 
+test("routes react and vue to sandpack", () => {
+  assert.equal(executionModeForLanguage("react"), "sandpack");
+  assert.equal(executionModeForLanguage("vue"), "sandpack");
+  assert.equal(sandpackTemplateFor("react"), "react");
+  assert.equal(sandpackTemplateFor("vue"), "vue");
+  assert.equal(
+    executionModeForLanguage(
+      "javascript",
+      `import React from "react";\nexport default function App(){return <div/>}`
+    ),
+    "sandpack"
+  );
+  assert.equal(looksLikeReactSource("export default function App() {\n  return (\n    <div>Hi</div>\n  );\n}"), true);
+});
+
 test("chapter language takes priority over a broad learning path topic", () => {
   assert.equal(inferLearningLanguage("前端入门", "3. JavaScript — 让页面动起来"), "javascript");
   assert.equal(inferLearningLanguage("前端入门", "1. HTML — 搭建页面骨架"), "html");
   assert.equal(inferLearningLanguage("前端入门", "2. CSS — 给页面化妆"), "css");
   assert.equal(inferLearningLanguage("全栈开发", "Python 核心语法"), "python");
+  assert.equal(inferLearningLanguage("前端入门", "React 组件入门"), "react");
+  assert.equal(inferLearningLanguage("前端入门", "Vue 基础"), "vue");
 });
 
 test("combines html css and javascript into a preview document", () => {

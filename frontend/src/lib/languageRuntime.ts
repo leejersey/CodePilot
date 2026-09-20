@@ -1,12 +1,13 @@
-export type ExecutionMode = "pyodide" | "web" | "remote";
+export type ExecutionMode = "pyodide" | "web" | "sandpack" | "remote";
+export type SandpackTemplate = "react" | "vue";
 
 const LANGUAGE_ALIASES: Record<string, string> = {
   py: "python",
   python3: "python",
   js: "javascript",
-  jsx: "javascript",
+  jsx: "react",
   ts: "typescript",
-  tsx: "typescript",
+  tsx: "react",
   "c++": "cpp",
   "c#": "csharp",
   cs: "csharp",
@@ -15,10 +16,9 @@ const LANGUAGE_ALIASES: Record<string, string> = {
   sh: "bash",
   shell: "bash",
   htm: "html",
-  // 前端框架标签：同步沙箱 / 预览时落到可执行语言
-  vue: "html",
-  vue3: "html",
-  react: "javascript",
+  vue: "vue",
+  vue3: "vue",
+  react: "react",
 };
 
 export function normalizeLanguage(language: string): string {
@@ -28,10 +28,12 @@ export function normalizeLanguage(language: string): string {
 
 export function detectLanguageHint(text: string): string | null {
   const value = text.toLowerCase();
+  if (/\breact\b|\bjsx\b|\btsx\b/.test(value)) return "react";
+  if (/\bvue(?:\.?js|3)?\b/.test(value)) return "vue";
   if (/\bhtml5?\b|超文本|页面骨架/.test(value)) return "html";
   if (/\bcss3?\b|样式表|页面样式/.test(value)) return "css";
   if (/\btypescript\b/.test(value)) return "typescript";
-  if (/\bjavascript\b|\bnode(?:\.js|js)?\b|\breact\b|\bvue\b|\bnext(?:\.js|js)?\b/.test(value)) return "javascript";
+  if (/\bjavascript\b|\bnode(?:\.js|js)?\b|\bnext(?:\.js|js)?\b/.test(value)) return "javascript";
   if (/\bpython\b|\bdjango\b|\bflask\b|\bfastapi\b|\bpytest\b/.test(value)) return "python";
   if (/\bgolang\b|(^|[^a-z])go([^a-z]|$)/.test(value)) return "go";
   if (/\brust\b/.test(value)) return "rust";
@@ -57,11 +59,48 @@ export function inferLearningLanguage(
     || "python";
 }
 
-export function executionModeForLanguage(language: string): ExecutionMode {
+/** Heuristic: JSX/React component source even if tab lang is plain javascript. */
+export function looksLikeReactSource(code: string): boolean {
+  const sample = code.slice(0, 4000);
+  if (/from\s+['"]react['"]|require\(\s*['"]react['"]\s*\)/.test(sample)) return true;
+  if (/\bReact\.(createElement|useState|useEffect)\b/.test(sample)) return true;
+  if (/export\s+default\s+function\s+\w+\s*\([^)]*\)\s*\{[\s\S]*return\s*\(\s*</.test(sample)) {
+    return true;
+  }
+  if (/=>\s*\(\s*</.test(sample) && /<\/[A-Za-z]/.test(sample)) return true;
+  return /return\s*\(\s*<[A-Za-z]/.test(sample);
+}
+
+/** Heuristic: Vue SFC or createApp usage. */
+export function looksLikeVueSource(code: string): boolean {
+  const sample = code.slice(0, 4000);
+  if (/<template[\s>][\s\S]*<\/template>/i.test(sample)) return true;
+  if (/from\s+['"]vue['"]|createApp\s*\(/.test(sample)) return true;
+  if (/<script\s+setup\b/i.test(sample)) return true;
+  return false;
+}
+
+export function sandpackTemplateFor(
+  language: string,
+  code = ""
+): SandpackTemplate | null {
+  const normalized = normalizeLanguage(language);
+  if (normalized === "vue" || looksLikeVueSource(code)) return "vue";
+  if (normalized === "react" || looksLikeReactSource(code)) return "react";
+  return null;
+}
+
+export function executionModeForLanguage(language: string, code = ""): ExecutionMode {
   const normalized = normalizeLanguage(language);
   if (normalized === "python") return "pyodide";
+  if (sandpackTemplateFor(normalized, code)) return "sandpack";
   // 前端章节的 JS 面向 DOM，走浏览器预览；远程 Judge0 没有页面可渲染。
-  if (normalized === "html" || normalized === "css" || normalized === "javascript") {
+  if (
+    normalized === "html"
+    || normalized === "css"
+    || normalized === "javascript"
+    || normalized === "typescript"
+  ) {
     return "web";
   }
   return "remote";
@@ -109,7 +148,9 @@ export function buildWebPreviewDocument(files: WebPreviewFile[]): string {
   const javascript = companions
     .filter(
       (file) =>
-        (file.language === "javascript" || file.language === "typescript")
+        (file.language === "javascript"
+          || file.language === "typescript"
+          || file.language === "react")
         && !looksLikeHtmlDocument(file.code)
     )
     .map((file) => file.code)
