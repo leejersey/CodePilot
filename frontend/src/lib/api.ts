@@ -1173,6 +1173,12 @@ export interface LlmSettings {
   presets: LlmPreset[];
 }
 
+export interface SandboxSettings {
+  default_provider: "modal" | null;
+  has_modal_credentials: boolean;
+  modal_token_id_masked: string | null;
+}
+
 export interface LlmUsageSummary {
   month: string;
   monthly_token_quota: number;
@@ -1354,6 +1360,22 @@ export async function testLlmSettings(): Promise<{
   reply: string;
 }> {
   return fetchAPI("/api/v1/settings/llm/test", { method: "POST", body: "{}" });
+}
+
+export async function getSandboxSettings(): Promise<SandboxSettings> {
+  return fetchAPI<SandboxSettings>("/api/v1/settings/sandbox");
+}
+
+export async function updateSandboxSettings(body: {
+  default_provider?: "modal" | null;
+  modal_token_id?: string | null;
+  modal_token_secret?: string | null;
+  keep_modal_secret?: boolean;
+}): Promise<SandboxSettings> {
+  return fetchAPI<SandboxSettings>("/api/v1/settings/sandbox", {
+    method: "PUT",
+    body: JSON.stringify(body),
+  });
 }
 
 export async function listAdminUsers(params: {

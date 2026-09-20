@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { Gauge, KeyRound, Sparkles } from "lucide-react";
+import { Cloud, Gauge, KeyRound, Sparkles } from "lucide-react";
 
 export const SETTINGS_NAV = [
   {
@@ -16,6 +16,12 @@ export const SETTINGS_NAV = [
     label: "模型配置",
     description: "个人 LLM",
     icon: Sparkles,
+  },
+  {
+    href: "/settings/sandbox",
+    label: "沙箱配置",
+    description: "Modal BYOK",
+    icon: Cloud,
   },
   {
     href: "/settings/usage",
