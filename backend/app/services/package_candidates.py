@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import logging
 import re
 from collections import defaultdict
 from collections.abc import Mapping, Sequence
@@ -14,6 +15,8 @@ from sqlalchemy.orm import selectinload
 from sqlalchemy import select
 
 from app.services.package_extract import extract_package_refs
+
+logger = logging.getLogger(__name__)
 
 _PKG_RE = re.compile(r"^[a-zA-Z0-9][a-zA-Z0-9_.+-]*$")
 
@@ -138,6 +141,70 @@ def package_status_lookup(
     for item in chapter_c:
         lookup[item["name"]] = item["status"]
     return lookup
+
+
+def resolve_modal_install(
+    code: str,
+    effective: Sequence[str] | None = None,
+    statuses: Mapping[str, str] | None = None,
+    *,
+    path_candidates: Sequence[Candidate] | None = None,
+    chapter_candidates: Sequence[Candidate] | None = None,
+) -> tuple[list[str], list[tuple[str, str]]]:
+    """Compute install list and blocked packages for a Modal course run.
+
+    Returns ``(to_install, blocked)`` where ``blocked`` is
+    ``[(name, status), ...]`` for detected packages not in the effective set.
+
+    When both ``path_candidates`` and ``chapter_candidates`` are explicitly empty
+    lists, uses temporary legacy fallback: ``KNOWN_SAFE_HINTS`` as the allow set.
+    """
+    status_map: dict[str, str] = dict(statuses or {})
+    effective_list: list[str]
+
+    if path_candidates is not None and chapter_candidates is not None:
+        path_c = list(path_candidates)
+        chapter_c = list(chapter_candidates)
+        if not path_c and not chapter_c:
+            logger.warning(
+                "Modal package allow-list legacy fallback: path and chapter "
+                "package_candidates are both empty; using KNOWN_SAFE_HINTS"
+            )
+            effective_list = sorted(KNOWN_SAFE_HINTS)
+            status_map = {}
+        else:
+            effective_list = effective_packages(path_c, chapter_c)
+            status_map = package_status_lookup(path_c, chapter_c)
+    else:
+        effective_list = list(effective or [])
+
+    effective_set = set()
+    for raw in effective_list:
+        name = sanitize_name(raw)
+        if name:
+            effective_set.add(name)
+
+    detected: list[str] = []
+    seen: set[str] = set()
+    for ref in extract_package_refs(code or ""):
+        name = sanitize_name(ref.name)
+        if not name or name in seen:
+            continue
+        seen.add(name)
+        detected.append(name)
+
+    install: list[str] = []
+    blocked: list[tuple[str, str]] = []
+    for name in detected:
+        if name in effective_set:
+            install.append(name)
+        else:
+            blocked.append((name, status_map.get(name, "absent")))
+
+    if len(install) > 8:
+        raise ValueError("一次最多安装 8 个白名单依赖")
+
+    return install, blocked
 
 
 def _stringify_field(value: Any) -> str:

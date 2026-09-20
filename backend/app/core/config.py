@@ -30,6 +30,13 @@ class Settings(BaseSettings):
     JUDGE0_WALL_TIME_LIMIT: float = 8.0
     JUDGE0_MEMORY_LIMIT_KB: int = 128000
 
+    # Modal — optional cloud sandbox for framework / LangChain demos
+    MODAL_TOKEN_ID: str = ""
+    MODAL_TOKEN_SECRET: str = ""
+    MODAL_APP_NAME: str = "codepilot-sandbox"
+    MODAL_SANDBOX_TIMEOUT_SECONDS: int = 300
+    MODAL_EXEC_TIMEOUT_SECONDS: int = 60
+
     # LLM — DeepSeek (OpenAI 兼容)
     LLM_API_KEY: str = ""
     LLM_MODEL: str = "deepseek-flash"

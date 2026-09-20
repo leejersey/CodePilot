@@ -1,13 +1,21 @@
-"""通过 Judge0 沙箱真实运行代码。"""
+"""通过 Judge0 / Modal 沙箱运行代码。"""
+
+import uuid
 
 import httpx
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel, Field
+from sqlalchemy import select
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.deps import get_current_user
-from app.models.models import User
+from app.db.database import get_db
+from app.models.models import Chapter, LearningPath, User
+from app.services.course_access import can_access_legacy_path
 from app.services.judge0 import JudgeUnavailable, language_id_for, run_code as judge0_run_code
 from app.services.llm import call_llm_json, llm_user_context
+from app.services.modal_sandbox import ModalUnavailable, run_python_in_modal
+from app.services.package_candidates import resolve_modal_install
 
 router = APIRouter()
 
@@ -28,6 +36,16 @@ class CodeRunResponse(BaseModel):
     memory: int | None = None
     trusted: bool
     judge_source: str
+
+
+class ModalRunRequest(BaseModel):
+    code: str = Field(..., min_length=1, max_length=100_000)
+    language: str = Field("python")
+    path_id: uuid.UUID
+    chapter_id: uuid.UUID
+    # Learner .env contents (KEY=VALUE). Parsed server-side; platform keys are NOT injected.
+    dotenv: str = Field("", max_length=20_000)
+    # Client `packages` is intentionally omitted — allow decisions come from course DB only.
 
 
 @router.post("/run", response_model=CodeRunResponse)
@@ -79,4 +97,68 @@ async def run_code(
         memory=result.memory,
         trusted=True,
         judge_source="judge0",
+    )
+
+
+def _blocked_packages_message(blocked: list[tuple[str, str]]) -> str:
+    parts = [f"{name}（{status}）" for name, status in blocked]
+    return "不允许安装未批准的依赖：" + "、".join(parts)
+
+
+@router.post("/run-modal", response_model=CodeRunResponse)
+async def run_code_modal(
+    body: ModalRunRequest,
+    user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """在 Modal Sandbox 中运行 Python；安装集合 = 代码检测 ∩ 课程已批准依赖。"""
+    language = (body.language or "python").strip().lower()
+    if language not in {"python", "py", "python3"}:
+        raise HTTPException(status_code=422, detail="Modal 云端运行目前仅支持 Python")
+
+    chapter = await db.scalar(select(Chapter).where(Chapter.id == body.chapter_id))
+    if not chapter or chapter.path_id != body.path_id:
+        raise HTTPException(status_code=404, detail="章节不存在")
+
+    path = await db.scalar(select(LearningPath).where(LearningPath.id == body.path_id))
+    if not path or not await can_access_legacy_path(db, path, user):
+        raise HTTPException(status_code=404, detail="学习路线不存在")
+
+    path_candidates = list(getattr(path, "package_candidates", None) or [])
+    chapter_candidates = list(getattr(chapter, "package_candidates", None) or [])
+
+    try:
+        to_install, blocked = resolve_modal_install(
+            body.code,
+            path_candidates=path_candidates,
+            chapter_candidates=chapter_candidates,
+        )
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+
+    if blocked:
+        raise HTTPException(status_code=422, detail=_blocked_packages_message(blocked))
+
+    try:
+        from app.services.dotenv_parse import parse_dotenv
+
+        env_vars = parse_dotenv(body.dotenv) if body.dotenv.strip() else {}
+        result = await run_python_in_modal(body.code, to_install, env_vars=env_vars)
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+    except ModalUnavailable as exc:
+        raise HTTPException(status_code=503, detail=str(exc)) from exc
+    except Exception as exc:
+        raise HTTPException(status_code=503, detail=f"Modal 执行失败: {exc}") from exc
+
+    output = result.stdout
+    if result.stderr:
+        output = f"{output}\n{result.stderr}".strip() if output else result.stderr
+    return CodeRunResponse(
+        output=output or "(无输出)",
+        has_error=result.exit_code != 0,
+        status=result.status,
+        stderr=result.stderr or None,
+        trusted=True,
+        judge_source="modal",
     )
