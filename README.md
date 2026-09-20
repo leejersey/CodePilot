@@ -5,7 +5,7 @@
 <h1 align="center">CodePilot — AI 编程学习平台</h1>
 
 <p align="center">
-  <strong>问答式 AI 导师 · 截图多模态 · 文档学习模式 · 知识库 RAG · 管理员出题 · 浏览器沙箱 · 实时判题</strong>
+  <strong>问答式 AI 导师 · 章节技能拆分 · 截图多模态 · 文档学习 · 知识库 RAG · Sandpack / Modal 沙箱 · 实时判题</strong>
 </p>
 
 <p align="center">
@@ -27,7 +27,9 @@
 | 📖 **文档学习** | 章节页切换「AI 教学 / 文档学习」；讲义摘要 + 知识库原文分阶段阅读；提问带当前阶段上下文 |
 | 📚 **知识库 RAG** | 管理员上传文档 → 向量检索；主题匹配时生成知识库课程，否则纯 AI 生成 |
 | 🎯 **个性化路径** | 按水平与目标定制路线；进度追踪；可删除路线 |
-| 🖥️ **代码沙箱** | Monaco 编辑；Pyodide 跑 Python；HTML/Sandpack 预览；Judge0 多语言；可选 Modal 云端 Python |
+| 🧩 **章节技能** | 生成时拆成 3–6 个 Skill；学习页默认收起技能轨；手动「开始 / 过关」解锁下一技能 |
+| 🖥️ **代码沙箱** | Monaco 编辑；Pyodide 跑 Python；HTML 预览；React/Vue **Sandpack** 预览；Judge0 多语言；可选 **Modal** 云端 Python（课程依赖管理员批准后才安装） |
+| 🔑 **学员 API Key** | 需调模型的技能可配置本地 `.env`（如 `DEEPSEEK_API_KEY`，存 localStorage）；平台 Key 不注入 Modal |
 | 🎬 **知识点讲解** | 代码块旁「动画讲解」：生成 Remotion 短片并含运行结果 |
 | 📝 **练习演练场** | 管理员基于知识库异步出题并编辑；Judge0 真实运行测试后才可发布 |
 | 🔐 **用户认证** | JWT 注册登录；`ADMIN_EMAILS` 晋升管理员；知识库 / 练习管理仅管理员 |
@@ -44,7 +46,8 @@
 ├── TailwindCSS 3               ├── Alembic (数据库迁移)       ├── DeepSeek API (LLM)
 ├── Zustand (状态管理)           ├── asyncpg                   └── 阿里云百炼 Embeddings
 ├── Monaco Editor               ├── httpx / OpenAI SDK
-├── Pyodide (浏览器 Python)      └── pgvector 检索
+├── Pyodide (浏览器 Python)      ├── Modal (可选云端 Python)
+├── Sandpack (React/Vue 预览)    └── pgvector 检索
 ├── Remotion (讲解动画)
 ├── react-markdown + Prism 高亮
 └── Lucide React
@@ -103,6 +106,13 @@ ADMIN_EMAILS=you@example.com
 # TOS_REGION=cn-beijing
 # TOS_BUCKET=
 # TOS_PUBLIC_BASE_URL=
+
+# Modal 云端运行（可选；学习页「云端运行」）
+# MODAL_TOKEN_ID=
+# MODAL_TOKEN_SECRET=
+# MODAL_APP_NAME=codepilot-sandbox
+# MODAL_SANDBOX_TIMEOUT_SECONDS=300
+# MODAL_EXEC_TIMEOUT_SECONDS=60
 ```
 
 ### 3. 启动数据库
@@ -158,6 +168,12 @@ npm run dev
 | **AI 教学** | WebSocket 流式导师对话；默认可视最近约 12 轮，可「加载更早」与「大纲」跳转；可 **+ 上传 / 粘贴截图**（最多 4 张）；课文代码需点「同步至沙箱」才进右侧编辑器（可关闭、同内容去重） / 动画讲解 |
 | **文档学习** | 课程讲义（摘要）或知识库原文；按大标题分阶段解锁；提问同样可带截图与当前阶段上下文 |
 
+**技能轨 · 沙箱运行**
+
+1. 章节生成后带 Skill 列表；学习页默认收起，点击展开「开始 / 过关」。
+2. 右侧 Monaco：Python 可用 Pyodide 或「云端运行」（Modal）；React/Vue 点运行走 Sandpack 预览；其它语言走 Judge0。
+3. Modal 只装**本课管理员已批准**的 pip 依赖；学员 Key 写在章节 `.env` 本地配置，不使用平台 `LLM_API_KEY`。
+
 左右分栏可拖拽调宽。
 
 **截图对话**
@@ -206,10 +222,15 @@ CodePilot/
 │   │   │   └── usage/
 │   │   ├── history/
 │   │   └── …
-│   ├── src/lib/chatImages.ts     # 截图压缩 / 校验（最多 4 张）
+│   ├── src/lib/
+│   │   ├── chatImages.ts         # 截图压缩 / 校验（最多 4 张）
+│   │   ├── sandpackFiles.ts / languageRuntime.ts
+│   │   └── chapterEnv.ts         # 章节 .env ↔ localStorage
 │   ├── src/components/
 │   │   ├── settings/SettingsNav.tsx  # 个人中心侧栏 / 移动端切换
 │   │   ├── DocumentLearningPanel.tsx
+│   │   ├── SandpackPreview.tsx   # React/Vue 预览
+│   │   ├── ApiKeyConfigPanel.tsx # 学员章节 API Key
 │   │   ├── MarkdownRenderer.tsx
 │   │   ├── DialogProvider.tsx
 │   │   ├── AdminGuard.tsx / AuthGuard.tsx
@@ -218,6 +239,9 @@ CodePilot/
 ├── backend/
 │   ├── app/api/v1/
 │   │   ├── paths.py / chapters.py / knowledge.py
+│   │   ├── skills.py             # 章节 Skill 列表 / 开始 / 过关
+│   │   ├── admin_path_packages.py  # 管理员批准 Modal 依赖
+│   │   ├── code.py               # Judge0 + Modal run-modal
 │   │   ├── exercises.py          # 学员列表 + 管理员出题/状态
 │   │   ├── settings.py           # 用户 LLM 偏好
 │   │   └── …
@@ -225,6 +249,8 @@ CodePilot/
 │   ├── app/services/
 │   │   ├── chat_images.py        # 对话附图校验与多模态组装
 │   │   ├── learning_docs.py      # 文档分阶段（忽略代码块内 # 注释）
+│   │   ├── skills.py / package_extract.py / package_candidates.py
+│   │   ├── modal_sandbox.py / dotenv_parse.py
 │   │   ├── kb_retrieve.py / kb_ingest.py
 │   │   ├── exercise.py / llm.py / embeddings.py
 │   │   └── …
@@ -255,7 +281,9 @@ CodePilot/
 | `DELETE` | `/api/v1/paths/{id}` | 删除路线 |
 | `GET` | `/api/v1/chapters/{id}/learning-docs` | 文档学习：讲义阶段 + KB 文档列表 |
 | `GET` | `/api/v1/chapters/{id}/learning-docs/kb/{doc_id}` | 知识库原文分阶段 |
-| `WebSocket` | `/ws/chat/{conv_id}` | 流式对话；可带 `doc_context`、`images`（data URL，最多 4 张） |
+| `GET` | `/api/v1/chapters/{id}/skills` | 本章 Skill 列表与进度 |
+| `POST` | `/api/v1/skills/{id}/start` · `/complete` | 开始 / 手动过关（解锁下一 Skill） |
+| `WebSocket` | `/ws/chat/{conv_id}` | 流式对话；可带 `doc_context`、`images`、可选 `skill_context` |
 
 ### 知识库（管理员）
 
@@ -277,20 +305,33 @@ CodePilot/
 | `GET` | `/api/v1/exercises/{id}` | 详情（未发布仅管理员） |
 | `POST` | `/api/v1/exercises/{id}/submit` | 提交判题（仅已发布） |
 
+### Modal 依赖（管理员）
+
+| 方法 | 路径 | 说明 |
+|------|------|------|
+| `GET` | `/api/v1/admin/paths/{path_id}/packages` | 查看 path/chapter `package_candidates`（pending / approved / rejected） |
+| `PATCH` | `/api/v1/admin/paths/{path_id}/packages` | 批准或拒绝某个依赖（仅 `admin` / `super_admin`） |
+
 ### 其他
 
 | 方法 | 路径 | 说明 |
 |------|------|------|
 | `GET` | `/api/v1/progress/…` | 统计 / 活跃度 / 技能分布 |
 | `POST` | `/api/v1/code/run` | Judge0 隔离沙箱真实运行代码 |
-| `POST` | `/api/v1/code/run-modal` | Modal 云端运行 Python（需 `path_id` + `chapter_id`；按课程已批准依赖安装） |
+| `POST` | `/api/v1/code/run-modal` | Modal 云端 Python（必填 `path_id` + `chapter_id`；只装已批准依赖） |
 | `GET/POST` | `/api/v1/jobs/…` | 后台任务状态与失败重试 |
 | `POST` | `/api/v1/animation/generate-snippet` | 单段代码讲解动画 |
 | `GET` | `/health` | 健康检查 |
 
 完整交互式文档见运行中的 `/docs`。
 
-**Modal 云端运行：** 学习页「云端运行」会随请求提交当前路线与章节 ID，服务端只安装该课程 **管理员已批准** 的 pip 包（生成时写入 `package_candidates`，待审包不会装上 Modal）。管理员审阅：`GET/PATCH /api/v1/admin/paths/{path_id}/packages`。存量路线迁移后可在 backend 目录执行 `python -m app.services.backfill_package_candidates`（加 `--dry-run` 仅预览）；`MODAL_*` 见 `.env.example`。
+**Modal 云端运行与课程依赖白名单**
+
+1. 课程生成时扫描样例代码的 `import` / `init_chat_model("provider:…")`，写入 path（多章共享）与 chapter（独有）的 `package_candidates`，默认 `pending`。
+2. 管理员 `PATCH …/packages` 批准后，学习页「云端运行」才会 `pip install` 这些包；未批准会返回明确 422。
+3. 请求必须带 `path_id` / `chapter_id`（前端已传）；学员 `.env` 仅用于沙箱环境变量，**不**注入平台 `LLM_API_KEY`。
+4. 迁移后存量路线可执行：`cd backend && python -m app.services.backfill_package_candidates`（`--dry-run` 预览）；空候选列表时会临时回退到内置教学安全提示集并打日志。
+5. `MODAL_TOKEN_ID` / `MODAL_TOKEN_SECRET` 等见 `.env.example`。设计说明：`docs/superpowers/specs/2026-09-20-course-package-allowlist-design.md`。
 
 ## 📸 页面预览
 
@@ -358,9 +399,10 @@ CodePilot/
 - [x] **V2.1** — 章节对话截图上传 / 粘贴 · deepseek-flash 多模态识图（demo：当前轮 base64）
 - [x] **V2.2** — 个人中心分板块（账号 / 模型 / 用量子路由）· 对话窗口化与大纲跳转
 - [x] **V2.3** — 学习闭环引导 · AI/文档模式澄清 · 平台答疑页 · 截图火山 TOS 持久化
-- [x] **V2.4** — Chapter 下 Skill 原子（生成 / 列表 / 手动过关解锁下一 Skill · 学习页技能轨）
-- [x] **V2.5** — 学习页 React/Vue Sandpack 预览（Monaco 编辑 · 点 Preview 同步）
-- [x] **V2.6** — Modal 云端运行（Python / 可选白名单依赖；Judge0 保留）
+- [x] **V2.4** — Chapter 下 Skill 原子（生成 / 列表 / 手动过关 · 学习页默认收起技能轨）
+- [x] **V2.5** — React/Vue Sandpack 预览（Monaco 编辑 · 运行时同步）· 学员章节 API Key（localStorage / `.env`）
+- [x] **V2.6** — Modal 云端 Python（Judge0 保留）· 课程级依赖白名单（生成抽取 → 管理员批准 → `run-modal` 只装已批准包）
+- [ ] **V2.7** — Skill Checkpoint 硬门槛 · 管理员依赖审核 UI · 去掉空列表时的全局安全提示回退
 - [ ] **V3** — 多语言产品化 · 社区 · 成就系统 · Judge0 沙箱可信度（禁静默 LLM fallback）
 
 ## 📄 License
