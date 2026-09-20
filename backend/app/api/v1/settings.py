@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import uuid
+from typing import Literal
 
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel, Field
@@ -322,3 +323,97 @@ async def test_llm_settings(user: User = Depends(get_current_user)):
         raise
     except Exception as e:
         raise HTTPException(status_code=400, detail=f"连通失败: {e}") from e
+
+
+# --- Sandbox (Modal BYOK) -------------------------------------------------
+
+
+class SandboxSettingsPublic(BaseModel):
+    default_provider: Literal["modal"] | None
+    has_modal_credentials: bool
+    modal_token_id_masked: str | None
+
+
+class SandboxSettingsUpdate(BaseModel):
+    default_provider: Literal["modal"] | None = None
+    modal_token_id: str | None = None
+    modal_token_secret: str | None = None
+    keep_modal_secret: bool = True
+
+
+def _get_sandbox(user: User) -> dict:
+    prefs = _prefs(user)
+    raw = prefs.get("sandbox")
+    return dict(raw) if isinstance(raw, dict) else {}
+
+
+def _save_sandbox(user: User, sandbox: dict) -> None:
+    prefs = _prefs(user)
+    prefs["sandbox"] = sandbox
+    user.preferences = prefs
+    flag_modified(user, "preferences")
+
+
+def _sandbox_public(sandbox: dict) -> SandboxSettingsPublic:
+    modal = sandbox.get("modal") if isinstance(sandbox.get("modal"), dict) else {}
+    token_id = (modal.get("token_id") or "").strip()
+    token_secret = (modal.get("token_secret") or "").strip()
+    default = sandbox.get("default_provider")
+    if default != "modal":
+        default = None
+    return SandboxSettingsPublic(
+        default_provider=default,
+        has_modal_credentials=bool(token_id and token_secret),
+        modal_token_id_masked=mask_api_key(token_id) if token_id else None,
+    )
+
+
+@router.get("/sandbox", response_model=SandboxSettingsPublic)
+async def get_sandbox_settings(user: User = Depends(get_current_user)):
+    return _sandbox_public(_get_sandbox(user))
+
+
+@router.put("/sandbox", response_model=SandboxSettingsPublic)
+async def put_sandbox_settings(
+    body: SandboxSettingsUpdate,
+    db: AsyncSession = Depends(get_db),
+    user: User = Depends(get_current_user),
+):
+    sandbox = _get_sandbox(user)
+    modal = dict(sandbox.get("modal")) if isinstance(sandbox.get("modal"), dict) else {}
+
+    if body.default_provider is not None:
+        sandbox["default_provider"] = body.default_provider
+
+    new_id = (body.modal_token_id or "").strip()
+    new_secret = (body.modal_token_secret or "").strip()
+
+    if body.modal_token_id is not None:
+        if new_id:
+            modal["token_id"] = new_id
+        else:
+            modal.pop("token_id", None)
+
+    if new_secret:
+        modal["token_secret"] = new_secret
+    elif body.modal_token_secret is not None and not body.keep_modal_secret:
+        modal.pop("token_secret", None)
+    # else: keep_modal_secret and no new secret → leave existing secret
+
+    tid = (modal.get("token_id") or "").strip()
+    tsec = (modal.get("token_secret") or "").strip()
+    if (tid and not tsec) or (tsec and not tid):
+        raise HTTPException(
+            status_code=400,
+            detail="设置 Modal 凭证需同时提供 Token ID 与 Secret",
+        )
+
+    if tid and tsec:
+        sandbox["modal"] = {"token_id": tid, "token_secret": tsec}
+    elif body.modal_token_id is not None or body.modal_token_secret is not None:
+        sandbox["modal"] = {}
+
+    _save_sandbox(user, sandbox)
+    await db.commit()
+    await db.refresh(user)
+    return _sandbox_public(_get_sandbox(user))
