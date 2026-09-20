@@ -21,17 +21,26 @@ import {
   recordLearningHeartbeat,
   updateChapterStatus,
   getChapterSkills,
+  getSandboxSettings,
   startSkill,
   completeSkill,
   type ChapterPractice,
   type ChapterSkill,
+  type SandboxSettings,
 } from "@/lib/api";
 import { defaultFilename, fingerprintCode } from "@/lib/codeBlocks";
 import { chapterCompletionOutcome } from "@/lib/courseExperience";
 import { buildWebPreviewDocument, executionModeForLanguage, inferLearningLanguage, looksLikeHtmlDocument, normalizeLanguage, sandpackTemplateFor } from "@/lib/languageRuntime";
+import {
+  looksLikeCloudFrameworkCode,
+  pickCloudProvider,
+  resolveTabExecution,
+  type RuntimeTag,
+} from "@/lib/tabRuntime";
 import { buildSandpackFiles } from "@/lib/sandpackFiles";
 import { FrameworkPreview } from "@/components/SandpackPreview";
 import { ApiKeyConfigPanel } from "@/components/ApiKeyConfigPanel";
+import { useDialog } from "@/components/DialogProvider";
 import {
   DEFAULT_DOTENV_STUB,
   clearChapterEnv,
@@ -80,6 +89,8 @@ interface EditorTab {
   originCode: string;
   code: string;
   fingerprint: string;
+  /** Explicit runtime tag for tab routing; do not confuse with display `editorInfo.runtime`. */
+  runtimeTag?: RuntimeTag;
 }
 
 // 根据主题推断编辑器语言
@@ -178,6 +189,7 @@ export default function LearningWorkspacePage() {
   const chapterId = params.chapterId as string;
   const { init: authInit } = useAuth();
   const { theme } = useTheme();
+  const { confirm } = useDialog();
 
   useEffect(() => { authInit(); }, [authInit]);
 
@@ -212,6 +224,7 @@ export default function LearningWorkspacePage() {
   } | null>(null);
   const [running, setRunning] = useState(false);
   const [modalRunning, setModalRunning] = useState(false);
+  const [sandboxSettings, setSandboxSettings] = useState<SandboxSettings | null>(null);
   const [chapterCompleted, setChapterCompleted] = useState(false);
   const [hasRunCode, setHasRunCode] = useState(false);
   const [chapterTitle, setChapterTitle] = useState("本章内容");
@@ -236,6 +249,20 @@ export default function LearningWorkspacePage() {
   const [docAskContext, setDocAskContext] = useState<DocAskContext | null>(null);
   const [docMessages, setDocMessages] = useState<ChatMessage[]>([]);
   const router = useRouter();
+
+  useEffect(() => {
+    let cancelled = false;
+    void getSandboxSettings()
+      .then((settings) => {
+        if (!cancelled) setSandboxSettings(settings);
+      })
+      .catch(() => {
+        if (!cancelled) setSandboxSettings(null);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   const activeSkill = skills.find((s) => s.progress_status === "active")
     ?? skills.find((s) => s.progress_status !== "passed" && s.progress_status !== "locked")
@@ -551,6 +578,22 @@ export default function LearningWorkspacePage() {
     activeLang === "react" ? "javascript"
     : activeLang === "vue" ? "html"
     : activeLang;
+  const tabExec = resolveTabExecution({
+    language: activeLang,
+    code: activeCode,
+    tag: activeTab?.runtimeTag ?? null,
+  });
+  const cloudProvider =
+    tabExec.mode === "cloud"
+      ? pickCloudProvider({
+          defaultProvider: sandboxSettings?.default_provider ?? "modal",
+          modalConfigured: !!sandboxSettings?.has_modal_credentials,
+          daytonaConfigured: false,
+        })
+      : null;
+  const showLocalRun = tabExec.mode !== "cloud";
+  const showCloudRun = tabExec.mode === "cloud" && !!cloudProvider;
+  const showSandboxCta = tabExec.mode === "cloud" && !cloudProvider;
   const activeExecMode = executionModeForLanguage(activeLang, activeCode);
   const previewMode =
     activeExecMode === "web"
@@ -606,6 +649,9 @@ export default function LearningWorkspacePage() {
     const lang = normalizeLanguage(language);
     const fp = fingerprintCode(lang, code);
     const tabId = `lesson-${fp}`;
+    const runtimeTag: RuntimeTag | undefined = looksLikeCloudFrameworkCode(code)
+      ? "cloud"
+      : undefined;
     setTabs((prev) => {
       const existing = prev.find((t) => t.fingerprint === fp || t.id === tabId);
       if (existing) return prev;
@@ -619,6 +665,7 @@ export default function LearningWorkspacePage() {
           originCode: code,
           code,
           fingerprint: fp,
+          ...(runtimeTag ? { runtimeTag } : {}),
         },
       ];
     });
@@ -1144,6 +1191,50 @@ export default function LearningWorkspacePage() {
     }
   };
 
+  const handleCompleteChapter = async () => {
+    if (completing || chapterCompleted) return;
+    const ok = await confirm({
+      title: "完成本章？",
+      message: "确认后将标记本章为已完成，并自动解锁下一章。此操作适合在你已掌握本章内容后进行。",
+      confirmText: "确认完成",
+      cancelText: "再想想",
+      tone: "default",
+    });
+    if (!ok) return;
+    setCompleting(true);
+    try {
+      const updated = await updateChapterStatus(chapterId, "completed");
+      const outcome = chapterCompletionOutcome(updated);
+      if (outcome.kind === "preview") {
+        const notice = { role: "system" as const, content: outcome.message };
+        if (learnMode === "doc") setDocMessages((prev) => [...prev, notice]);
+        else setMessages((prev) => [...prev, notice]);
+        return;
+      }
+      setChapterCompleted(true);
+      window.dispatchEvent(new Event("chapter-status-changed"));
+      await loadPractice();
+      setPracticeOpen(true);
+      if (learnMode === "doc") {
+        setDocMessages((prev) => [
+          ...prev,
+          { role: "assistant", content: "🎉 本章已标记完成。可继续阅读文档，或切换回 AI 教学。" },
+        ]);
+      } else {
+        setMessages((prev) => [
+          ...prev,
+          { role: "assistant", content: "🎉 恭喜你完成了本章学习！下一章已自动解锁，可以从侧边栏继续学习。" },
+        ]);
+      }
+    } catch {
+      const errMsg = { role: "system" as const, content: "标记完成失败，请重试" };
+      if (learnMode === "doc") setDocMessages((prev) => [...prev, errMsg]);
+      else setMessages((prev) => [...prev, errMsg]);
+    } finally {
+      setCompleting(false);
+    }
+  };
+
   return (
     <div
       ref={splitRef}
@@ -1559,41 +1650,7 @@ export default function LearningWorkspacePage() {
             {!chapterCompleted ? (
               <button
                 className="flex-shrink-0 flex items-center gap-1.5 px-4 py-3 bg-purple-50 hover:bg-purple-100 dark:bg-secondary/20 dark:hover:bg-secondary/30 text-purple-700 dark:text-secondary border border-purple-200 dark:border-secondary/30 rounded-2xl text-xs font-bold transition-all active:scale-95 disabled:opacity-50 shadow-xs"
-                onClick={async () => {
-                  if (completing) return;
-                  setCompleting(true);
-                  try {
-                    const updated = await updateChapterStatus(chapterId, "completed");
-                    const outcome = chapterCompletionOutcome(updated);
-                    if (outcome.kind === "preview") {
-                      const notice = { role: "system" as const, content: outcome.message };
-                      if (learnMode === "doc") setDocMessages((prev) => [...prev, notice]);
-                      else setMessages((prev) => [...prev, notice]);
-                      return;
-                    }
-                    setChapterCompleted(true);
-                    window.dispatchEvent(new Event("chapter-status-changed"));
-                    await loadPractice();
-                    setPracticeOpen(true);
-                    if (learnMode === "doc") {
-                      setDocMessages((prev) => [
-                        ...prev,
-                        { role: "assistant", content: "🎉 本章已标记完成。可继续阅读文档，或切换回 AI 教学。" },
-                      ]);
-                    } else {
-                      setMessages((prev) => [
-                        ...prev,
-                        { role: "assistant", content: "🎉 恭喜你完成了本章学习！下一章已自动解锁，可以从侧边栏继续学习。" },
-                      ]);
-                    }
-                  } catch {
-                    const errMsg = { role: "system" as const, content: "标记完成失败，请重试" };
-                    if (learnMode === "doc") setDocMessages((prev) => [...prev, errMsg]);
-                    else setMessages((prev) => [...prev, errMsg]);
-                  } finally {
-                    setCompleting(false);
-                  }
-                }}
+                onClick={() => void handleCompleteChapter()}
                 disabled={completing}
               >
                 {completing ? (
@@ -1944,39 +2001,52 @@ export default function LearningWorkspacePage() {
               {exporting ? <Loader2 size={13} className="animate-spin" /> : <Download size={13} />}
               导出
             </button>
-            <button
-              type="button"
-              className="flex-shrink-0 flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-violet-200 dark:border-violet-500/30 text-xs font-semibold text-violet-700 dark:text-violet-300 hover:bg-violet-50 dark:hover:bg-violet-500/10 transition-all active:scale-95 disabled:opacity-50 shadow-xs"
-              onClick={() => void runModal()}
-              disabled={running || modalRunning || !activeCode.trim()}
-              title="在 Modal 云端运行当前 Python 代码（需配置 Token）"
-            >
-              {modalRunning ? (
-                <>
-                  <Loader2 size={13} className="animate-spin" /> 云端…
-                </>
-              ) : (
-                <>
-                  <Cloud size={13} /> 云端运行
-                </>
-              )}
-            </button>
-            <button
-              className="flex-shrink-0 flex items-center gap-1.5 px-3.5 py-1.5 bg-sky-600 hover:bg-sky-500 text-white dark:bg-primary dark:text-on-primary text-xs font-bold font-headline rounded-lg transition-all active:scale-95 disabled:opacity-50 shadow-xs"
-              onClick={runCode}
-              disabled={running || modalRunning}
-            >
-              {running ? (
-                <>
-                  <Loader2 size={13} className="animate-spin" /> Running...
-                </>
-              ) : (
-                <>
-                  <Play size={13} className="fill-current" />
-                  {previewMode ? "Preview" : "Run"}
-                </>
-              )}
-            </button>
+            {showSandboxCta && (
+              <Link
+                href="/settings/sandbox"
+                title="配置 Modal 等云端沙箱凭证后即可运行"
+                className="flex-shrink-0 flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-amber-200 dark:border-amber-500/30 text-xs font-semibold text-amber-700 dark:text-amber-300 hover:bg-amber-50 dark:hover:bg-amber-500/10 transition-all shadow-xs"
+              >
+                <Cloud size={13} /> 去配置云端沙箱
+              </Link>
+            )}
+            {showCloudRun && (
+              <button
+                type="button"
+                className="flex-shrink-0 flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-violet-200 dark:border-violet-500/30 text-xs font-semibold text-violet-700 dark:text-violet-300 hover:bg-violet-50 dark:hover:bg-violet-500/10 transition-all active:scale-95 disabled:opacity-50 shadow-xs"
+                onClick={() => void runModal()}
+                disabled={running || modalRunning || !activeCode.trim()}
+                title="在 Modal 云端运行当前 Python 代码（需配置 Token）"
+              >
+                {modalRunning ? (
+                  <>
+                    <Loader2 size={13} className="animate-spin" /> 云端…
+                  </>
+                ) : (
+                  <>
+                    <Cloud size={13} /> 云端运行
+                  </>
+                )}
+              </button>
+            )}
+            {showLocalRun && (
+              <button
+                className="flex-shrink-0 flex items-center gap-1.5 px-3.5 py-1.5 bg-sky-600 hover:bg-sky-500 text-white dark:bg-primary dark:text-on-primary text-xs font-bold font-headline rounded-lg transition-all active:scale-95 disabled:opacity-50 shadow-xs"
+                onClick={runCode}
+                disabled={running || modalRunning}
+              >
+                {running ? (
+                  <>
+                    <Loader2 size={13} className="animate-spin" /> Running...
+                  </>
+                ) : (
+                  <>
+                    <Play size={13} className="fill-current" />
+                    {previewMode ? "Preview" : "Run"}
+                  </>
+                )}
+              </button>
+            )}
           </div>
           <div className="flex-1 relative w-full h-full overflow-hidden bg-white dark:bg-[#1e1e1e]">
             <div className="absolute inset-0">
