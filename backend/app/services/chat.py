@@ -24,6 +24,7 @@ SYSTEM_PROMPT = """你是 CodePilot AI，一位热情且专业的编程导师。
 - 讲解顺序、阶段划分、示例风格尽量贴合知识库原文，不要擅自改成另一套通用课程大纲
 - 引用知识库内容时标注来源文件名；不要编造知识库中不存在的具体条文
 - 仅当检索结果明显不足时，才可少量补充通用说明，并明确这是补充而非知识库原文
+- 章节编号以「当前学习章节上下文」中的章节序号为准；知识库原文若写「第 N 章」但与本课序号不一致，必须改用本课序号，不得照抄原文编号
 
 保持友善、耐心的教学风格。"""
 
@@ -92,6 +93,30 @@ def detect_language_from_context(
         f"{chapter_title}\n{chapter_summary or ''}"
     )
     return chapter_hint or detect_language_from_topic(topic)
+
+
+def format_chapter_learning_context(
+    *,
+    topic: str,
+    language: str,
+    sort_order: int,
+    title: str,
+    summary: str | None = None,
+    difficulty: str | None = None,
+) -> list[str]:
+    """组装章节上下文行；章节序号必须来自学习路径，而非知识库原文编号。"""
+    parts = [
+        f"学习路径主题：{topic or '未指定'}",
+        f"编程语言：{language}（所有代码示例必须使用此语言）",
+        f"当前章节序号：{sort_order}",
+        f"当前章节：第 {sort_order} 章「{title}」",
+        "称呼本章时必须使用上述章节序号，不要沿用知识库原文里的章节编号。",
+    ]
+    if summary:
+        parts.append(f"章节摘要：{summary}")
+    if difficulty:
+        parts.append(f"难度：{difficulty}")
+    return parts
 
 
 async def stream_chat_response(

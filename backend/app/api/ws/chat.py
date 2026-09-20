@@ -10,7 +10,11 @@ from sqlalchemy.orm import selectinload
 
 from app.db.database import AsyncSessionLocal
 from app.models.models import Chapter, Conversation, LearningPath, Message
-from app.services.chat import detect_language_from_context, stream_chat_response
+from app.services.chat import (
+    detect_language_from_context,
+    format_chapter_learning_context,
+    stream_chat_response,
+)
 from app.services.chat_images import (
     compose_stored_user_text,
     normalize_chat_images,
@@ -57,15 +61,14 @@ async def _build_chapter_context(
         chapter.title,
         chapter.summary,
     )
-    parts = [
-        f"学习路径主题：{topic or '未指定'}",
-        f"编程语言：{language}（所有代码示例必须使用此语言）",
-        f"当前章节：{chapter.title}",
-    ]
-    if chapter.summary:
-        parts.append(f"章节摘要：{chapter.summary}")
-    if path and path.difficulty:
-        parts.append(f"难度：{path.difficulty}")
+    parts = format_chapter_learning_context(
+        topic=topic or "",
+        language=language,
+        sort_order=chapter.sort_order,
+        title=chapter.title,
+        summary=chapter.summary,
+        difficulty=path.difficulty if path else None,
+    )
 
     kb_ids: list[uuid.UUID] = []
     if path and path.knowledge_bases:

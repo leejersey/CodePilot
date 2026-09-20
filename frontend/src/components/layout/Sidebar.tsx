@@ -11,19 +11,7 @@ import {
   ArrowLeft,
   Sparkles,
 } from "lucide-react";
-
-const API_BASE = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
-
-interface Chapter {
-  id: string;
-  sort_order: number;
-  title: string;
-  status: string;
-}
-
-interface PathInfo {
-  topic: string;
-}
+import { getPath, getPathChapters, type Chapter, type LearningPath } from "@/lib/api";
 
 export function Sidebar() {
   const params = useParams();
@@ -32,19 +20,19 @@ export function Sidebar() {
   const chapterId = params.chapterId as string | undefined;
 
   const [chapters, setChapters] = useState<Chapter[]>([]);
-  const [pathInfo, setPathInfo] = useState<PathInfo | null>(null);
+  const [pathInfo, setPathInfo] = useState<Pick<LearningPath, "topic"> | null>(null);
 
   useEffect(() => {
     if (!pathId) return;
 
     async function fetchData() {
       try {
-        const [pathRes, chRes] = await Promise.all([
-          fetch(`${API_BASE}/api/v1/paths/${pathId}`),
-          fetch(`${API_BASE}/api/v1/paths/${pathId}/chapters`),
+        const [path, chapterList] = await Promise.all([
+          getPath(pathId!),
+          getPathChapters(pathId!),
         ]);
-        if (pathRes.ok) setPathInfo(await pathRes.json());
-        if (chRes.ok) setChapters(await chRes.json());
+        setPathInfo({ topic: path.topic });
+        setChapters(chapterList);
       } catch { /* ignore */ }
     }
     fetchData();

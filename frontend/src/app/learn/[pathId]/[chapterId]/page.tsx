@@ -805,11 +805,13 @@ export default function LearningWorkspacePage() {
       // 获取章节信息
       let chapterTitle = "本章内容";
       let chapterSummary = "";
+      let chapterSortOrder = 0;
       try {
         const ch = await fetchChapter(chapterId);
         if (cancelled) return;
         chapterTitle = ch.title || chapterTitle;
         chapterSummary = ch.summary || "";
+        chapterSortOrder = typeof ch.sort_order === "number" ? ch.sort_order : 0;
         setChapterTitle(chapterTitle);
         setChapterCompleted(ch.status === "completed");
       } catch { /* ignore */ }
@@ -902,7 +904,12 @@ export default function LearningWorkspacePage() {
           const stalePythonContext = info.lang !== "python" && visibleHistory.some(
             (message) => /(?:当前|学习)?路径语言.{0,8}(?:是|为)\s*(?:\*\*)?Python/i.test(message.content)
           );
-          if (stalePythonContext) {
+          const staleChapterNumber = chapterSortOrder > 0 && visibleHistory.some((message) => {
+            if (message.role !== "assistant") return false;
+            const match = message.content.match(/第\s*(\d+)\s*章/);
+            return Boolean(match && Number(match[1]) !== chapterSortOrder);
+          });
+          if (stalePythonContext || staleChapterNumber) {
             visibleHistory = [];
             needsContextSync = true;
           }
@@ -938,9 +945,15 @@ export default function LearningWorkspacePage() {
           const skillHint = currentSkill
             ? `当前技能是「${currentSkill.title}」${currentSkill.goal ? `：${currentSkill.goal}` : ""}。请围绕该技能目标引导。`
             : "";
+          const chapterLabel = chapterSortOrder > 0
+            ? `本课第 ${chapterSortOrder} 章「${chapterTitle}」`
+            : `「${chapterTitle}」章节`;
+          const chapterNumberRule = chapterSortOrder > 0
+            ? `称呼本章时必须说「第 ${chapterSortOrder} 章」，不要使用知识库原文里的其他章号。`
+            : "";
           ws.send(JSON.stringify({
             type: "message",
-            content: `${needsContextSync ? `${CONTEXT_SYNC_MARKER}\n请忽略此前错误的 Python 语言判断。` : ""}我刚进入「${chapterTitle}」章节的学习页面。当前章节的主要语言是 ${langLabel}。${skillHint}请你作为 AI 编程导师，本章用 ${langLabel} 讲解并给代码示例，不要擅自改成 Python。先简要介绍本章会学到什么，然后问问我有没有相关基础、想从哪个方面开始学起。用友好亲切的语气。`,
+            content: `${needsContextSync ? `${CONTEXT_SYNC_MARKER}\n请忽略此前错误的章节编号或语言判断。` : ""}我刚进入${chapterLabel}的学习页面。当前章节的主要语言是 ${langLabel}。${chapterNumberRule}${skillHint}请你作为 AI 编程导师，本章用 ${langLabel} 讲解并给代码示例，不要擅自改成 Python。先简要介绍本章会学到什么，然后问问我有没有相关基础、想从哪个方面开始学起。用友好亲切的语气。`,
             ...(currentSkill
               ? {
                   skill_context: {

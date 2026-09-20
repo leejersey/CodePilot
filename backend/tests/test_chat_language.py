@@ -1,4 +1,5 @@
 from app.services.chat import detect_language_from_context, detect_language_hint
+from app.services.chat import format_chapter_learning_context, SYSTEM_PROMPT
 from app.services.kb_retrieve import is_kb_relevant_to_topic
 
 
@@ -25,6 +26,21 @@ def test_chapter_language_overrides_broad_path_topic():
         )
         == "python"
     )
+
+
+def test_chapter_context_uses_path_sort_order_not_kb_numbering():
+    parts = format_chapter_learning_context(
+        topic="langchain",
+        language="python",
+        sort_order=2,
+        title="Chain 与 LCEL 编排：用管道组合 LLM 应用流程",
+        summary="上一章讲了 prompt",
+    )
+    text = "\n".join(parts)
+    assert "当前章节序号：2" in text
+    assert "第 2 章「Chain 与 LCEL 编排：用管道组合 LLM 应用流程」" in text
+    assert "不要沿用知识库原文里的章节编号" in text
+    assert "章节编号以" in SYSTEM_PROMPT
 
 
 def test_mixed_frontend_knowledge_base_matches_frontend_path():
