@@ -33,10 +33,13 @@ from app.schemas.schemas import (
 )
 from app.services.background_jobs import create_and_enqueue_job
 from app.services.llm import call_llm_json, llm_user_context
+from app.services.package_candidates import apply_package_refresh
+from app.services.skills import create_skills_for_chapter
 from app.services.kb_retrieve import (
     count_ready_documents,
     filter_kbs_relevant_to_topic,
     get_kb_snippets_for_outline,
+
     list_platform_ready_kb_ids,
     list_ready_document_filenames,
     load_kbs_by_ids,
@@ -197,11 +200,21 @@ B. 把大纲拆成可顺序学习的 chapters。
       "order": 1,
       "title": "章节标题",
       "summary": "章节概述",
-      "covers": ["可选：覆盖的知识库文件名"]
+      "covers": ["可选：覆盖的知识库文件名"],
+      "skills": [
+        {{
+          "title": "技能标题（可观察的小目标）",
+          "goal": "一句话学习目标",
+          "objectives": ["可观测结果1", "可观测结果2"],
+          "estimated_minutes": 20
+        }}
+      ]
     }},
     ...
   ]
-}}"""
+}}
+
+额外要求：每章 skills 数组必须有 3～6 个技能，按学习顺序排列；技能应比章节更细，便于逐个过关。"""
     outline = await call_llm_json(
         prompt, request_type="path_generate"
     )
@@ -293,6 +306,8 @@ async def generate_path_record(
     db.add(path)
     await db.flush()
 
+    legacy_chapters: list[Chapter] = []
+    skills_by_chapter: dict[uuid.UUID, list] = {}
     for ch in outline.get("chapters", []):
         chapter = Chapter(
             path_id=path.id,
@@ -302,8 +317,20 @@ async def generate_path_record(
             status="unlocked" if ch["order"] == 1 else "locked",
         )
         db.add(chapter)
+        await db.flush()
+        skills = await create_skills_for_chapter(
+            db, chapter.id, ch, chapter_title=ch.get("title")
+        )
+        legacy_chapters.append(chapter)
+        skills_by_chapter[chapter.id] = skills
 
     await db.flush()
+    apply_package_refresh(
+        path,
+        legacy_chapters,
+        outline=outline,
+        chapter_skills=skills_by_chapter,
+    )
     if progress:
         await progress(90)
 
@@ -488,17 +515,31 @@ async def rebuild_path_from_kb(
         await db.flush()
 
     path.outline = outline
+    legacy_chapters: list[Chapter] = []
+    skills_by_chapter: dict[uuid.UUID, list] = {}
     for ch in outline.get("chapters", []):
-        db.add(
-            Chapter(
-                path_id=path.id,
-                sort_order=ch["order"],
-                title=ch["title"],
-                summary=ch.get("summary", ""),
-                status="unlocked" if ch["order"] == 1 else "locked",
-            )
+        chapter = Chapter(
+            path_id=path.id,
+            sort_order=ch["order"],
+            title=ch["title"],
+            summary=ch.get("summary", ""),
+            status="unlocked" if ch["order"] == 1 else "locked",
         )
+        db.add(chapter)
+        await db.flush()
+        skills = await create_skills_for_chapter(
+            db, chapter.id, ch, chapter_title=ch.get("title")
+        )
+        legacy_chapters.append(chapter)
+        skills_by_chapter[chapter.id] = skills
 
+    await db.flush()
+    apply_package_refresh(
+        path,
+        legacy_chapters,
+        outline=outline,
+        chapter_skills=skills_by_chapter,
+    )
     await db.commit()
     await db.refresh(path)
 

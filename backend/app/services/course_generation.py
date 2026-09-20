@@ -34,6 +34,8 @@ from app.services.kb_retrieve import (
     list_ready_document_filenames,
 )
 from app.services.llm import llm_user_context
+from app.services.package_candidates import apply_package_refresh
+from app.services.skills import create_skills_for_chapter
 
 
 def can_manage_knowledge_base(kb: KnowledgeBase, user: User) -> bool:
@@ -242,6 +244,8 @@ async def generate_course_record(
     await db.flush()
 
     course_chapters: list[CourseChapter] = []
+    legacy_chapters: list[Chapter] = []
+    skills_by_chapter: dict[uuid.UUID, list] = {}
     for index, item in enumerate(outline["chapters"], 1):
         legacy = Chapter(
             path_id=path.id,
@@ -252,6 +256,11 @@ async def generate_course_record(
         )
         db.add(legacy)
         await db.flush()
+        skills = await create_skills_for_chapter(
+            db, legacy.id, item, chapter_title=item.get("title")
+        )
+        skills_by_chapter[legacy.id] = skills
+        legacy_chapters.append(legacy)
         chapter = CourseChapter(
             version_id=version.id,
             sort_order=index,
@@ -263,6 +272,12 @@ async def generate_course_record(
         db.add(chapter)
         course_chapters.append(chapter)
     await db.flush()
+    apply_package_refresh(
+        path,
+        legacy_chapters,
+        outline=outline,
+        chapter_skills=skills_by_chapter,
+    )
     course.current_version_id = version.id
 
     enrollment = Enrollment(
@@ -417,6 +432,8 @@ async def rebuild_course_record(
                 .where(Chapter.id.in_(old_legacy_ids))
                 .values(path_id=snapshot.id)
             )
+        legacy_chapters: list[Chapter] = []
+        skills_by_chapter: dict[uuid.UUID, list] = {}
         for index, chapter in enumerate(new_chapters):
             legacy = Chapter(
                 path_id=path.id,
@@ -427,7 +444,21 @@ async def rebuild_course_record(
             )
             db.add(legacy)
             await db.flush()
+            outline_chapters = outline.get("chapters", []) if isinstance(outline, dict) else []
+            outline_item = (
+                outline_chapters[index]
+                if index < len(outline_chapters) and isinstance(outline_chapters[index], dict)
+                else {"title": chapter.title, "summary": chapter.summary}
+            )
+            skills = await create_skills_for_chapter(
+                db,
+                legacy.id,
+                outline_item,
+                chapter_title=chapter.title,
+            )
             chapter.legacy_chapter_id = legacy.id
+            legacy_chapters.append(legacy)
+            skills_by_chapter[legacy.id] = skills
 
     enrollments = list(
         (
@@ -472,6 +503,12 @@ async def rebuild_course_record(
     if path:
         path.outline = outline
         path.knowledge_bases = list(kbs)
+        apply_package_refresh(
+            path,
+            legacy_chapters,
+            outline=outline,
+            chapter_skills=skills_by_chapter,
+        )
     course.current_version_id = version.id
     db.add(
         CourseVersionEvent(
