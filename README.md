@@ -283,11 +283,14 @@ CodePilot/
 |------|------|------|
 | `GET` | `/api/v1/progress/…` | 统计 / 活跃度 / 技能分布 |
 | `POST` | `/api/v1/code/run` | Judge0 隔离沙箱真实运行代码 |
+| `POST` | `/api/v1/code/run-modal` | Modal 云端运行 Python（需 `path_id` + `chapter_id`；按课程已批准依赖安装） |
 | `GET/POST` | `/api/v1/jobs/…` | 后台任务状态与失败重试 |
 | `POST` | `/api/v1/animation/generate-snippet` | 单段代码讲解动画 |
 | `GET` | `/health` | 健康检查 |
 
 完整交互式文档见运行中的 `/docs`。
+
+**Modal 云端运行：** 学习页「云端运行」会随请求提交当前路线与章节 ID，服务端只安装该课程 **管理员已批准** 的 pip 包（生成时写入 `package_candidates`，待审包不会装上 Modal）。管理员审阅：`GET/PATCH /api/v1/admin/paths/{path_id}/packages`。存量路线迁移后可在 backend 目录执行 `python -m app.services.backfill_package_candidates`（加 `--dry-run` 仅预览）；`MODAL_*` 见 `.env.example`。
 
 ## 📸 页面预览
 
