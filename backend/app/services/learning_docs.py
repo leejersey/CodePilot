@@ -1,4 +1,4 @@
-"""章节「文档学习」模式 — 讲义 / 知识库原文分阶段"""
+"""章节「文档学习」模式 — 完整讲义分阶段阅读"""
 
 from __future__ import annotations
 
@@ -145,37 +145,49 @@ def _split_by_size(text: str, fallback_title: str, max_stages: int = 6) -> list[
     return stages or [{"id": "s1", "title": fallback_title, "content": text}]
 
 
-def _safe_excerpt(text: str, limit: int = 1800) -> str:
-    """截断讲义摘要时尽量在围栏外切断，并补上未闭合的 ```。"""
-    text = text.strip()
-    if len(text) <= limit:
-        return text
-    cut = text[:limit]
-    # 若落在围栏内，回退到上一个围栏起始之前
-    fence_re = re.compile(r"^(`{3,}|~{3,})", re.M)
-    opens = list(fence_re.finditer(cut))
-    if opens:
-        # 简单奇偶：奇数个起始标记 ≈ 未闭合
-        # 更稳：从 cut 扫描
-        in_fence = False
-        for line in cut.split("\n"):
-            m = fence_re.match(line.strip())
-            if m:
-                in_fence = not in_fence
-        if in_fence:
-            last = cut.rfind("\n```")
-            if last > limit // 3:
-                cut = cut[:last]
+def build_handout_stages(
+    *,
+    chapter_title: str,
+    chapter_summary: str | None,
+    documents: list[tuple[str, str]],
+) -> list[dict]:
+    """文档学习只展示一份完整讲义：导读 + 封面文档全文（按标题分阶段）。"""
+    stages: list[dict] = []
+    title = (chapter_title or "本章导读").strip() or "本章导读"
+    summary = (chapter_summary or "").strip()
+    if summary:
+        stages.append(
+            {
+                "id": "intro",
+                "title": "本章导读",
+                "content": f"# {title}\n\n{summary}",
+            }
+        )
 
-    cut = cut.rstrip()
-    # 若仍未闭合，补一个结束围栏
-    in_fence = False
-    for line in cut.split("\n"):
-        if re.match(r"^(`{3,}|~{3,})", line.strip()):
-            in_fence = not in_fence
-    if in_fence:
-        cut += "\n```"
-    return cut + "\n\n…\n\n> 全文请切换到「知识库原文」查看。"
+    for doc_index, (filename, text) in enumerate(documents):
+        body = (text or "").strip()
+        if not body:
+            continue
+        fallback = (filename or "正文").strip() or "正文"
+        for piece in split_markdown_stages(body, fallback_title=fallback):
+            stages.append(
+                {
+                    "id": f"d{doc_index}-{piece['id']}",
+                    "title": piece["title"],
+                    "content": piece["content"],
+                    "from_doc": filename,
+                }
+            )
+
+    if not stages:
+        stages.append(
+            {
+                "id": "intro",
+                "title": "本章导读",
+                "content": f"# {title}\n\n（暂无文档内容）",
+            }
+        )
+    return stages
 
 
 def split_markdown_stages(markdown: str, fallback_title: str = "正文") -> list[dict]:
@@ -435,19 +447,6 @@ async def build_learning_docs_payload(
             c for c in (outline_ch.get("covers") or []) if isinstance(c, str) and c.strip()
         ]
 
-    # —— 课程讲义：导读 + 每篇封面文档一节摘要（完整原文在「知识库原文」）——
-    handout_stages: list[dict] = [
-        {
-            "id": "intro",
-            "title": "本章导读",
-            "content": (
-                f"# {chapter.title or '本章导读'}\n\n"
-                f"{chapter.summary or '按阶段阅读讲义要点；需要看完整材料时，切换到「知识库原文」。'}\n\n"
-                "> 讲义是课程编排的要点摘要；知识库原文是绑定资料的完整内容。"
-            ),
-        }
-    ]
-
     cover_docs: list[KnowledgeDocument] = []
     if covers:
         by_name = {d.filename: d for d in docs}
@@ -469,29 +468,17 @@ async def build_learning_docs_payload(
         ]
         cover_docs = related[:2] if related else docs[:1]
 
+    document_texts: list[tuple[str, str]] = []
     for doc in cover_docs:
         text = await load_document_text(db, doc)
-        if not text:
-            continue
-        # 讲义只保留「一文档一阶段」摘要，避免与知识库原文整篇切段重复
-        excerpt = text.strip()
-        if len(excerpt) > 1800:
-            excerpt = _safe_excerpt(excerpt, 1800)
-        else:
-            excerpt = excerpt + "\n\n> 完整原文也可在「知识库原文」中按标题分阶段阅读。"
-        handout_stages.append(
-            {
-                "id": f"h-{doc.id}",
-                "title": doc.filename,
-                "content": f"## {doc.filename}\n\n{excerpt}",
-                "from_doc": doc.filename,
-            }
-        )
+        if text:
+            document_texts.append((doc.filename, text))
 
-    kb_doc_list = [
-        {"id": str(d.id), "filename": d.filename, "byte_size": d.byte_size}
-        for d in docs
-    ]
+    handout_stages = build_handout_stages(
+        chapter_title=chapter.title or "",
+        chapter_summary=chapter.summary,
+        documents=document_texts,
+    )
 
     return {
         "chapter_id": str(chapter.id),
@@ -503,9 +490,9 @@ async def build_learning_docs_payload(
                 "stages": handout_stages,
             },
             "knowledge_base": {
-                "available": len(kb_doc_list) > 0,
+                "available": False,
                 "label": "知识库原文",
-                "documents": kb_doc_list,
+                "documents": [],
             },
         },
     }

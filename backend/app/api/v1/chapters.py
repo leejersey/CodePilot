@@ -118,7 +118,7 @@ async def get_chapter_learning_docs(
     db: AsyncSession = Depends(get_db),
     user: User = Depends(get_current_user),
 ):
-    """文档学习模式：课程讲义阶段 + 可用知识库文档列表。"""
+    """文档学习模式：本章完整讲义，按标题分阶段。"""
     if not await can_access_legacy_chapter(
         db, chapter_id, user, require_enrollment=True
     ):

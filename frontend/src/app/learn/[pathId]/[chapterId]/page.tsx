@@ -248,6 +248,7 @@ export default function LearningWorkspacePage() {
   const [learnMode, setLearnMode] = useState<"ai" | "doc">("ai");
   const [docAskContext, setDocAskContext] = useState<DocAskContext | null>(null);
   const [docMessages, setDocMessages] = useState<ChatMessage[]>([]);
+  const [docChatOpen, setDocChatOpen] = useState(false);
   const router = useRouter();
 
   useEffect(() => {
@@ -972,6 +973,7 @@ export default function LearningWorkspacePage() {
 
     setMessages([]);
     setDocMessages([]);
+    setDocChatOpen(false);
     setChatWindowStart(0);
     setChatHistoryPinned(false);
     setOutlineOpen(false);
@@ -1103,6 +1105,7 @@ export default function LearningWorkspacePage() {
     replyTargetRef.current = target;
     if (target === "doc") {
       followDocChatRef.current = true;
+      setDocChatOpen(true);
       setDocMessages((prev) => [...prev, userMsg]);
     } else {
       followChatRef.current = true;
@@ -1256,133 +1259,159 @@ export default function LearningWorkspacePage() {
       {/* Left: AI Chat / Document mode — 互斥，不叠在一起 */}
       <main className="flex-1 min-w-0 flex flex-col bg-surface overflow-hidden relative">
         {/* Mode switch */}
-        <div className="shrink-0 flex flex-col gap-2 px-4 py-2 border-b border-white/5 bg-surface-container-low/30">
-          <div className="flex items-center gap-2 flex-wrap">
-            <button
-              type="button"
-              onClick={() => {
-                setLearnMode("ai");
-                setDocAskContext(null);
-              }}
-              className={`flex items-center gap-1.5 text-xs font-bold px-3 py-1.5 rounded-lg border transition-colors ${
-                learnMode === "ai"
-                  ? "bg-primary/20 text-primary border-primary/40"
-                  : "text-slate-400 border-white/10 hover:border-white/25"
-              }`}
-            >
-              <MessageSquare size={14} />
-              AI 教学
-            </button>
-            <button
-              type="button"
-              onClick={() => setLearnMode("doc")}
-              className={`flex items-center gap-1.5 text-xs font-bold px-3 py-1.5 rounded-lg border transition-colors ${
-                learnMode === "doc"
-                  ? "bg-violet-500/20 text-violet-300 border-violet-500/40"
-                  : "text-slate-400 border-white/10 hover:border-white/25"
-              }`}
-            >
-              <BookOpen size={14} />
-              文档学习
-            </button>
-            <Link
-              href="/help"
-              className="ml-auto inline-flex items-center gap-1 text-[10px] text-slate-500 hover:text-primary"
-              title="常见问题"
-            >
-              <HelpCircle size={13} />
-              答疑
-            </Link>
-          </div>
-          <p className="text-[10px] text-slate-500 leading-relaxed">
-            {learnMode === "doc"
-              ? "当前：文档学习 — 阅读讲义分阶段内容；下方提问只出现在文档区，不会写入 AI 教学对话。"
-              : "当前：AI 教学 — 与导师对话学习；需要看原文时切换到「文档学习」。两套记录互不混写。"}
-          </p>
+        <div className="shrink-0 flex items-center gap-2 px-3 py-1.5 border-b border-white/5 bg-surface-container-low/30">
+          <button
+            type="button"
+            onClick={() => {
+              setLearnMode("ai");
+              setDocAskContext(null);
+            }}
+            title="与导师对话学习；需要看原文时切换到「文档学习」。两套记录互不混写。"
+            className={`flex items-center gap-1.5 text-xs font-bold px-3 py-1.5 rounded-lg border transition-colors ${
+              learnMode === "ai"
+                ? "bg-primary/20 text-primary border-primary/40"
+                : "text-slate-400 border-white/10 hover:border-white/25"
+            }`}
+          >
+            <MessageSquare size={14} />
+            AI 教学
+          </button>
+          <button
+            type="button"
+            onClick={() => {
+              setLearnMode("doc");
+              if (docMessages.length > 0) setDocChatOpen(true);
+            }}
+            title="阅读讲义分阶段内容；提问只出现在文档浮层，不会写入 AI 教学对话。"
+            className={`flex items-center gap-1.5 text-xs font-bold px-3 py-1.5 rounded-lg border transition-colors ${
+              learnMode === "doc"
+                ? "bg-violet-500/20 text-violet-300 border-violet-500/40"
+                : "text-slate-400 border-white/10 hover:border-white/25"
+            }`}
+          >
+            <BookOpen size={14} />
+            文档学习
+          </button>
+          {learnMode === "doc" && docAskContext && (
+            <span className="hidden sm:inline min-w-0 truncate text-[10px] text-slate-500">
+              {docAskContext.source_label} · {docAskContext.stage_title.replace(/\*+/g, "")}
+              {docAskContext.selection ? " · 含选中" : ""}
+            </span>
+          )}
+          <Link
+            href="/help"
+            className="ml-auto inline-flex items-center gap-1 text-[10px] text-slate-500 hover:text-primary"
+            title="常见问题"
+          >
+            <HelpCircle size={13} />
+            答疑
+          </Link>
         </div>
 
         {learnMode === "doc" ? (
-          <>
-            <div className="flex-1 min-h-0 flex flex-col overflow-hidden">
-              <DocumentLearningPanel
-                chapterId={chapterId}
-                onAskContextChange={setDocAskContext}
-                onOpenInEditor={openInEditor}
-                onExplainSnippet={explainSnippet}
-                explaining={generatingAnim}
-                activeFingerprint={activeTab?.fingerprint}
-              />
-            </div>
+          <div className="flex-1 min-h-0 relative flex flex-col overflow-hidden">
+            <DocumentLearningPanel
+              chapterId={chapterId}
+              onAskContextChange={setDocAskContext}
+              onOpenInEditor={openInEditor}
+              onExplainSnippet={explainSnippet}
+              explaining={generatingAnim}
+              activeFingerprint={activeTab?.fingerprint}
+              reserveBottom={docChatOpen}
+            />
 
-            {/* 文档模式独立问答区（不混入 AI 教学对话） */}
-            <div className="shrink-0 border-t border-white/10 bg-surface-container-low/40 max-h-[32%] flex flex-col min-h-[120px]">
-              <div className="shrink-0 px-4 py-1.5 flex items-center justify-between border-b border-white/5">
-                <span className="text-[11px] font-bold text-violet-300/90">针对文档提问</span>
-                {docAskContext && (
-                  <span className="text-[10px] text-slate-500 truncate max-w-[70%]">
-                    {docAskContext.source_label} · {docAskContext.stage_title.replace(/\*+/g, "")}
-                    {docAskContext.selection ? " · 含选中" : ""}
-                  </span>
-                )}
-              </div>
-              <div
-                ref={docChatScrollRef}
-                onScroll={(event) => {
-                  const el = event.currentTarget;
-                  followDocChatRef.current = el.scrollHeight - el.scrollTop - el.clientHeight < 80;
-                }}
-                className="flex-1 min-h-0 overflow-y-auto px-4 py-2 space-y-2"
+            {!docChatOpen && docMessages.length > 0 && (
+              <button
+                type="button"
+                onClick={() => setDocChatOpen(true)}
+                className="absolute bottom-3 right-3 z-10 flex items-center gap-1.5 px-3 py-1.5 rounded-full text-[11px] font-bold bg-violet-500/20 text-violet-200 border border-violet-500/30 shadow-lg hover:bg-violet-500/30"
               >
-                {docMessages.length === 0 && (
-                  <p className="text-[11px] text-slate-500 py-2">
-                    选中文中片段或直接提问，回答只出现在这里，不会和「AI 教学」对话混在一起。
-                  </p>
-                )}
-                {docMessages.map((msg, i) =>
-                  msg.role === "user" ? (
-                    <div key={i} className="text-xs text-right">
-                      <span className="inline-block bg-primary/15 border border-primary/25 rounded-xl rounded-tr-sm px-3 py-1.5 text-on-surface max-w-[90%] text-left whitespace-pre-wrap">
-                        {msg.images && msg.images.length > 0 && (
-                          <span className="flex flex-wrap gap-1.5 mb-1.5 justify-end">
-                            {msg.images.map((img) => (
-                              <button
-                                key={img.id}
-                                type="button"
-                                onClick={() => setLightboxUrl(chatImageSrc(img))}
-                                className="block overflow-hidden rounded-md border border-white/20"
-                              >
-                                {/* eslint-disable-next-line @next/next/no-img-element */}
-                                <img src={chatImageSrc(img)} alt={img.name} className="h-14 w-14 object-cover" />
-                              </button>
-                            ))}
-                          </span>
-                        )}
-                        {msg.content}
+                <MessageSquare size={13} />
+                提问记录 {docMessages.filter((m) => m.role === "user").length}
+              </button>
+            )}
+
+            {docChatOpen && (
+              <div className="absolute inset-x-3 bottom-2 z-10 max-h-[46%] min-h-[140px] flex flex-col rounded-xl border border-violet-500/25 bg-[#0b1220]/95 backdrop-blur-md shadow-2xl">
+                <div className="shrink-0 px-3 py-1.5 flex items-center justify-between border-b border-white/5">
+                  <span className="text-[11px] font-bold text-violet-300/90">针对文档提问</span>
+                  <div className="flex items-center gap-2 min-w-0">
+                    {docAskContext && (
+                      <span className="text-[10px] text-slate-500 truncate max-w-[14rem]">
+                        {docAskContext.source_label} · {docAskContext.stage_title.replace(/\*+/g, "")}
+                        {docAskContext.selection ? " · 含选中" : ""}
                       </span>
-                    </div>
-                  ) : msg.role === "system" ? (
-                    <div key={i} className="text-[11px] text-center text-red-400">{msg.content}</div>
-                  ) : (
-                    <div key={i} className="text-xs">
-                      <div className="inline-block bg-surface-container-high/50 border border-white/5 rounded-xl rounded-tl-sm px-3 py-2 text-on-surface-variant max-w-[95%]">
-                        <StepAnimator
-                          content={msg.content}
-                          isStreaming={streaming && i === docMessages.length - 1}
-                          onOpenInEditor={openInEditor}
-                          onExplainSnippet={explainSnippet}
-                          explaining={generatingAnim}
-                          activeFingerprint={activeTab?.fingerprint}
-                        />
-                        {streaming && i === docMessages.length - 1 && (
-                          <span className="inline-block w-1.5 h-3 bg-secondary ml-1 animate-pulse align-middle" />
-                        )}
+                    )}
+                    <button
+                      type="button"
+                      onClick={() => setDocChatOpen(false)}
+                      className="p-1 rounded-md text-slate-400 hover:text-slate-200 hover:bg-white/10"
+                      aria-label="收起提问记录"
+                      title="收起，把阅读区还给文档"
+                    >
+                      <ChevronDown size={14} />
+                    </button>
+                  </div>
+                </div>
+                <div
+                  ref={docChatScrollRef}
+                  onScroll={(event) => {
+                    const el = event.currentTarget;
+                    followDocChatRef.current = el.scrollHeight - el.scrollTop - el.clientHeight < 80;
+                  }}
+                  className="flex-1 min-h-0 overflow-y-auto px-4 py-2 space-y-2"
+                >
+                  {docMessages.length === 0 && (
+                    <p className="text-[11px] text-slate-500 py-2">
+                      选中文中片段或直接提问，回答只出现在这里，不会和「AI 教学」对话混在一起。
+                    </p>
+                  )}
+                  {docMessages.map((msg, i) =>
+                    msg.role === "user" ? (
+                      <div key={i} className="text-xs text-right">
+                        <span className="inline-block bg-primary/15 border border-primary/25 rounded-xl rounded-tr-sm px-3 py-1.5 text-on-surface max-w-[90%] text-left whitespace-pre-wrap">
+                          {msg.images && msg.images.length > 0 && (
+                            <span className="flex flex-wrap gap-1.5 mb-1.5 justify-end">
+                              {msg.images.map((img) => (
+                                <button
+                                  key={img.id}
+                                  type="button"
+                                  onClick={() => setLightboxUrl(chatImageSrc(img))}
+                                  className="block overflow-hidden rounded-md border border-white/20"
+                                >
+                                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                                  <img src={chatImageSrc(img)} alt={img.name} className="h-14 w-14 object-cover" />
+                                </button>
+                              ))}
+                            </span>
+                          )}
+                          {msg.content}
+                        </span>
                       </div>
-                    </div>
-                  )
-                )}
+                    ) : msg.role === "system" ? (
+                      <div key={i} className="text-[11px] text-center text-red-400">{msg.content}</div>
+                    ) : (
+                      <div key={i} className="text-xs">
+                        <div className="inline-block bg-surface-container-high/50 border border-white/5 rounded-xl rounded-tl-sm px-3 py-2 text-on-surface-variant max-w-[95%]">
+                          <StepAnimator
+                            content={msg.content}
+                            isStreaming={streaming && i === docMessages.length - 1}
+                            onOpenInEditor={openInEditor}
+                            onExplainSnippet={explainSnippet}
+                            explaining={generatingAnim}
+                            activeFingerprint={activeTab?.fingerprint}
+                          />
+                          {streaming && i === docMessages.length - 1 && (
+                            <span className="inline-block w-1.5 h-3 bg-secondary ml-1 animate-pulse align-middle" />
+                          )}
+                        </div>
+                      </div>
+                    )
+                  )}
+                </div>
               </div>
-            </div>
-          </>
+            )}
+          </div>
         ) : (
           <div className="flex-1 min-h-0 flex flex-col relative">
             {chatOutline.length > 0 && (
@@ -1524,8 +1553,12 @@ export default function LearningWorkspacePage() {
         )}
 
         {/* Chat Input + Complete Button — flex 流内，不叠在对话上 */}
-        <div className="shrink-0 p-4 border-t border-slate-200/80 dark:border-white/5 bg-surface">
-          <div className="max-w-4xl mx-auto mb-3 rounded-xl border border-slate-200/70 dark:border-white/10 bg-white/80 dark:bg-surface-container-low/70 px-3 py-2">
+        <div className={`shrink-0 border-t border-slate-200/80 dark:border-white/5 bg-surface ${
+          learnMode === "doc" ? "px-3 py-2" : "p-4"
+        }`}>
+          <div className={`max-w-4xl mx-auto rounded-xl border border-slate-200/70 dark:border-white/10 bg-white/80 dark:bg-surface-container-low/70 px-3 py-2 ${
+            learnMode === "doc" ? "mb-2" : "mb-3"
+          }`}>
             {skills.length === 0 && !skillsLoading ? (
               <p className="text-[10px] text-slate-500">暂无技能拆分，完成本章即可。</p>
             ) : (
@@ -1624,6 +1657,7 @@ export default function LearningWorkspacePage() {
               </button>
             ) : null}
           </div>
+          {learnMode !== "doc" && (
           <div className="max-w-4xl mx-auto mb-3 rounded-xl border border-slate-200/70 dark:border-white/10 bg-white/80 dark:bg-surface-container-low/70 px-3 py-2.5">
             <div className="flex flex-wrap items-center gap-2">
               {learnLoopSteps.map((step) => (
@@ -1643,6 +1677,7 @@ export default function LearningWorkspacePage() {
             </div>
             <p className="mt-1.5 text-[10px] text-slate-500 leading-relaxed">{learnLoopHint}</p>
           </div>
+          )}
           <div className="relative flex items-end gap-3 max-w-4xl mx-auto">
             <button
               type="button"

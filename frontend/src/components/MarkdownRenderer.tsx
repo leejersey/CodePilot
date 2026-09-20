@@ -158,6 +158,8 @@ interface Props {
   explaining?: boolean;
   /** 当前激活的编辑器代码指纹，用于高亮「已打开」 */
   activeFingerprint?: string | null;
+  /** article：文档阅读区更大字号与行距 */
+  variant?: "chat" | "article";
 }
 
 export function MarkdownRenderer({
@@ -166,9 +168,11 @@ export function MarkdownRenderer({
   onExplainSnippet,
   explaining,
   activeFingerprint,
+  variant = "chat",
 }: Props) {
   const { theme } = useTheme();
   const isDark = theme === "dark";
+  const article = variant === "article";
 
   return (
     <ReactMarkdown
@@ -295,32 +299,54 @@ export function MarkdownRenderer({
           );
         },
         h1: ({ children }) => (
-          <h1 className="text-2xl font-bold text-slate-900 dark:text-white mt-5 mb-3 font-headline tracking-tight pb-1 border-b border-slate-200/80 dark:border-white/10">
+          <h1
+            className={`font-bold text-slate-900 dark:text-white font-headline tracking-tight pb-2 border-b border-slate-200/80 dark:border-white/10 ${
+              article
+                ? "text-3xl mt-0 mb-5 first:mt-0"
+                : "text-2xl mt-5 mb-3"
+            }`}
+          >
             {children}
           </h1>
         ),
         h2: ({ children }) => (
-          <h2 className="text-xl font-bold text-slate-900 dark:text-white mt-4 mb-2 font-headline tracking-tight">
+          <h2
+            className={`font-bold text-slate-900 dark:text-white font-headline tracking-tight ${
+              article ? "text-2xl mt-8 mb-3" : "text-xl mt-4 mb-2"
+            }`}
+          >
             {children}
           </h2>
         ),
         h3: ({ children }) => (
-          <h3 className="text-base font-bold text-slate-900 dark:text-slate-100 mt-3 mb-1.5">
+          <h3
+            className={`font-bold text-slate-900 dark:text-slate-100 ${
+              article ? "text-lg mt-6 mb-2" : "text-base mt-3 mb-1.5"
+            }`}
+          >
             {children}
           </h3>
         ),
         p: ({ children }) => (
-          <p className="leading-7 mb-3 last:mb-0 text-slate-800 dark:text-slate-200 text-[14.5px]">
+          <p
+            className={`mb-3 last:mb-0 text-slate-800 dark:text-slate-200 ${
+              article ? "text-[16.5px] leading-8" : "text-[14.5px] leading-7"
+            }`}
+          >
             {children}
           </p>
         ),
         ul: ({ children }) => (
-          <ul className="space-y-1.5 mb-3 ml-1 text-slate-800 dark:text-slate-200 text-[14px]">
+          <ul className={`space-y-1.5 mb-3 ml-1 text-slate-800 dark:text-slate-200 ${
+            article ? "text-[16px]" : "text-[14px]"
+          }`}>
             {children}
           </ul>
         ),
         ol: ({ children }) => (
-          <ol className="space-y-1.5 mb-3 ml-2 list-decimal list-inside text-slate-800 dark:text-slate-200 text-[14px]">
+          <ol className={`space-y-1.5 mb-3 ml-2 list-decimal list-inside text-slate-800 dark:text-slate-200 ${
+            article ? "text-[16px]" : "text-[14px]"
+          }`}>
             {children}
           </ol>
         ),

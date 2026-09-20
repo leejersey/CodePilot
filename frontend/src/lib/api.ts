@@ -1132,13 +1132,6 @@ export async function getChapterLearningDocs(
   );
 }
 
-export async function getChapterKbDocStages(
-  chapterId: string,
-  docId: string
-): Promise<{ doc_id: string; filename: string; stages: DocStage[] }> {
-  return fetchAPI(`/api/v1/chapters/${chapterId}/learning-docs/kb/${docId}`);
-}
-
 // ══════════════════════════════════════════
 //  User LLM Settings（多档案）
 // ══════════════════════════════════════════

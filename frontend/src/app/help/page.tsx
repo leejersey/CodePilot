@@ -6,7 +6,7 @@ import { ArrowLeft, BookOpen, HelpCircle, MessageSquare, Settings } from "lucide
 const FAQ_ITEMS = [
   {
     q: "「AI 教学」和「文档学习」有什么区别？",
-    a: "AI 教学是和导师对话、边问边学；文档学习是按讲义分阶段阅读，下方可以针对当前段落提问。两套对话互不混写。",
+    a: "AI 教学是和导师对话、边问边学；文档学习是按讲义分阶段阅读，可针对当前段落提问（回答出现在文档浮层，不写入 AI 教学对话）。两套对话互不混写。",
   },
   {
     q: "右侧代码跑不了怎么办？",
