@@ -10,7 +10,11 @@ const FAQ_ITEMS = [
   },
   {
     q: "右侧代码跑不了怎么办？",
-    a: "Python 与 HTML/CSS/JS 可在浏览器内试跑；其他语言依赖 Judge0 远程沙箱。若控制台提示模拟或失败，请稍后重试或换 Python / Web 示例验证思路。",
+    a: "Python 与 HTML/CSS/JS 可在浏览器内试跑；React/Vue 走 Sandpack；其他语言依赖 Judge0。若当前代码块需要 pip / 云端环境，页面会提示「云端运行」——请先在个人中心 → 沙箱配置填写 Modal Token。章节内的 .env 仅用于代码里读取的密钥（如 DEEPSEEK_API_KEY），与 Modal Token 分开配置。",
+  },
+  {
+    q: "「云端运行」提示去配置沙箱？",
+    a: "部分章节（如 LangChain 示例）必须在 Modal 云端执行。打开个人中心 → 沙箱配置，填写 Modal Token ID 与 Secret 并保存；配置默认云端提供商后，回到章节再点「云端运行」。",
   },
   {
     q: "截图发给 AI 后刷新看不见了？",
@@ -72,6 +76,13 @@ export default function HelpPage() {
         >
           <Settings size={14} />
           模型设置
+        </Link>
+        <Link
+          href="/settings/sandbox"
+          className="inline-flex items-center gap-2 rounded-xl border border-slate-200 dark:border-white/10 px-4 py-2.5 text-xs font-semibold text-slate-700 dark:text-slate-200 hover:border-primary/40 hover:text-primary"
+        >
+          <Settings size={14} />
+          沙箱配置
         </Link>
         <Link
           href="/learn"
