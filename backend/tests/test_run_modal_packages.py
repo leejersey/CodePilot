@@ -112,7 +112,19 @@ class _RunModalDb:
 
 
 def _actor():
-    return SimpleNamespace(id=uuid.uuid4(), role="learner", status="active")
+    return SimpleNamespace(
+        id=uuid.uuid4(),
+        role="learner",
+        status="active",
+        preferences={
+            "sandbox": {
+                "modal": {
+                    "token_id": "ak-test",
+                    "token_secret": "as-test-secret",
+                }
+            }
+        },
+    )
 
 
 @pytest.mark.anyio
@@ -202,6 +214,8 @@ async def test_run_modal_installs_intersection_only(monkeypatch):
     run_mock.assert_awaited_once()
     call_args = run_mock.await_args
     assert call_args.args[1] == ["httpx"] or call_args.kwargs.get("packages") == ["httpx"]
+    assert call_args.kwargs["token_id"] == "ak-test"
+    assert call_args.kwargs["token_secret"] == "as-test-secret"
 
 
 @pytest.mark.anyio

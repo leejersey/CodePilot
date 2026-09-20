@@ -139,11 +139,29 @@ async def run_code_modal(
     if blocked:
         raise HTTPException(status_code=422, detail=_blocked_packages_message(blocked))
 
+    prefs = user.preferences or {}
+    sandbox = prefs.get("sandbox") if isinstance(prefs, dict) else None
+    modal_creds = (sandbox or {}).get("modal") if isinstance(sandbox, dict) else None
+    modal_creds = modal_creds if isinstance(modal_creds, dict) else {}
+    token_id = str(modal_creds.get("token_id") or "").strip()
+    token_secret = str(modal_creds.get("token_secret") or "").strip()
+    if not token_id or not token_secret:
+        raise HTTPException(
+            status_code=422,
+            detail="请先在个人中心配置 Modal Token（token_id / token_secret）后再使用云端运行",
+        )
+
     try:
         from app.services.dotenv_parse import parse_dotenv
 
         env_vars = parse_dotenv(body.dotenv) if body.dotenv.strip() else {}
-        result = await run_python_in_modal(body.code, to_install, env_vars=env_vars)
+        result = await run_python_in_modal(
+            body.code,
+            to_install,
+            token_id=token_id,
+            token_secret=token_secret,
+            env_vars=env_vars,
+        )
     except ValueError as exc:
         raise HTTPException(status_code=422, detail=str(exc)) from exc
     except ModalUnavailable as exc:

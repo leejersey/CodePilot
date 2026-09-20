@@ -140,26 +140,32 @@ def resolve_packages(code: str, packages: list[str] | None = None) -> list[str]:
 
 
 def modal_configured() -> bool:
+    """Ops/dev check for platform MODAL_TOKEN_* — not used for learner BYOK runs."""
     settings = get_settings()
     return bool(settings.MODAL_TOKEN_ID.strip() and settings.MODAL_TOKEN_SECRET.strip())
 
 
-def _ensure_modal_env() -> None:
-    settings = get_settings()
-    if not modal_configured():
+def _ensure_modal_env(*, token_id: str, token_secret: str) -> None:
+    """Set Modal SDK env from explicit learner tokens (never platform MODAL_TOKEN_*)."""
+    tid = (token_id or "").strip()
+    tsec = (token_secret or "").strip()
+    if not tid or not tsec:
         raise ModalUnavailable(
-            "未配置 Modal：请在环境变量中设置 MODAL_TOKEN_ID 与 MODAL_TOKEN_SECRET"
+            "未配置 Modal：请在个人中心配置 Modal Token（token_id / token_secret）"
         )
-    os.environ["MODAL_TOKEN_ID"] = settings.MODAL_TOKEN_ID.strip()
-    os.environ["MODAL_TOKEN_SECRET"] = settings.MODAL_TOKEN_SECRET.strip()
+    os.environ["MODAL_TOKEN_ID"] = tid
+    os.environ["MODAL_TOKEN_SECRET"] = tsec
 
 
 def _run_python_sync(
     code: str,
     packages: list[str],
     env_vars: dict[str, str] | None = None,
+    *,
+    token_id: str,
+    token_secret: str,
 ) -> ModalRunResult:
-    _ensure_modal_env()
+    _ensure_modal_env(token_id=token_id, token_secret=token_secret)
     try:
         import modal
     except ImportError as exc:
@@ -214,12 +220,23 @@ def _run_python_sync(
 async def run_python_in_modal(
     code: str,
     packages: list[str] | None = None,
+    *,
+    token_id: str,
+    token_secret: str,
     env_vars: dict[str, str] | None = None,
 ) -> ModalRunResult:
-    """Run Python in Modal. ``packages`` must already be course-allowlisted.
+    """Run Python in Modal with learner BYOK tokens. ``packages`` must be course-allowlisted.
 
     Does not re-merge code imports against ALLOWED_PACKAGES; callers (run-modal)
     pass ``detected ∩ effective`` after server-side validation.
+    Never falls back to platform ``MODAL_TOKEN_*`` env.
     """
     pkgs = sanitize_install_packages(packages)
-    return await asyncio.to_thread(_run_python_sync, code, pkgs, env_vars)
+    return await asyncio.to_thread(
+        _run_python_sync,
+        code,
+        pkgs,
+        env_vars,
+        token_id=token_id,
+        token_secret=token_secret,
+    )
