@@ -538,3 +538,30 @@ class SkillListResponse(BaseModel):
     chapter_id: uuid.UUID
     skills: list[SkillResponse]
 
+
+# ── Course package candidates (admin) ──
+
+class PackageCandidateOut(BaseModel):
+    name: str
+    status: Literal["pending", "approved", "rejected"]
+    source: Literal["import", "provider"]
+    reason: str | None = None
+    scope: Literal["path", "chapter"]
+    chapter_id: uuid.UUID | None = None
+
+
+class PackageStatusUpdate(BaseModel):
+    name: str
+    status: Literal["approved", "rejected"]
+    scope: Literal["path", "chapter"]
+    chapter_id: uuid.UUID | None = None
+    reason: str | None = Field(None, max_length=2000)
+
+    @model_validator(mode="after")
+    def chapter_scope_requires_chapter_id(self):
+        if self.scope == "chapter" and self.chapter_id is None:
+            raise ValueError("chapter 作用域必须提供 chapter_id")
+        if self.scope == "path" and self.chapter_id is not None:
+            raise ValueError("path 作用域不应提供 chapter_id")
+        return self
+

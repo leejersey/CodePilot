@@ -5,7 +5,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy import select, text
 
 from app.core.config import get_settings, validate_runtime_security
-from app.api.v1 import admin_users, courses, jobs, observability, paths, chapters, conversations, exercises, code, auth, progress, animation, knowledge, usage, skills, settings as user_settings
+from app.api.v1 import admin_path_packages, admin_users, courses, jobs, observability, paths, chapters, conversations, exercises, code, auth, progress, animation, knowledge, usage, skills, settings as user_settings
 from app.api.ws import chat
 
 from app.db.redis import get_redis, close_redis
@@ -110,6 +110,11 @@ app.include_router(animation.router, prefix="/api/v1/animation", tags=["Animatio
 app.include_router(knowledge.router, prefix="/api/v1/knowledge-bases", tags=["Knowledge Bases"])
 app.include_router(user_settings.router, prefix="/api/v1/settings", tags=["User Settings"])
 app.include_router(admin_users.router, prefix="/api/v1/admin/users", tags=["Admin Users"])
+app.include_router(
+    admin_path_packages.router,
+    prefix="/api/v1/admin/paths",
+    tags=["Admin Path Packages"],
+)
 app.include_router(jobs.router, prefix="/api/v1/jobs", tags=["Background Jobs"])
 app.include_router(usage.router, prefix="/api/v1/usage", tags=["LLM Usage"])
 app.include_router(observability.router, prefix="/api/v1/observability", tags=["Observability"])
