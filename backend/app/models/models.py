@@ -476,6 +476,9 @@ class LearningPath(Base):
     topic: Mapped[str] = mapped_column(String(255))
     difficulty: Mapped[str] = mapped_column(String(20), default="intermediate")
     outline: Mapped[dict | None] = mapped_column(JSONB, nullable=True)
+    package_candidates: Mapped[list] = mapped_column(
+        JSONB, nullable=False, server_default="[]"
+    )
     status: Mapped[str] = mapped_column(String(20), default="active")
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
@@ -497,6 +500,9 @@ class Chapter(Base):
     sort_order: Mapped[int] = mapped_column(Integer)
     title: Mapped[str] = mapped_column(String(255))
     summary: Mapped[str | None] = mapped_column(Text, nullable=True)
+    package_candidates: Mapped[list] = mapped_column(
+        JSONB, nullable=False, server_default="[]"
+    )
     status: Mapped[str] = mapped_column(String(20), default="locked")
     completed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
