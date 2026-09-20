@@ -15,15 +15,33 @@ import {
   getConversationByChapter,
   getMessages,
   runCode as apiRunCode,
+  runModalCode as apiRunModalCode,
   generateSnippetExplain as apiGenerateSnippetExplain,
   getChapterPractice,
   recordLearningHeartbeat,
   updateChapterStatus,
+  getChapterSkills,
+  startSkill,
+  completeSkill,
   type ChapterPractice,
+  type ChapterSkill,
 } from "@/lib/api";
 import { defaultFilename, fingerprintCode } from "@/lib/codeBlocks";
 import { chapterCompletionOutcome } from "@/lib/courseExperience";
-import { buildWebPreviewDocument, executionModeForLanguage, inferLearningLanguage, looksLikeHtmlDocument, normalizeLanguage } from "@/lib/languageRuntime";
+import { buildWebPreviewDocument, executionModeForLanguage, inferLearningLanguage, looksLikeHtmlDocument, normalizeLanguage, sandpackTemplateFor } from "@/lib/languageRuntime";
+import { buildSandpackFiles } from "@/lib/sandpackFiles";
+import { FrameworkPreview } from "@/components/SandpackPreview";
+import { ApiKeyConfigPanel } from "@/components/ApiKeyConfigPanel";
+import {
+  DEFAULT_DOTENV_STUB,
+  clearChapterEnv,
+  getEnvValue,
+  hasDeepseekApiKey,
+  readChapterEnv,
+  skillNeedsApiKey,
+  upsertEnvValue,
+  writeChapterEnv,
+} from "@/lib/chapterEnv";
 import { buildChapterArchive, safeArchiveName } from "@/lib/chapterExport";
 import {
   appendChatImages,
@@ -45,7 +63,7 @@ import {
   DocumentLearningPanel,
   type DocAskContext,
 } from "@/components/DocumentLearningPanel";
-import { ArrowRight, BookOpen, Bot, CheckCircle2, Download, Dumbbell, HelpCircle, ImagePlus, List, Loader2, MessageSquare, Play, Send, Trophy, User as UserIcon, X } from "lucide-react";
+import { ArrowRight, BookOpen, Bot, CheckCircle2, ChevronDown, Cloud, Download, Dumbbell, HelpCircle, ImagePlus, List, Loader2, MessageSquare, Play, Send, Trophy, User as UserIcon, X } from "lucide-react";
 import Link from "next/link";
 
 interface ChatMessage {
@@ -73,10 +91,16 @@ function detectLang(topic: string): { lang: string; file: string; comment: strin
   if (t.includes("css")) {
     return { lang: "css", file: "styles.css", comment: "/*", runtime: "Browser preview ready." };
   }
+  if (t.includes("react") || t.includes("jsx") || t.includes("tsx")) {
+    return { lang: "react", file: "App.jsx", comment: "//", runtime: "React Sandpack preview ready." };
+  }
+  if (t.includes("vue")) {
+    return { lang: "vue", file: "App.vue", comment: "", runtime: "Vue Sandpack preview ready." };
+  }
   if (t.includes("typescript")) {
     return { lang: "typescript", file: "index.ts", comment: "//", runtime: "TypeScript sandbox ready." };
   }
-  if (t.includes("javascript") || t.includes("react") || t.includes("vue") || t.includes("node") || t.includes("next")) {
+  if (t.includes("javascript") || t.includes("node") || t.includes("next")) {
     return { lang: "javascript", file: "index.js", comment: "//", runtime: "JavaScript sandbox ready." };
   }
   if (t.includes("go") || t.includes("golang")) {
@@ -106,6 +130,29 @@ function detectLang(topic: string): { lang: string; file: string; comment: strin
 function scratchCodeFor(language: string, comment: string): string {
   if (language === "html") return "<!-- 在这里编写 HTML -->\n";
   if (language === "css") return "/* 在这里编写 CSS */\n";
+  if (language === "react") {
+    return `export default function App() {
+  return (
+    <div>
+      <h1>Hello React</h1>
+      <p>在这里开始编写组件</p>
+    </div>
+  );
+}
+`;
+  }
+  if (language === "vue") {
+    return `<template>
+  <div>
+    <h1>Hello Vue</h1>
+    <p>在这里开始编写组件</p>
+  </div>
+</template>
+
+<script setup>
+</script>
+`;
+  }
   return `${comment} 在这里编写代码\n`;
 }
 
@@ -114,6 +161,8 @@ const LANGUAGE_LABELS: Record<string, string> = {
   css: "CSS",
   javascript: "JavaScript",
   typescript: "TypeScript",
+  react: "React",
+  vue: "Vue",
   python: "Python",
   cpp: "C++",
   csharp: "C#",
@@ -156,7 +205,13 @@ export default function LearningWorkspacePage() {
   const [activeTabId, setActiveTabId] = useState("scratch");
   const [consoleOutput, setConsoleOutput] = useState<string[]>(["环境加载中..."]);
   const [webPreview, setWebPreview] = useState<string | null>(null);
+  const [sandpackPreview, setSandpackPreview] = useState<{
+    template: "react" | "vue";
+    files: Record<string, string>;
+    runKey: string;
+  } | null>(null);
   const [running, setRunning] = useState(false);
+  const [modalRunning, setModalRunning] = useState(false);
   const [chapterCompleted, setChapterCompleted] = useState(false);
   const [hasRunCode, setHasRunCode] = useState(false);
   const [chapterTitle, setChapterTitle] = useState("本章内容");
@@ -166,6 +221,14 @@ export default function LearningWorkspacePage() {
   const [practiceLoading, setPracticeLoading] = useState(false);
   const [practiceError, setPracticeError] = useState("");
   const [completing, setCompleting] = useState(false);
+  const [skills, setSkills] = useState<ChapterSkill[]>([]);
+  const [skillsLoading, setSkillsLoading] = useState(false);
+  const [skillsExpanded, setSkillsExpanded] = useState(false);
+  const [skillActionId, setSkillActionId] = useState<string | null>(null);
+  const [apiKeyDraft, setApiKeyDraft] = useState("");
+  const [apiKeyModalOpen, setApiKeyModalOpen] = useState(false);
+  const [apiKeySaving, setApiKeySaving] = useState(false);
+  const pendingModalRunRef = useRef(false);
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const [animationData, setAnimationData] = useState<any | null>(null);
   const [generatingAnim, setGeneratingAnim] = useState(false);
@@ -173,6 +236,125 @@ export default function LearningWorkspacePage() {
   const [docAskContext, setDocAskContext] = useState<DocAskContext | null>(null);
   const [docMessages, setDocMessages] = useState<ChatMessage[]>([]);
   const router = useRouter();
+
+  const activeSkill = skills.find((s) => s.progress_status === "active")
+    ?? skills.find((s) => s.progress_status !== "passed" && s.progress_status !== "locked")
+    ?? null;
+  const skillContextPayload = activeSkill
+    ? {
+        title: activeSkill.title,
+        goal: activeSkill.goal,
+        objectives: activeSkill.objectives,
+      }
+    : null;
+  const activeSkillRef = useRef(skillContextPayload);
+  activeSkillRef.current = skillContextPayload;
+  const showApiKeyCard = skillNeedsApiKey(activeSkill);
+
+  const syncDotenvTab = useCallback((content: string) => {
+    setTabs((prev) => {
+      const idx = prev.findIndex((t) => t.id === "dotenv" || t.label.startsWith(".env"));
+      if (idx < 0) {
+        return [
+          ...prev,
+          {
+            id: "dotenv",
+            label: ".env（高级）",
+            language: "ini",
+            originCode: content,
+            code: content,
+            fingerprint: "dotenv",
+          },
+        ];
+      }
+      const copy = [...prev];
+      copy[idx] = { ...copy[idx], code: content, label: ".env（高级）" };
+      return copy;
+    });
+  }, []);
+
+  const getDotenvText = useCallback(() => {
+    const tab = tabs.find((t) => t.id === "dotenv" || t.label.startsWith(".env"));
+    if (tab?.code) return tab.code;
+    return readChapterEnv(pathId, chapterId) || DEFAULT_DOTENV_STUB;
+  }, [tabs, pathId, chapterId]);
+
+  const saveApiKey = useCallback((runAfter = false) => {
+    const key = apiKeyDraft.trim();
+    if (!key) return;
+    setApiKeySaving(true);
+    try {
+      const base = (() => {
+        const tab = tabs.find((t) => t.id === "dotenv" || t.label.startsWith(".env"));
+        if (tab?.code) return tab.code;
+        return readChapterEnv(pathId, chapterId) || DEFAULT_DOTENV_STUB;
+      })();
+      const next = upsertEnvValue(base, "DEEPSEEK_API_KEY", key);
+      writeChapterEnv(pathId, chapterId, next);
+      syncDotenvTab(next);
+      setApiKeyModalOpen(false);
+      setConsoleOutput((prev) => [...prev, "已保存 API Key 到本课本地配置。"]);
+      if (runAfter) {
+        pendingModalRunRef.current = true;
+        queueMicrotask(() => {
+          if (pendingModalRunRef.current) {
+            pendingModalRunRef.current = false;
+            void runModalWithDotenv(next);
+          }
+        });
+      }
+    } finally {
+      setApiKeySaving(false);
+    }
+  }, [apiKeyDraft, tabs, pathId, chapterId, syncDotenvTab]);
+
+  const runModalWithDotenv = async (dotenvText: string) => {
+    if (modalRunning || running) return;
+    setModalRunning(true);
+    setWebPreview(null);
+    setSandpackPreview(null);
+    setConsoleOutput((prev) => [...prev, "▶ Modal cloud run..."]);
+    try {
+      const codeTab =
+        activeTabId !== "dotenv" && activeTab && !activeTab.label.startsWith(".env")
+          ? activeTab
+          : tabs.find((t) => t.id !== "dotenv" && !t.label.startsWith(".env") && normalizeLanguage(t.language) === "python")
+            || tabs.find((t) => t.id !== "dotenv" && !t.label.startsWith(".env"))
+            || activeTab;
+      const codeToRun = (codeTab?.code || activeCode).trim();
+      if (!codeToRun) {
+        setConsoleOutput((prev) => [...prev, "Error: 没有可运行的代码"]);
+        return;
+      }
+      const data = await apiRunModalCode(codeToRun, "python", dotenvText, pathId, chapterId);
+      setConsoleOutput((prev) => [
+        ...prev,
+        data.output,
+        `${data.status} · source=${data.judge_source}${data.trusted ? "" : " · untrusted"}`,
+      ]);
+      setHasRunCode(true);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Modal 执行失败";
+      setConsoleOutput((prev) => [...prev, `Error: ${message}`]);
+    } finally {
+      setModalRunning(false);
+    }
+  };
+
+  const runModal = async () => {
+    if (modalRunning || running) return;
+    const dotenvText = getDotenvText();
+    if (!hasDeepseekApiKey(dotenvText)) {
+      setApiKeyDraft(getEnvValue(dotenvText, "DEEPSEEK_API_KEY"));
+      setApiKeyModalOpen(true);
+      setConsoleOutput((prev) => [
+        ...prev,
+        "提示: 云端运行需要先配置 DeepSeek API Key。",
+      ]);
+      return;
+    }
+    await runModalWithDotenv(dotenvText);
+  };
 
   const wsRef = useRef<WebSocket | null>(null);
   const chatScrollRef = useRef<HTMLDivElement>(null);
@@ -365,6 +547,15 @@ export default function LearningWorkspacePage() {
   const activeTab = tabs.find((t) => t.id === activeTabId) || tabs[0];
   const activeCode = activeTab?.code ?? "";
   const activeLang = normalizeLanguage(activeTab?.language || editorInfo.lang);
+  const monacoLanguage =
+    activeLang === "react" ? "javascript"
+    : activeLang === "vue" ? "html"
+    : activeLang;
+  const activeExecMode = executionModeForLanguage(activeLang, activeCode);
+  const previewMode =
+    activeExecMode === "web"
+    || activeExecMode === "sandpack"
+    || looksLikeHtmlDocument(activeCode);
 
   const loadPractice = useCallback(async () => {
     setPracticeLoading(true);
@@ -576,13 +767,27 @@ export default function LearningWorkspacePage() {
         setChapterCompleted(ch.status === "completed");
       } catch { /* ignore */ }
 
+      let loadedSkills: ChapterSkill[] = [];
+      try {
+        setSkillsLoading(true);
+        const skillRes = await getChapterSkills(chapterId);
+        if (!cancelled) {
+          loadedSkills = skillRes.skills || [];
+          setSkills(loadedSkills);
+        }
+      } catch {
+        if (!cancelled) setSkills([]);
+      } finally {
+        if (!cancelled) setSkillsLoading(false);
+      }
+
       const inferredLanguage = inferLearningLanguage(pathTopic, chapterTitle, chapterSummary);
       const info = detectLang(inferredLanguage);
       const langLabel = LANGUAGE_LABELS[info.lang]
         || info.lang.charAt(0).toUpperCase() + info.lang.slice(1);
       setEditorInfo(info);
       const scratchCode = scratchCodeFor(info.lang, info.comment);
-      setTabs([
+      const initialTabs: EditorTab[] = [
         {
           id: "scratch",
           label: info.file.replace("main", "草稿").replace("Main", "草稿").replace("index", "草稿"),
@@ -591,10 +796,26 @@ export default function LearningWorkspacePage() {
           code: scratchCode,
           fingerprint: "scratch",
         },
-      ]);
+      ];
+      if (info.lang === "python") {
+        const stored = readChapterEnv(pathId, chapterId);
+        const envStub = stored.trim() ? stored : DEFAULT_DOTENV_STUB;
+        initialTabs.push({
+          id: "dotenv",
+          label: ".env（高级）",
+          language: "ini",
+          originCode: envStub,
+          code: envStub,
+          fingerprint: "dotenv",
+        });
+        setApiKeyDraft(getEnvValue(envStub, "DEEPSEEK_API_KEY"));
+      }
+      setTabs(initialTabs);
       setActiveTabId("scratch");
       setConsoleOutput([info.runtime]);
       setHasRunCode(false);
+      setWebPreview(null);
+      setSandpackPreview(null);
 
       // 优先恢复该章节已有对话
       let conversationId: string | null = null;
@@ -664,9 +885,24 @@ export default function LearningWorkspacePage() {
             setStreaming(false);
             return;
           }
+          const currentSkill = loadedSkills.find((s) => s.progress_status === "active")
+            || loadedSkills.find((s) => s.progress_status !== "passed" && s.progress_status !== "locked")
+            || null;
+          const skillHint = currentSkill
+            ? `当前技能是「${currentSkill.title}」${currentSkill.goal ? `：${currentSkill.goal}` : ""}。请围绕该技能目标引导。`
+            : "";
           ws.send(JSON.stringify({
             type: "message",
-            content: `${needsContextSync ? `${CONTEXT_SYNC_MARKER}\n请忽略此前错误的 Python 语言判断。` : ""}我刚进入「${chapterTitle}」章节的学习页面。当前章节的主要语言是 ${langLabel}。请你作为 AI 编程导师，本章用 ${langLabel} 讲解并给代码示例，不要擅自改成 Python。先简要介绍本章会学到什么，然后问问我有没有相关基础、想从哪个方面开始学起。用友好亲切的语气。`,
+            content: `${needsContextSync ? `${CONTEXT_SYNC_MARKER}\n请忽略此前错误的 Python 语言判断。` : ""}我刚进入「${chapterTitle}」章节的学习页面。当前章节的主要语言是 ${langLabel}。${skillHint}请你作为 AI 编程导师，本章用 ${langLabel} 讲解并给代码示例，不要擅自改成 Python。先简要介绍本章会学到什么，然后问问我有没有相关基础、想从哪个方面开始学起。用友好亲切的语气。`,
+            ...(currentSkill
+              ? {
+                  skill_context: {
+                    title: currentSkill.title,
+                    goal: currentSkill.goal,
+                    objectives: currentSkill.objectives,
+                  },
+                }
+              : {}),
           }));
         }
       } catch {
@@ -702,12 +938,34 @@ export default function LearningWorkspacePage() {
     setConsoleOutput(prev => [...prev, "▶ Running..."]);
 
     try {
-      const executionMode = executionModeForLanguage(activeLang);
-      if (executionMode === "web" || looksLikeHtmlDocument(activeCode)) {
+      const template = sandpackTemplateFor(activeLang, activeCode);
+      const executionMode = executionModeForLanguage(activeLang, activeCode);
+      if (executionMode === "sandpack" && template) {
+        setWebPreview(null);
+        const ordered = [
+          ...tabs.filter((tab) => tab.id === activeTabId),
+          ...tabs.filter((tab) => tab.id !== activeTabId),
+        ];
+        const files = buildSandpackFiles(
+          ordered.map((tab) => ({
+            label: tab.label,
+            language: tab.language,
+            code: tab.code,
+          })),
+          template
+        );
+        setSandpackPreview({
+          template,
+          files,
+          runKey: `${Date.now()}`,
+        });
+        setConsoleOutput([`▶ Sandpack ${template} preview refreshed.`]);
+        setHasRunCode(true);
+      } else if (executionMode === "web" || looksLikeHtmlDocument(activeCode)) {
         const webTabs = tabs.filter((tab) => {
           const lang = normalizeLanguage(tab.language);
           return (
-            ["html", "css", "javascript"].includes(lang)
+            ["html", "css", "javascript", "typescript", "react"].includes(lang)
             || looksLikeHtmlDocument(tab.code)
           );
         });
@@ -719,12 +977,14 @@ export default function LearningWorkspacePage() {
         const previewDocument = buildWebPreviewDocument(
           ordered.map((tab) => ({ language: tab.language, code: tab.code }))
         );
+        setSandpackPreview(null);
         setWebPreview(previewDocument);
         setConsoleOutput(["▶ Browser preview refreshed.", "HTML / CSS / JavaScript 已在隔离预览中运行。"]);
         setHasRunCode(true);
       } else if (executionMode === "pyodide") {
         // Python → Pyodide 浏览器端真实执行
         setWebPreview(null);
+        setSandpackPreview(null);
         if (!pyodideReady) {
           setConsoleOutput(prev => [...prev, "⚙️ 正在加载 Python 环境 (Pyodide)..."]);
         }
@@ -738,6 +998,7 @@ export default function LearningWorkspacePage() {
       } else {
         // 非 Python → Judge0 隔离沙箱真实执行
         setWebPreview(null);
+        setSandpackPreview(null);
         const data = await apiRunCode(activeCode, activeLang);
         setConsoleOutput(prev => [
           ...prev,
@@ -817,6 +1078,7 @@ export default function LearningWorkspacePage() {
         ...(target === "doc" && docAskContext
           ? { doc_context: docAskContext }
           : {}),
+        ...(activeSkillRef.current ? { skill_context: activeSkillRef.current } : {}),
       })
     );
   };
@@ -834,6 +1096,53 @@ export default function LearningWorkspacePage() {
     chapterCompleted,
   });
   const learnLoopHint = nextLearnLoopHint(learnLoopSteps);
+
+  const refreshSkills = useCallback(async () => {
+    try {
+      const res = await getChapterSkills(chapterId);
+      setSkills(res.skills || []);
+    } catch {
+      /* ignore */
+    }
+  }, [chapterId]);
+
+  const handleStartSkill = async (skillId: string) => {
+    if (skillActionId) return;
+    setSkillActionId(skillId);
+    try {
+      await startSkill(skillId);
+      await refreshSkills();
+      setSkillsExpanded(false);
+    } catch (error) {
+      const notice = {
+        role: "system" as const,
+        content: error instanceof Error ? error.message : "无法开始该技能",
+      };
+      if (learnMode === "doc") setDocMessages((prev) => [...prev, notice]);
+      else setMessages((prev) => [...prev, notice]);
+    } finally {
+      setSkillActionId(null);
+    }
+  };
+
+  const handleCompleteSkill = async (skillId: string) => {
+    if (skillActionId) return;
+    setSkillActionId(skillId);
+    try {
+      await completeSkill(skillId);
+      await refreshSkills();
+      setSkillsExpanded(false);
+    } catch (error) {
+      const notice = {
+        role: "system" as const,
+        content: error instanceof Error ? error.message : "无法完成该技能",
+      };
+      if (learnMode === "doc") setDocMessages((prev) => [...prev, notice]);
+      else setMessages((prev) => [...prev, notice]);
+    } finally {
+      setSkillActionId(null);
+    }
+  };
 
   return (
     <div
@@ -1019,7 +1328,7 @@ export default function LearningWorkspacePage() {
                 const el = event.currentTarget;
                 followChatRef.current = el.scrollHeight - el.scrollTop - el.clientHeight < 80;
               }}
-              className="flex-1 overflow-y-auto p-6 space-y-6 pb-32"
+              className="flex-1 min-h-0 overflow-y-auto p-6 space-y-6"
             >
               {messages.length === 0 && (
                 <div className="flex items-center justify-center h-full opacity-60">
@@ -1110,14 +1419,107 @@ export default function LearningWorkspacePage() {
           </div>
         )}
 
-        {/* Chat Input + Complete Button */}
-        <div
-          className={`shrink-0 p-4 border-t border-slate-200/80 dark:border-white/5 ${
-            learnMode === "ai"
-              ? "absolute bottom-0 left-0 w-full bg-gradient-to-t from-background via-background/95 to-transparent pt-10 border-t-0"
-              : "bg-surface"
-          }`}
-        >
+        {/* Chat Input + Complete Button — flex 流内，不叠在对话上 */}
+        <div className="shrink-0 p-4 border-t border-slate-200/80 dark:border-white/5 bg-surface">
+          <div className="max-w-4xl mx-auto mb-3 rounded-xl border border-slate-200/70 dark:border-white/10 bg-white/80 dark:bg-surface-container-low/70 px-3 py-2">
+            {skills.length === 0 && !skillsLoading ? (
+              <p className="text-[10px] text-slate-500">暂无技能拆分，完成本章即可。</p>
+            ) : (
+              <>
+                <button
+                  type="button"
+                  onClick={() => setSkillsExpanded((v) => !v)}
+                  className="w-full flex items-center gap-2 text-left"
+                  aria-expanded={skillsExpanded}
+                >
+                  <p className="min-w-0 flex-1 text-[11px] font-semibold text-slate-600 dark:text-slate-300 truncate">
+                    本章技能{" "}
+                    <span className="font-normal text-slate-500">
+                      {skills.filter((s) => s.progress_status === "passed").length}/{skills.length || 0}
+                      {activeSkill ? ` · 当前：${activeSkill.title}` : ""}
+                    </span>
+                  </p>
+                  {skillsLoading ? (
+                    <Loader2 size={12} className="animate-spin text-slate-400 shrink-0" />
+                  ) : (
+                    <ChevronDown
+                      size={14}
+                      className={`shrink-0 text-slate-400 transition-transform ${skillsExpanded ? "rotate-180" : ""}`}
+                    />
+                  )}
+                </button>
+                {skillsExpanded ? (
+                  <ul className="mt-2 space-y-1.5 max-h-28 overflow-y-auto pr-1">
+                    {skills.map((skill) => {
+                      const isActive = skill.progress_status === "active";
+                      const isPassed = skill.progress_status === "passed";
+                      const isLocked = skill.progress_status === "locked";
+                      return (
+                        <li
+                          key={skill.id}
+                          className={`flex items-start justify-between gap-2 rounded-lg px-2 py-1.5 border ${
+                            isActive
+                              ? "border-sky-300/80 dark:border-primary/40 bg-sky-50/80 dark:bg-primary/10"
+                              : isPassed
+                                ? "border-emerald-300/50 dark:border-emerald-500/20 bg-emerald-50/40 dark:bg-emerald-500/5"
+                                : "border-transparent bg-transparent opacity-70"
+                          }`}
+                        >
+                          <div className="min-w-0">
+                            <p className="text-[11px] font-medium text-slate-700 dark:text-slate-200 truncate">
+                              {skill.sort_order}. {skill.title}
+                              {isActive ? " · 进行中" : isPassed ? " · 已过关" : isLocked ? " · 未解锁" : ""}
+                            </p>
+                            {skill.goal && (
+                              <p className="text-[10px] text-slate-500 leading-snug line-clamp-1">{skill.goal}</p>
+                            )}
+                          </div>
+                          <div className="flex-shrink-0 flex items-center gap-1">
+                            {isActive ? (
+                              <button
+                                type="button"
+                                disabled={skillActionId === skill.id}
+                                onClick={() => void handleCompleteSkill(skill.id)}
+                                className="text-[10px] px-2 py-0.5 rounded-md border border-emerald-300/70 text-emerald-700 dark:text-emerald-400 dark:border-emerald-500/30 hover:bg-emerald-50 dark:hover:bg-emerald-500/10 disabled:opacity-50"
+                              >
+                                {skillActionId === skill.id ? "…" : "过关"}
+                              </button>
+                            ) : isPassed ? (
+                              <CheckCircle2 size={14} className="text-emerald-500" />
+                            ) : (
+                              <button
+                                type="button"
+                                disabled={skillActionId === skill.id}
+                                onClick={() => void handleStartSkill(skill.id)}
+                                className="text-[10px] px-2 py-0.5 rounded-md border border-slate-200 dark:border-white/15 hover:bg-slate-50 dark:hover:bg-white/5 disabled:opacity-50"
+                              >
+                                开始
+                              </button>
+                            )}
+                          </div>
+                        </li>
+                      );
+                    })}
+                  </ul>
+                ) : null}
+              </>
+            )}
+            {showApiKeyCard ? (
+              <button
+                type="button"
+                onClick={() => {
+                  setApiKeyDraft(getEnvValue(getDotenvText(), "DEEPSEEK_API_KEY"));
+                  setApiKeyModalOpen(true);
+                }}
+                className="mt-1.5 w-full text-left rounded-md px-1 py-1 text-[10px] text-amber-800 dark:text-amber-200/90 hover:bg-amber-50/80 dark:hover:bg-amber-500/10"
+              >
+                <span className="font-semibold">配置 API Key</span>
+                <span className="opacity-75">
+                  {hasDeepseekApiKey(getDotenvText()) ? " · 已保存" : " · 云端试跑前需填写"}
+                </span>
+              </button>
+            ) : null}
+          </div>
           <div className="max-w-4xl mx-auto mb-3 rounded-xl border border-slate-200/70 dark:border-white/10 bg-white/80 dark:bg-surface-container-low/70 px-3 py-2.5">
             <div className="flex flex-wrap items-center gap-2">
               {learnLoopSteps.map((step) => (
@@ -1292,7 +1694,47 @@ export default function LearningWorkspacePage() {
           </div>
         </div>
 
-        {lightboxUrl && (
+        {apiKeyModalOpen && (
+        <div
+          className="fixed inset-0 z-[90] flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm"
+          role="dialog"
+          aria-modal="true"
+          aria-label="配置 API Key"
+        >
+          <button
+            type="button"
+            className="absolute inset-0"
+            aria-label="关闭"
+            onClick={() => setApiKeyModalOpen(false)}
+          />
+          <div className="relative z-10">
+            <ApiKeyConfigPanel
+              variant="modal"
+              title="云端运行需要 API Key"
+              deepseekKey={apiKeyDraft}
+              onDeepseekKeyChange={setApiKeyDraft}
+              hasSavedKey={hasDeepseekApiKey(getDotenvText())}
+              saving={apiKeySaving}
+              onSave={() => saveApiKey(false)}
+              onSaveAndRun={() => saveApiKey(true)}
+              onClear={() => {
+                clearChapterEnv(pathId, chapterId);
+                const cleared = upsertEnvValue(DEFAULT_DOTENV_STUB, "DEEPSEEK_API_KEY", "");
+                writeChapterEnv(pathId, chapterId, cleared);
+                syncDotenvTab(cleared);
+                setApiKeyDraft("");
+              }}
+              onOpenAdvanced={() => {
+                setApiKeyModalOpen(false);
+                const tab = tabs.find((t) => t.id === "dotenv" || t.label.startsWith(".env"));
+                if (tab) setActiveTabId(tab.id);
+              }}
+            />
+          </div>
+        </div>
+      )}
+
+      {lightboxUrl && (
           <div
             className="fixed inset-0 z-50 bg-black/75 flex items-center justify-center p-6"
             onClick={() => setLightboxUrl(null)}
@@ -1503,9 +1945,26 @@ export default function LearningWorkspacePage() {
               导出
             </button>
             <button
+              type="button"
+              className="flex-shrink-0 flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-violet-200 dark:border-violet-500/30 text-xs font-semibold text-violet-700 dark:text-violet-300 hover:bg-violet-50 dark:hover:bg-violet-500/10 transition-all active:scale-95 disabled:opacity-50 shadow-xs"
+              onClick={() => void runModal()}
+              disabled={running || modalRunning || !activeCode.trim()}
+              title="在 Modal 云端运行当前 Python 代码（需配置 Token）"
+            >
+              {modalRunning ? (
+                <>
+                  <Loader2 size={13} className="animate-spin" /> 云端…
+                </>
+              ) : (
+                <>
+                  <Cloud size={13} /> 云端运行
+                </>
+              )}
+            </button>
+            <button
               className="flex-shrink-0 flex items-center gap-1.5 px-3.5 py-1.5 bg-sky-600 hover:bg-sky-500 text-white dark:bg-primary dark:text-on-primary text-xs font-bold font-headline rounded-lg transition-all active:scale-95 disabled:opacity-50 shadow-xs"
               onClick={runCode}
-              disabled={running}
+              disabled={running || modalRunning}
             >
               {running ? (
                 <>
@@ -1514,10 +1973,7 @@ export default function LearningWorkspacePage() {
               ) : (
                 <>
                   <Play size={13} className="fill-current" />
-                  {executionModeForLanguage(activeLang) === "web"
-                    || looksLikeHtmlDocument(activeCode)
-                    ? "Preview"
-                    : "Run"}
+                  {previewMode ? "Preview" : "Run"}
                 </>
               )}
             </button>
@@ -1526,7 +1982,7 @@ export default function LearningWorkspacePage() {
             <div className="absolute inset-0">
               <Editor
                 height="100%"
-                language={activeLang}
+                language={monacoLanguage}
                 path={activeTab?.id || "scratch"}
                 theme={theme === "light" ? "vs" : "vs-dark"}
                 value={activeCode}
@@ -1558,10 +2014,21 @@ export default function LearningWorkspacePage() {
         <div className="h-1/3 flex flex-col min-h-0 bg-slate-50 dark:bg-[#000000] border-t border-slate-200 dark:border-white/5">
           <div className="flex items-center px-4 py-2 bg-slate-100/90 dark:bg-surface-container-high/80 border-b border-slate-200 dark:border-white/5">
             <span className="text-[10px] font-bold text-slate-600 dark:text-slate-400 uppercase tracking-widest font-mono">
-              {webPreview ? "Browser Preview" : "Console Output"}
+              {sandpackPreview
+                ? `Sandpack · ${sandpackPreview.template}`
+                : webPreview
+                  ? "Browser Preview"
+                  : "Console Output"}
             </span>
           </div>
-          {webPreview ? (
+          {sandpackPreview ? (
+            <FrameworkPreview
+              template={sandpackPreview.template}
+              files={sandpackPreview.files}
+              theme={theme === "light" ? "light" : "dark"}
+              runKey={sandpackPreview.runKey}
+            />
+          ) : webPreview ? (
             <iframe
               title="HTML 运行预览"
               sandbox="allow-scripts"

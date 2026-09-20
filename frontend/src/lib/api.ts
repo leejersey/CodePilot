@@ -657,6 +657,34 @@ export async function recordLearningHeartbeat(
   });
 }
 
+export interface ChapterSkill {
+  id: string;
+  chapter_id: string;
+  sort_order: number;
+  title: string;
+  goal: string | null;
+  objectives: string[] | null;
+  teach_prompt: string | null;
+  status: string;
+  estimated_minutes: number | null;
+  progress_status: "locked" | "active" | "passed" | "needs_review";
+  mastery_score: number;
+  attempts: number;
+  passed_at: string | null;
+}
+
+export async function getChapterSkills(chapterId: string): Promise<{ chapter_id: string; skills: ChapterSkill[] }> {
+  return fetchAPI(`/api/v1/chapters/${chapterId}/skills`);
+}
+
+export async function startSkill(skillId: string): Promise<ChapterSkill> {
+  return fetchAPI(`/api/v1/skills/${skillId}/start`, { method: "POST" });
+}
+
+export async function completeSkill(skillId: string): Promise<ChapterSkill> {
+  return fetchAPI(`/api/v1/skills/${skillId}/complete`, { method: "POST" });
+}
+
 // ══════════════════════════════════════════
 //  Conversation API
 // ══════════════════════════════════════════
@@ -861,6 +889,25 @@ export async function runCode(
   return fetchAPI<CodeRunResponse>("/api/v1/code/run", {
     method: "POST",
     body: JSON.stringify({ code, language, stdin }),
+  });
+}
+
+export async function runModalCode(
+  code: string,
+  language: string = "python",
+  dotenv: string = "",
+  pathId: string,
+  chapterId: string,
+): Promise<CodeRunResponse> {
+  return fetchAPI<CodeRunResponse>("/api/v1/code/run-modal", {
+    method: "POST",
+    body: JSON.stringify({
+      code,
+      language,
+      dotenv,
+      path_id: pathId,
+      chapter_id: chapterId,
+    }),
   });
 }
 
