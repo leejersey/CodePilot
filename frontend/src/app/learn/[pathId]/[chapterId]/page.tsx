@@ -1946,20 +1946,45 @@ export default function LearningWorkspacePage() {
         )}
       </main>
 
-      {/* Drag handle — 左右分栏可调宽 */}
+      {/* Drag handle — 左右分栏可调宽 (自适应高对比 + 实体 Grip 把手 + 双击居中) */}
       <div
         role="separator"
         aria-orientation="vertical"
-        aria-label="调整左右分栏宽度"
+        aria-label="调整左右分栏宽度（双击恢复居中）"
+        title="按住拖拽调节宽度，双击恢复 1:1 居中"
+        onDoubleClick={() => {
+          setRightPct(50);
+          try { localStorage.setItem(SPLIT_KEY, "50"); } catch { /* ignore */ }
+        }}
         onPointerDown={onSplitPointerDown}
         onPointerMove={onSplitPointerMove}
         onPointerUp={onSplitPointerUp}
         onPointerCancel={onSplitPointerUp}
-        className={`hidden lg:flex w-1.5 shrink-0 cursor-col-resize items-stretch justify-center group relative z-10 touch-none ${
-          isDragging ? "bg-primary/40" : "bg-white/5 hover:bg-primary/30"
+        className={`hidden lg:flex w-2 shrink-0 cursor-col-resize items-center justify-center group relative z-20 touch-none select-none transition-colors ${
+          isDragging
+            ? "bg-primary/20 dark:bg-primary/30"
+            : "bg-slate-200/70 hover:bg-primary/20 dark:bg-white/[0.06] dark:hover:bg-primary/20"
         }`}
       >
-        <div className={`w-px h-full transition-colors ${isDragging ? "bg-primary" : "bg-white/10 group-hover:bg-primary/60"}`} />
+        <div
+          className={`w-0.5 h-full transition-colors ${
+            isDragging
+              ? "bg-primary"
+              : "bg-slate-300 dark:bg-white/10 group-hover:bg-primary/70"
+          }`}
+        />
+        {/* 实体握把指示点 */}
+        <div
+          className={`absolute top-1/2 -translate-y-1/2 w-4 h-8 rounded-full border flex flex-col items-center justify-center gap-1 shadow-xs transition-all pointer-events-none ${
+            isDragging
+              ? "bg-primary text-white border-primary scale-110"
+              : "bg-white dark:bg-slate-800 text-slate-400 group-hover:text-primary border-slate-300 dark:border-white/15 group-hover:scale-105"
+          }`}
+        >
+          <span className="w-1 h-1 rounded-full bg-current opacity-80" />
+          <span className="w-1 h-1 rounded-full bg-current opacity-80" />
+          <span className="w-1 h-1 rounded-full bg-current opacity-80" />
+        </div>
       </div>
 
       {/* Right: Code Sandbox */}
@@ -2083,12 +2108,17 @@ export default function LearningWorkspacePage() {
                 options={{
                   minimap: { enabled: false },
                   fontSize: 14,
-                  fontFamily: "JetBrains Mono, monospace",
+                  fontFamily: "'JetBrains Mono', 'Fira Code', Menlo, Monaco, Consolas, monospace",
+                  fontLigatures: true,
+                  cursorBlinking: "smooth",
+                  cursorSmoothCaretAnimation: "on",
+                  smoothScrolling: true,
+                  renderLineHighlight: "all",
                   scrollBeyondLastLine: false,
-                  padding: { top: 16 },
+                  padding: { top: 16, bottom: 16 },
                   lineNumbersMinChars: 3,
                   glyphMargin: false,
-                  folding: false,
+                  folding: true,
                   overviewRulerLanes: 0,
                   automaticLayout: true,
                 }}

@@ -194,11 +194,15 @@ export function MarkdownRenderer({
                     : "border-slate-300 dark:border-white/[0.08] shadow-xs hover:border-slate-400 dark:hover:border-white/20"
                 }`}
               >
-                {/* 代码块顶部工具栏 */}
+                {/* 代码块顶部工具栏 (macOS 极客窗口质感) */}
                 <div className="flex items-center justify-between px-4 py-2.5 bg-slate-100 dark:bg-[#121929] border-b border-slate-200 dark:border-white/5 select-none">
-                  <div className="flex items-center gap-2">
-                    <span className="inline-block w-2.5 h-2.5 rounded-full bg-slate-300 dark:bg-slate-700" />
-                    <span className="font-mono text-xs font-bold uppercase tracking-wider text-slate-700 dark:text-sky-400">
+                  <div className="flex items-center gap-3">
+                    <div className="flex items-center gap-1.5">
+                      <span className="w-2.5 h-2.5 rounded-full bg-[#ff5f56]/90 border border-[#e0443e]/40 shadow-xs inline-block" />
+                      <span className="w-2.5 h-2.5 rounded-full bg-[#ffbd2e]/90 border border-[#dea123]/40 shadow-xs inline-block" />
+                      <span className="w-2.5 h-2.5 rounded-full bg-[#27c93f]/90 border border-[#1aab29]/40 shadow-xs inline-block" />
+                    </div>
+                    <span className="font-mono text-[11px] font-bold uppercase tracking-wider text-slate-700 dark:text-sky-400 px-2 py-0.5 rounded-md bg-white/80 dark:bg-white/5 border border-slate-200/80 dark:border-white/5 shadow-xs">
                       {lang}
                     </span>
                   </div>
@@ -207,7 +211,7 @@ export function MarkdownRenderer({
                       <button
                         type="button"
                         disabled={explaining}
-                        className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-medium text-violet-700 dark:text-violet-300 bg-violet-100/70 hover:bg-violet-200/70 dark:bg-violet-500/10 dark:hover:bg-violet-500/20 border border-violet-200 dark:border-violet-500/20 transition-all disabled:opacity-50 active:scale-95"
+                        className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-medium text-violet-700 dark:text-violet-300 bg-violet-100/70 hover:bg-violet-200/70 dark:bg-violet-500/10 dark:hover:bg-violet-500/20 border border-violet-200 dark:border-violet-500/20 transition-all disabled:opacity-50 active:scale-95 shadow-xs dark:shadow-none"
                         onClick={() =>
                           onExplainSnippet({
                             code: codeStr,
@@ -228,7 +232,7 @@ export function MarkdownRenderer({
                     {onOpenInEditor && (
                       <button
                         type="button"
-                        className={`flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-medium border transition-all active:scale-95 ${
+                        className={`flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-medium border transition-all active:scale-95 shadow-xs dark:shadow-none ${
                           isActive
                             ? "text-sky-700 dark:text-primary bg-sky-100 dark:bg-primary/10 border-sky-300 dark:border-primary/30 font-semibold"
                             : "text-slate-700 dark:text-slate-400 hover:text-sky-600 dark:hover:text-primary bg-white dark:bg-white/5 hover:bg-slate-50 dark:hover:bg-primary/10 border-slate-200 dark:border-white/5"
@@ -243,17 +247,26 @@ export function MarkdownRenderer({
                   </div>
                 </div>
 
-                {/* 代码高亮主体 */}
+                {/* 代码高亮主体 (连字支持与舒适行高) */}
                 <SyntaxHighlighter
                   style={isDark ? darkCodeTheme : lightCodeTheme}
                   language={highlightLang}
                   PreTag="div"
+                  showLineNumbers={codeStr.split("\n").length > 3}
+                  lineNumberStyle={{
+                    color: isDark ? "#484f58" : "#8c959f",
+                    paddingRight: "16px",
+                    minWidth: "2.5em",
+                    userSelect: "none",
+                    fontSize: "12px",
+                  }}
                   codeTagProps={{
                     style: {
                       background: "transparent",
                       textShadow: "none",
-                      fontFamily: "JetBrains Mono, ui-monospace, monospace",
+                      fontFamily: "'JetBrains Mono', ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace",
                       fontSize: "13.5px",
+                      fontFeatureSettings: '"liga" 1, "calt" 1',
                     },
                   }}
                   customStyle={{

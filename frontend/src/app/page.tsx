@@ -5,6 +5,7 @@ import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Header } from "@/components/layout/Header";
 import { Card } from "@/components/common/Card";
+import { CardSkeleton } from "@/components/common/Skeleton";
 import { DifficultyBadge } from "@/components/common/Badge";
 import {
   getBackgroundJob,
@@ -234,9 +235,7 @@ export default function Home() {
             </Link>
           </div>
           {coursesLoading ? (
-            <div className="flex justify-center py-10">
-              <Loader2 className="h-6 w-6 animate-spin text-primary" />
-            </div>
+            <CardSkeleton count={3} />
           ) : courses.length === 0 ? (
             <Card className="p-8 text-center text-sm text-on-surface-variant">
               课程正在筹备中，敬请期待。

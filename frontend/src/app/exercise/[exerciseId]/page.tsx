@@ -17,6 +17,7 @@ import {
   type SubmissionResponse,
 } from "@/lib/api";
 import { Badge } from "@/components/common/Badge";
+import { CelebrationConfetti } from "@/components/common/CelebrationConfetti";
 import { normalizeLanguage } from "@/lib/languageRuntime";
 import {
   Bot,
@@ -307,7 +308,11 @@ export default function ExercisePage() {
                 onChange={(v) => setCode(v ?? "")}
                 options={{
                   fontSize: 14,
-                  fontFamily: "JetBrains Mono, ui-monospace, monospace",
+                  fontFamily: "'JetBrains Mono', 'Fira Code', Menlo, Monaco, Consolas, monospace",
+                  fontLigatures: true,
+                  cursorBlinking: "smooth",
+                  cursorSmoothCaretAnimation: "on",
+                  smoothScrolling: true,
                   minimap: { enabled: false },
                   scrollBeyondLastLine: false,
                   padding: { top: 16, bottom: 16 },
@@ -315,7 +320,7 @@ export default function ExercisePage() {
                   automaticLayout: true,
                   tabSize: 4,
                   wordWrap: "on",
-                  renderLineHighlight: "line",
+                  renderLineHighlight: "all",
                 }}
                 loading={
                   <div className="h-full flex items-center justify-center text-sm text-slate-500">
@@ -511,11 +516,15 @@ export default function ExercisePage() {
             )}
           </div>
 
+          {submissionResult === "pass" && submission?.trusted && (
+            <CelebrationConfetti duration={3000} />
+          )}
+
           {submission && (
             <div
-              className={`absolute right-8 top-16 w-88 max-w-[min(360px,90%)] backdrop-blur-2xl rounded-2xl p-5 shadow-2xl z-30 border ${
+              className={`absolute right-8 top-16 w-88 max-w-[min(360px,90%)] backdrop-blur-2xl rounded-2xl p-5 shadow-elevated z-30 border transition-all duration-300 ${
                 submissionResult === "pass" && submission.trusted
-                  ? "bg-emerald-50/95 dark:bg-emerald-950/80 border-emerald-500/40 text-slate-900 dark:text-slate-100"
+                  ? "bg-emerald-50/95 dark:bg-emerald-950/80 border-emerald-500/40 text-slate-900 dark:text-slate-100 shadow-[0_12px_40px_rgba(16,185,129,0.15)]"
                   : "bg-white/95 dark:bg-surface-container-high/95 border-slate-200 dark:border-secondary/30 text-slate-900 dark:text-slate-100"
               }`}
             >

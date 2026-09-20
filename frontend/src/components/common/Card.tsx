@@ -7,6 +7,7 @@ interface CardProps extends React.HTMLAttributes<HTMLDivElement> {
   className?: string;
   enableSpotlight?: boolean;
   interactive?: boolean;
+  elevated?: boolean;
 }
 
 export function Card({
@@ -14,6 +15,7 @@ export function Card({
   className = "",
   enableSpotlight = true,
   interactive = false,
+  elevated = false,
   ...props
 }: CardProps) {
   const cardRef = useRef<HTMLDivElement>(null);
@@ -31,11 +33,13 @@ export function Card({
     <div
       ref={cardRef}
       onMouseMove={handleMouseMove}
-      className={`relative isolate rounded-2xl bg-white/80 dark:bg-surface-container-high/40 backdrop-blur-xl border border-slate-200/80 dark:border-white/[0.08] shadow-xs dark:shadow-none transition-all duration-300 overflow-hidden ${
+      className={`relative isolate rounded-2xl bg-white/90 dark:bg-surface-container-high/40 backdrop-blur-xl border border-slate-200/90 dark:border-white/[0.08] transition-all duration-200 ease-out overflow-hidden ${
+        elevated ? "shadow-elevated" : "shadow-soft"
+      } ${
         enableSpotlight ? "spotlight-card" : ""
       } ${
         interactive
-          ? "hover:border-primary/40 hover:shadow-[0_8px_30px_rgba(2,132,199,0.08)] dark:hover:shadow-[0_8px_30px_rgba(83,221,252,0.1)] hover:-translate-y-0.5 cursor-pointer"
+          ? "hover:border-primary/50 hover:shadow-elevated hover:-translate-y-0.5 cursor-pointer active:scale-[0.99]"
           : ""
       } ${className}`}
       {...props}
