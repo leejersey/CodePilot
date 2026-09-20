@@ -4,7 +4,6 @@ import uuid
 from types import SimpleNamespace
 
 import pytest
-from pydantic import ValidationError
 
 from app.api.v1 import settings as settings_api
 
@@ -47,6 +46,8 @@ async def test_get_empty_prefs_has_no_credentials():
     assert out.default_provider is None
     assert out.has_modal_credentials is False
     assert out.modal_token_id_masked is None
+    assert out.has_daytona_credentials is False
+    assert out.daytona_api_key_masked is None
 
 
 @pytest.mark.anyio
@@ -93,6 +94,42 @@ async def test_put_keeps_secret_when_keep_modal_secret():
     assert stored["token_secret"] == "sk-old"
 
 
-def test_put_rejects_daytona_default_phase_a():
-    with pytest.raises(ValidationError):
-        settings_api.SandboxSettingsUpdate(default_provider="daytona")  # type: ignore[arg-type]
+@pytest.mark.anyio
+async def test_put_daytona_default_and_api_key():
+    user = user_with_prefs()
+    db = FakeDb()
+    body = settings_api.SandboxSettingsUpdate(
+        default_provider="daytona",
+        daytona_api_key="dtn_secret_key",
+        keep_daytona_secret=False,
+    )
+    await settings_api.put_sandbox_settings(body, db=db, user=user)
+    out = await settings_api.get_sandbox_settings(user=user)
+    assert out.default_provider == "daytona"
+    assert out.has_daytona_credentials is True
+    assert out.daytona_api_key_masked
+    assert out.daytona_api_key_masked != "dtn_secret_key"
+    assert "dtn_secret_key" not in str(out.model_dump())
+    assert user.preferences["sandbox"]["daytona"]["api_key"] == "dtn_secret_key"
+
+
+@pytest.mark.anyio
+async def test_put_keeps_daytona_secret_when_keep_flag():
+    user = user_with_prefs(
+        {
+            "sandbox": {
+                "default_provider": "daytona",
+                "daytona": {"api_key": "dtn_old"},
+            }
+        }
+    )
+    db = FakeDb()
+    body = settings_api.SandboxSettingsUpdate(
+        default_provider="daytona",
+        daytona_api_key=None,
+        keep_daytona_secret=True,
+    )
+    await settings_api.put_sandbox_settings(body, db=db, user=user)
+    assert user.preferences["sandbox"]["daytona"]["api_key"] == "dtn_old"
+    out = await settings_api.get_sandbox_settings(user=user)
+    assert out.has_daytona_credentials is True

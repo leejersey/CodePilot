@@ -588,7 +588,7 @@ export default function LearningWorkspacePage() {
       ? pickCloudProvider({
           defaultProvider: sandboxSettings?.default_provider ?? "modal",
           modalConfigured: !!sandboxSettings?.has_modal_credentials,
-          daytonaConfigured: false,
+          daytonaConfigured: !!sandboxSettings?.has_daytona_credentials,
         })
       : null;
   const showLocalRun = tabExec.mode !== "cloud";
@@ -2016,7 +2016,11 @@ export default function LearningWorkspacePage() {
                 className="flex-shrink-0 flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-violet-200 dark:border-violet-500/30 text-xs font-semibold text-violet-700 dark:text-violet-300 hover:bg-violet-50 dark:hover:bg-violet-500/10 transition-all active:scale-95 disabled:opacity-50 shadow-xs"
                 onClick={() => void runModal()}
                 disabled={running || modalRunning || !activeCode.trim()}
-                title="在 Modal 云端运行当前 Python 代码（需配置 Token）"
+                title={
+                  cloudProvider === "daytona"
+                    ? "在 Daytona 云端运行当前 Python 代码（需配置 API Key）"
+                    : "在 Modal 云端运行当前 Python 代码（需配置 Token）"
+                }
               >
                 {modalRunning ? (
                   <>

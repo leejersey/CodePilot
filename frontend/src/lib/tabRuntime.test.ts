@@ -70,3 +70,25 @@ test("pickCloudProvider returns null when unmet", () => {
     null
   );
 });
+
+test("pickCloudProvider uses daytona when default and keyed", () => {
+  assert.equal(
+    pickCloudProvider({
+      defaultProvider: "daytona",
+      modalConfigured: false,
+      daytonaConfigured: true,
+    }),
+    "daytona"
+  );
+});
+
+test("pickCloudProvider uses sole daytona when default missing key", () => {
+  assert.equal(
+    pickCloudProvider({
+      defaultProvider: "modal",
+      modalConfigured: false,
+      daytonaConfigured: true,
+    }),
+    "daytona"
+  );
+});

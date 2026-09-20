@@ -1174,9 +1174,11 @@ export interface LlmSettings {
 }
 
 export interface SandboxSettings {
-  default_provider: "modal" | null;
+  default_provider: "modal" | "daytona" | null;
   has_modal_credentials: boolean;
   modal_token_id_masked: string | null;
+  has_daytona_credentials: boolean;
+  daytona_api_key_masked: string | null;
 }
 
 export interface LlmUsageSummary {
@@ -1367,10 +1369,12 @@ export async function getSandboxSettings(): Promise<SandboxSettings> {
 }
 
 export async function updateSandboxSettings(body: {
-  default_provider?: "modal" | null;
+  default_provider?: "modal" | "daytona" | null;
   modal_token_id?: string | null;
   modal_token_secret?: string | null;
   keep_modal_secret?: boolean;
+  daytona_api_key?: string | null;
+  keep_daytona_secret?: boolean;
 }): Promise<SandboxSettings> {
   return fetchAPI<SandboxSettings>("/api/v1/settings/sandbox", {
     method: "PUT",

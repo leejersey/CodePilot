@@ -325,20 +325,24 @@ async def test_llm_settings(user: User = Depends(get_current_user)):
         raise HTTPException(status_code=400, detail=f"连通失败: {e}") from e
 
 
-# --- Sandbox (Modal BYOK) -------------------------------------------------
+# --- Sandbox (Modal / Daytona BYOK) --------------------------------------
 
 
 class SandboxSettingsPublic(BaseModel):
-    default_provider: Literal["modal"] | None
+    default_provider: Literal["modal", "daytona"] | None
     has_modal_credentials: bool
     modal_token_id_masked: str | None
+    has_daytona_credentials: bool
+    daytona_api_key_masked: str | None
 
 
 class SandboxSettingsUpdate(BaseModel):
-    default_provider: Literal["modal"] | None = None
+    default_provider: Literal["modal", "daytona"] | None = None
     modal_token_id: str | None = None
     modal_token_secret: str | None = None
     keep_modal_secret: bool = True
+    daytona_api_key: str | None = None
+    keep_daytona_secret: bool = True
 
 
 def _get_sandbox(user: User) -> dict:
@@ -358,13 +362,17 @@ def _sandbox_public(sandbox: dict) -> SandboxSettingsPublic:
     modal = sandbox.get("modal") if isinstance(sandbox.get("modal"), dict) else {}
     token_id = (modal.get("token_id") or "").strip()
     token_secret = (modal.get("token_secret") or "").strip()
+    daytona = sandbox.get("daytona") if isinstance(sandbox.get("daytona"), dict) else {}
+    daytona_key = (daytona.get("api_key") or "").strip()
     default = sandbox.get("default_provider")
-    if default != "modal":
+    if default not in ("modal", "daytona"):
         default = None
     return SandboxSettingsPublic(
         default_provider=default,
         has_modal_credentials=bool(token_id and token_secret),
         modal_token_id_masked=mask_api_key(token_id) if token_id else None,
+        has_daytona_credentials=bool(daytona_key),
+        daytona_api_key_masked=mask_api_key(daytona_key) if daytona_key else None,
     )
 
 
@@ -381,6 +389,9 @@ async def put_sandbox_settings(
 ):
     sandbox = _get_sandbox(user)
     modal = dict(sandbox.get("modal")) if isinstance(sandbox.get("modal"), dict) else {}
+    daytona = (
+        dict(sandbox.get("daytona")) if isinstance(sandbox.get("daytona"), dict) else {}
+    )
 
     if body.default_provider is not None:
         sandbox["default_provider"] = body.default_provider
@@ -412,6 +423,19 @@ async def put_sandbox_settings(
         sandbox["modal"] = {"token_id": tid, "token_secret": tsec}
     elif body.modal_token_id is not None or body.modal_token_secret is not None:
         sandbox["modal"] = {}
+
+    new_daytona = (body.daytona_api_key or "").strip()
+    if new_daytona:
+        daytona["api_key"] = new_daytona
+    elif body.daytona_api_key is not None and not body.keep_daytona_secret:
+        daytona.pop("api_key", None)
+    # else: keep_daytona_secret and no new key → leave existing
+
+    dkey = (daytona.get("api_key") or "").strip()
+    if dkey:
+        sandbox["daytona"] = {"api_key": dkey}
+    elif body.daytona_api_key is not None:
+        sandbox["daytona"] = {}
 
     _save_sandbox(user, sandbox)
     await db.commit()

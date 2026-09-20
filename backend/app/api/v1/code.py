@@ -1,4 +1,4 @@
-"""通过 Judge0 / Modal 沙箱运行代码。"""
+"""通过 Judge0 / Modal / Daytona 沙箱运行代码。"""
 
 import uuid
 
@@ -12,6 +12,7 @@ from app.core.deps import get_current_user
 from app.db.database import get_db
 from app.models.models import Chapter, LearningPath, User
 from app.services.course_access import can_access_legacy_path
+from app.services.daytona_sandbox import DaytonaUnavailable, run_python_in_daytona
 from app.services.judge0 import JudgeUnavailable, language_id_for, run_code as judge0_run_code
 from app.services.llm import call_llm_json, llm_user_context
 from app.services.modal_sandbox import ModalUnavailable, run_python_in_modal
@@ -105,16 +106,58 @@ def _blocked_packages_message(blocked: list[tuple[str, str]]) -> str:
     return "不允许安装未批准的依赖：" + "、".join(parts)
 
 
+def _resolve_user_cloud_provider(user: User) -> tuple[str, dict]:
+    """Pick Modal or Daytona from learner sandbox prefs.
+
+    Prefer ``default_provider`` when that provider has credentials; else the sole
+    keyed provider. Raises 422 directing the learner to personal-center settings.
+    """
+    prefs = user.preferences or {}
+    sandbox = prefs.get("sandbox") if isinstance(prefs, dict) else None
+    sandbox = sandbox if isinstance(sandbox, dict) else {}
+
+    modal = sandbox.get("modal") if isinstance(sandbox.get("modal"), dict) else {}
+    token_id = str(modal.get("token_id") or "").strip()
+    token_secret = str(modal.get("token_secret") or "").strip()
+    modal_ok = bool(token_id and token_secret)
+
+    daytona = sandbox.get("daytona") if isinstance(sandbox.get("daytona"), dict) else {}
+    daytona_key = str(daytona.get("api_key") or "").strip()
+    daytona_ok = bool(daytona_key)
+
+    default = sandbox.get("default_provider")
+    if default == "modal" and modal_ok:
+        return "modal", {"token_id": token_id, "token_secret": token_secret}
+    if default == "daytona" and daytona_ok:
+        return "daytona", {"api_key": daytona_key}
+
+    keyed: list[tuple[str, dict]] = []
+    if modal_ok:
+        keyed.append(("modal", {"token_id": token_id, "token_secret": token_secret}))
+    if daytona_ok:
+        keyed.append(("daytona", {"api_key": daytona_key}))
+    if len(keyed) == 1:
+        return keyed[0]
+
+    raise HTTPException(
+        status_code=422,
+        detail="请先在个人中心配置 Modal 或 Daytona 云端沙箱凭证后再使用云端运行",
+    )
+
+
 @router.post("/run-modal", response_model=CodeRunResponse)
 async def run_code_modal(
     body: ModalRunRequest,
     user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
-    """在 Modal Sandbox 中运行 Python；安装集合 = 代码检测 ∩ 课程已批准依赖。"""
+    """在学员选择的云端沙箱（Modal / Daytona）中运行 Python。
+
+    安装集合 = 代码检测 ∩ 课程已批准依赖。路径保持 ``/run-modal`` 以兼容前端。
+    """
     language = (body.language or "python").strip().lower()
     if language not in {"python", "py", "python3"}:
-        raise HTTPException(status_code=422, detail="Modal 云端运行目前仅支持 Python")
+        raise HTTPException(status_code=422, detail="云端运行目前仅支持 Python")
 
     chapter = await db.scalar(select(Chapter).where(Chapter.id == body.chapter_id))
     if not chapter or chapter.path_id != body.path_id:
@@ -139,35 +182,34 @@ async def run_code_modal(
     if blocked:
         raise HTTPException(status_code=422, detail=_blocked_packages_message(blocked))
 
-    prefs = user.preferences or {}
-    sandbox = prefs.get("sandbox") if isinstance(prefs, dict) else None
-    modal_creds = (sandbox or {}).get("modal") if isinstance(sandbox, dict) else None
-    modal_creds = modal_creds if isinstance(modal_creds, dict) else {}
-    token_id = str(modal_creds.get("token_id") or "").strip()
-    token_secret = str(modal_creds.get("token_secret") or "").strip()
-    if not token_id or not token_secret:
-        raise HTTPException(
-            status_code=422,
-            detail="请先在个人中心配置 Modal Token（token_id / token_secret）后再使用云端运行",
-        )
+    provider, creds = _resolve_user_cloud_provider(user)
 
     try:
         from app.services.dotenv_parse import parse_dotenv
 
         env_vars = parse_dotenv(body.dotenv) if body.dotenv.strip() else {}
-        result = await run_python_in_modal(
-            body.code,
-            to_install,
-            token_id=token_id,
-            token_secret=token_secret,
-            env_vars=env_vars,
-        )
+        if provider == "daytona":
+            result = await run_python_in_daytona(
+                body.code,
+                to_install,
+                api_key=creds["api_key"],
+                env_vars=env_vars,
+            )
+        else:
+            result = await run_python_in_modal(
+                body.code,
+                to_install,
+                token_id=creds["token_id"],
+                token_secret=creds["token_secret"],
+                env_vars=env_vars,
+            )
     except ValueError as exc:
         raise HTTPException(status_code=422, detail=str(exc)) from exc
-    except ModalUnavailable as exc:
+    except (ModalUnavailable, DaytonaUnavailable) as exc:
         raise HTTPException(status_code=503, detail=str(exc)) from exc
     except Exception as exc:
-        raise HTTPException(status_code=503, detail=f"Modal 执行失败: {exc}") from exc
+        label = "Daytona" if provider == "daytona" else "Modal"
+        raise HTTPException(status_code=503, detail=f"{label} 执行失败: {exc}") from exc
 
     output = result.stdout
     if result.stderr:
@@ -178,5 +220,5 @@ async def run_code_modal(
         status=result.status,
         stderr=result.stderr or None,
         trusted=True,
-        judge_source="modal",
+        judge_source=provider,
     )

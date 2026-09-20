@@ -28,12 +28,12 @@
 | 📚 **知识库 RAG** | 管理员上传文档 → 向量检索；主题匹配时生成知识库课程，否则纯 AI 生成 |
 | 🎯 **个性化路径** | 按水平与目标定制路线；进度追踪；可删除路线 |
 | 🧩 **章节技能** | 生成时拆成 3–6 个 Skill；学习页默认收起技能轨；手动「开始 / 过关」解锁下一技能 |
-| 🖥️ **代码沙箱** | Monaco 编辑；Pyodide / Web / Sandpack / Judge0 按标签与启发式路由；需 pip 的 **Modal 云端** 样本走学员 BYOK（**个人中心 → 沙箱配置**）；课程 pip 依赖仍须管理员批准 |
-| 🔑 **学员 API Key** | 章节 `.env`（localStorage）配置沙箱内密钥（如 `DEEPSEEK_API_KEY`）；与 Modal Token 分开；平台 `LLM_API_KEY` 不注入云端沙箱 |
+| 🖥️ **代码沙箱** | Monaco 编辑；Pyodide / Web / Sandpack / Judge0 按标签与启发式路由；需 pip 的 **Modal / Daytona 云端** 样本走学员 BYOK（**个人中心 → 沙箱配置**）；课程 pip 依赖仍须管理员批准 |
+| 🔑 **学员 API Key** | 章节 `.env`（localStorage）配置沙箱内密钥（如 `DEEPSEEK_API_KEY`）；与 Modal / Daytona 凭证分开；平台 `LLM_API_KEY` 不注入云端沙箱 |
 | 🎬 **知识点讲解** | 代码块旁「动画讲解」：生成 Remotion 短片并含运行结果 |
 | 📝 **练习演练场** | 管理员基于知识库异步出题并编辑；Judge0 真实运行测试后才可发布 |
 | 🔐 **用户认证** | JWT 注册登录；`ADMIN_EMAILS` 晋升管理员；知识库 / 练习管理仅管理员 |
-| 👤 **个人中心** | 分板块：账号与安全 · 模型配置 · **沙箱配置**（Modal Token + 默认云端提供商）· 用量统计；多 LLM Profile 可切换 |
+| 👤 **个人中心** | 分板块：账号与安全 · 模型配置 · **沙箱配置**（Modal / Daytona BYOK + 默认云端提供商）· 用量统计；多 LLM Profile 可切换 |
 | 📊 **学习仪表盘** | 统计、活跃度热力图、技能雷达 |
 
 ## 🏗️ 技术栈
@@ -46,7 +46,7 @@
 ├── TailwindCSS 3               ├── Alembic (数据库迁移)       ├── DeepSeek API (LLM)
 ├── Zustand (状态管理)           ├── asyncpg                   └── 阿里云百炼 Embeddings
 ├── Monaco Editor               ├── httpx / OpenAI SDK
-├── Pyodide (浏览器 Python)      ├── Modal (可选云端 Python)
+├── Pyodide (浏览器 Python)      ├── Modal / Daytona (可选云端 Python)
 ├── Sandpack (React/Vue 预览)    └── pgvector 检索
 ├── Remotion (讲解动画)
 ├── react-markdown + Prism 高亮
@@ -107,8 +107,8 @@ ADMIN_EMAILS=you@example.com
 # TOS_BUCKET=
 # TOS_PUBLIC_BASE_URL=
 
-# Modal 云端（部署侧可选；见 MODAL_APP_NAME / 超时等）
-# 学员「云端运行」使用个人中心 → 沙箱配置中的 Modal Token（BYOK），不在此填平台 Token
+# Modal / Daytona 云端（部署侧可选；见 MODAL_APP_NAME / 超时等）
+# 学员「云端运行」使用个人中心 → 沙箱配置中的 Modal Token 或 Daytona API Key（BYOK），不在此填平台 Token
 # MODAL_APP_NAME=codepilot-sandbox
 # MODAL_SANDBOX_TIMEOUT_SECONDS=300
 # MODAL_EXEC_TIMEOUT_SECONDS=60
@@ -170,8 +170,8 @@ npm run dev
 **技能轨 · 沙箱运行**
 
 1. 章节生成后带 Skill 列表；学习页默认收起，点击展开「开始 / 过关」。
-2. 右侧 Monaco：按当前标签/代码块路由运行方式（浏览器 Python、Web 预览、Sandpack、Judge0 或 Modal 云端）；云端 tab 需先在 **个人中心 → 沙箱配置** 填写 Modal Token。
-3. Modal 只装**本课管理员已批准**的 pip 依赖；章节 `.env` 仍用于沙箱内变量（如 `DEEPSEEK_API_KEY`），与 Modal Token 分开，不使用平台 `LLM_API_KEY`。
+2. 右侧 Monaco：按当前标签/代码块路由运行方式（浏览器 Python、Web 预览、Sandpack、Judge0 或 Modal/Daytona 云端）；云端 tab 需先在 **个人中心 → 沙箱配置** 填写对应凭证。
+3. 云端只装**本课管理员已批准**的 pip 依赖；章节 `.env` 仍用于沙箱内变量（如 `DEEPSEEK_API_KEY`），与 Modal/Daytona 凭证分开，不使用平台 `LLM_API_KEY`。
 
 左右分栏可拖拽调宽。
 
@@ -198,7 +198,7 @@ npm run dev
 |------|------|------|
 | **账号与安全** | `/settings/account` | 昵称 / 邮箱；邮箱账号可修改密码 |
 | **模型配置** | `/settings/llm` | 多条 LLM Profile、启用切换、连通测试；不选则用平台默认 |
-| **沙箱配置** | `/settings/sandbox` | Modal Token ID / Secret（BYOK）；默认云端提供商；用于学习页「云端运行」 |
+| **沙箱配置** | `/settings/sandbox` | Modal Token / Daytona API Key（BYOK）；默认云端提供商；用于学习页「云端运行」 |
 | **用量统计** | `/settings/usage` | 本月调用次数、Token、平台配额与 BYOK 统计 |
 
 后续能力（通知、偏好等）只增侧栏项与子路由，不再堆在单页。
@@ -242,7 +242,7 @@ CodePilot/
 │   │   ├── paths.py / chapters.py / knowledge.py
 │   │   ├── skills.py             # 章节 Skill 列表 / 开始 / 过关
 │   │   ├── admin_path_packages.py  # 管理员批准 Modal 依赖
-│   │   ├── code.py               # Judge0 + Modal run-modal
+│   │   ├── code.py               # Judge0 + Modal/Daytona run-modal
 │   │   ├── exercises.py          # 学员列表 + 管理员出题/状态
 │   │   ├── settings.py           # 用户 LLM 偏好
 │   │   └── …
@@ -251,7 +251,7 @@ CodePilot/
 │   │   ├── chat_images.py        # 对话附图校验与多模态组装
 │   │   ├── learning_docs.py      # 文档分阶段（忽略代码块内 # 注释）
 │   │   ├── skills.py / package_extract.py / package_candidates.py
-│   │   ├── modal_sandbox.py / dotenv_parse.py
+│   │   ├── modal_sandbox.py / daytona_sandbox.py / dotenv_parse.py
 │   │   ├── kb_retrieve.py / kb_ingest.py
 │   │   ├── exercise.py / llm.py / embeddings.py
 │   │   └── …
@@ -319,18 +319,18 @@ CodePilot/
 |------|------|------|
 | `GET` | `/api/v1/progress/…` | 统计 / 活跃度 / 技能分布 |
 | `POST` | `/api/v1/code/run` | Judge0 隔离沙箱真实运行代码 |
-| `POST` | `/api/v1/code/run-modal` | Modal 云端 Python（必填 `path_id` + `chapter_id`；只装已批准依赖） |
+| `POST` | `/api/v1/code/run-modal` | 云端 Python（Modal 或 Daytona，按学员沙箱配置路由；必填 `path_id` + `chapter_id`；只装已批准依赖） |
 | `GET/POST` | `/api/v1/jobs/…` | 后台任务状态与失败重试 |
 | `POST` | `/api/v1/animation/generate-snippet` | 单段代码讲解动画 |
 | `GET` | `/health` | 健康检查 |
 
 完整交互式文档见运行中的 `/docs`。
 
-**Modal 云端运行与课程依赖白名单**
+**Modal / Daytona 云端运行与课程依赖白名单**
 
 1. 课程生成时扫描样例代码的 `import` / `init_chat_model("provider:…")`，写入 path（多章共享）与 chapter（独有）的 `package_candidates`，默认 `pending`。
 2. 管理员 `PATCH …/packages` 批准后，学习页「云端运行」才会 `pip install` 这些包；未批准会返回明确 422。
-3. 请求必须带 `path_id` / `chapter_id`（前端已传）；云端执行使用**学员**在 `/settings/sandbox` 保存的 Modal Token；章节 `.env` 仅用于沙箱内环境变量（如 `DEEPSEEK_API_KEY`），**不**注入平台 `LLM_API_KEY`。
+3. 请求必须带 `path_id` / `chapter_id`（前端已传）；云端执行使用**学员**在 `/settings/sandbox` 保存的 Modal Token 或 Daytona API Key；章节 `.env` 仅用于沙箱内环境变量（如 `DEEPSEEK_API_KEY`），**不**注入平台 `LLM_API_KEY`。
 4. 迁移后存量路线可执行：`cd backend && python -m app.services.backfill_package_candidates`（`--dry-run` 预览）；空候选列表时会临时回退到内置教学安全提示集并打日志。
 5. 可配置沙箱提供商与按 tab 路由：[`docs/superpowers/specs/2026-09-20-configurable-sandbox-providers-design.md`](docs/superpowers/specs/2026-09-20-configurable-sandbox-providers-design.md)。依赖白名单：[`docs/superpowers/specs/2026-09-20-course-package-allowlist-design.md`](docs/superpowers/specs/2026-09-20-course-package-allowlist-design.md)。
 
