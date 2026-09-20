@@ -1,7 +1,9 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import Link from "next/link";
 import { useDialog } from "@/components/DialogProvider";
+import { ArrowRight } from "lucide-react";
 import {
   getSandboxSettings,
   updateSandboxSettings,
@@ -98,6 +100,13 @@ export default function SettingsSandboxPage() {
         <p className="text-sm text-on-surface-variant mt-1">
           配置个人 Modal / Daytona 凭证，用于学习页云端运行（BYOK）。
         </p>
+        <Link
+          href="/help/sandbox-key"
+          className="mt-2 inline-flex items-center gap-1 text-xs font-semibold text-primary hover:underline"
+        >
+          如何申请并填写沙箱 Key
+          <ArrowRight size={12} />
+        </Link>
       </div>
 
       {loading || !data ? (

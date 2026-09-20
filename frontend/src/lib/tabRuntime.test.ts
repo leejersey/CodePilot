@@ -24,6 +24,17 @@ test("langchain import → cloud", () => {
   );
 });
 
+test("langchain_* packages → cloud", () => {
+  assert.equal(
+    resolveTabExecution({
+      language: "python",
+      code:
+        'from langchain_deepseek import ChatDeepSeek\nfrom langchain_core.prompts import ChatPromptTemplate\n',
+    }).mode,
+    "cloud"
+  );
+});
+
 test("vue → sandpack", () => {
   assert.equal(
     resolveTabExecution({ language: "vue", code: "<template></template>" }).mode,

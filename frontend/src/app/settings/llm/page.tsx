@@ -1,8 +1,9 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import Link from "next/link";
 import { useDialog } from "@/components/DialogProvider";
-import { Plus, X } from "lucide-react";
+import { ArrowRight, Plus, X } from "lucide-react";
 import {
   getLlmSettings,
   setActiveLlmProfile,
@@ -192,6 +193,13 @@ export default function SettingsLlmPage() {
         <p className="text-sm text-on-surface-variant mt-1">
           可新增多条模型配置，选择一条启用；不选则使用平台默认。
         </p>
+        <Link
+          href="/help/llm-key"
+          className="mt-2 inline-flex items-center gap-1 text-xs font-semibold text-primary hover:underline"
+        >
+          如何申请并填写 API Key
+          <ArrowRight size={12} />
+        </Link>
       </div>
 
       {loading || !data ? (

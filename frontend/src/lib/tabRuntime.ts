@@ -14,7 +14,9 @@ const TAG_TO_MODE: Record<RuntimeTag, ExecutionUiMode> = {
 };
 
 export function looksLikeCloudFrameworkCode(code: string): boolean {
-  return /\b(langchain|langgraph|init_chat_model)\b/.test(code);
+  // Match bare packages (langchain / langgraph) and namespaced ones
+  // (langchain_core, langchain_deepseek) — underscore is a word char so \b alone fails.
+  return /\b(langchain[\w.-]*|langgraph[\w.-]*|init_chat_model)\b/.test(code);
 }
 
 export function resolveTabExecution(input: {
