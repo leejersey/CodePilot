@@ -60,6 +60,15 @@ class PathResponse(BaseModel):
     model_config = {"from_attributes": True}
 
 
+class ChapterSkillSummary(BaseModel):
+    """Lightweight skill nodes for path-page concept maps."""
+
+    id: uuid.UUID
+    sort_order: int
+    title: str
+    goal: str | None = None
+
+
 class ChapterResponse(BaseModel):
     id: uuid.UUID
     path_id: uuid.UUID
@@ -69,6 +78,7 @@ class ChapterResponse(BaseModel):
     status: str
     completed_at: datetime | None
     created_at: datetime
+    skills: list[ChapterSkillSummary] = Field(default_factory=list)
 
     model_config = {"from_attributes": True}
 

@@ -44,6 +44,7 @@ from app.services.course_access import (
     apply_admin_status,
     can_access_course,
     create_enrollment_progress,
+    delete_course_permanently,
     is_public_course,
     set_course_status,
 )
@@ -300,6 +301,28 @@ async def update_course_status(
     await db.commit()
     await db.refresh(course)
     return course
+
+
+@router.delete("/admin/{course_id}", status_code=204)
+async def admin_delete_course(
+    course_id: uuid.UUID,
+    db: AsyncSession = Depends(get_db),
+    admin: User = Depends(require_admin),
+):
+    """永久删除草稿 / 已拒绝课程及其学习路线；已发布请走归档。"""
+    course = await _admin_course_or_404(db, course_id, for_update=True)
+    path_id = course.legacy_path_id
+    await delete_course_permanently(db, course, admin)
+    await db.commit()
+    if path_id:
+        try:
+            from app.db.redis import cache_delete
+
+            await cache_delete("path", str(path_id))
+            await cache_delete("chapters", str(path_id))
+        except Exception:
+            pass
+    return None
 
 
 @router.post(

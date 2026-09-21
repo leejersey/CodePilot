@@ -30,6 +30,7 @@ from app.services.course_access import (
     resolve_legacy_status_target,
     serialize_legacy_chapter,
 )
+from app.services.skills import load_skill_summaries_for_chapters
 from app.services.learning_analytics import countable_heartbeat_seconds
 from app.services.learning_docs import build_kb_doc_stages, build_learning_docs_payload
 
@@ -108,8 +109,20 @@ async def get_chapter(
             )
         )
     if mapped_chapter:
-        return serialize_legacy_chapter(chapter, progress, mapped=True)
-    return chapter
+        skills_by_chapter = await load_skill_summaries_for_chapters(db, [chapter.id])
+        return serialize_legacy_chapter(
+            chapter,
+            progress,
+            mapped=True,
+            skills=skills_by_chapter.get(chapter.id, []),
+        )
+    skills_by_chapter = await load_skill_summaries_for_chapters(db, [chapter.id])
+    return serialize_legacy_chapter(
+        chapter,
+        None,
+        mapped=False,
+        skills=skills_by_chapter.get(chapter.id, []),
+    )
 
 
 @router.get("/{chapter_id}/learning-docs")

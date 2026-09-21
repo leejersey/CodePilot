@@ -1,6 +1,13 @@
 """Unit tests for skill outline normalization and unlock helpers."""
 
-from app.services.skills import normalize_skills_from_chapter_item
+import uuid
+from types import SimpleNamespace
+
+from app.services.skills import (
+    group_skill_summaries,
+    normalize_skills_from_chapter_item,
+    serialize_skill_summary,
+)
 
 
 def test_normalize_skills_from_llm_list():
@@ -42,3 +49,22 @@ def test_normalize_skills_empty_skills_array_falls_back():
     )
     assert len(skills) == 1
     assert skills[0]["title"] == "空技能章"
+
+
+def test_group_skill_summaries_by_chapter_and_order():
+    ch_a = uuid.uuid4()
+    ch_b = uuid.uuid4()
+    skills = [
+        SimpleNamespace(id=uuid.uuid4(), chapter_id=ch_b, sort_order=2, title="B2", goal=None),
+        SimpleNamespace(id=uuid.uuid4(), chapter_id=ch_a, sort_order=2, title="A2", goal="g2"),
+        SimpleNamespace(id=uuid.uuid4(), chapter_id=ch_a, sort_order=1, title="A1", goal="g1"),
+        SimpleNamespace(id=uuid.uuid4(), chapter_id=ch_b, sort_order=1, title="B1", goal=None),
+    ]
+    grouped = group_skill_summaries(skills)
+    assert [s["title"] for s in grouped[ch_a]] == ["A1", "A2"]
+    assert [s["title"] for s in grouped[ch_b]] == ["B1", "B2"]
+    assert grouped[ch_a][0] == serialize_skill_summary(skills[2])
+
+
+def test_group_skill_summaries_empty():
+    assert group_skill_summaries([]) == {}

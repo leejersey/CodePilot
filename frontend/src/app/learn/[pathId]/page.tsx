@@ -1,8 +1,22 @@
 "use client";
 
+import {
+  ArrowRight,
+  BookOpen,
+  Bot,
+  CheckCircle2,
+  ChevronRight,
+  Clock,
+  Layers,
+  Lock,
+  Play,
+  RefreshCw,
+  Sparkles,
+  Zap,
+} from "lucide-react";
+import Link from "next/link";
 import { useEffect, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
-import Link from "next/link";
 import {
   getPath,
   getPathChapters,
@@ -20,21 +34,7 @@ import {
 import { useDialog } from "@/components/DialogProvider";
 import { Badge } from "@/components/common/Badge";
 import { Card } from "@/components/common/Card";
-import {
-  ArrowRight,
-  BookOpen,
-  Bot,
-  CheckCircle2,
-  ChevronRight,
-  Clock,
-  Flame,
-  Layers,
-  Lock,
-  Play,
-  RefreshCw,
-  Sparkles,
-  Zap,
-} from "lucide-react";
+import { ChapterConceptMap } from "@/components/ChapterConceptMap";
 
 export default function LearningPathPage() {
   const params = useParams();
@@ -393,7 +393,16 @@ export default function LearningPathPage() {
                     </div>
                   </div>
 
-                  <p className="text-sm text-slate-600 dark:text-slate-400 leading-relaxed mb-4">{chapter.summary}</p>
+                  <p className="text-sm text-slate-600 dark:text-slate-400 leading-relaxed mb-3 line-clamp-2">
+                    {chapter.summary}
+                  </p>
+
+                  <ChapterConceptMap
+                    className="mb-4"
+                    hubLabel="本章"
+                    skills={chapter.skills || []}
+                    tone={isCompleted ? "completed" : isActive ? "active" : "locked"}
+                  />
 
                   <div className="flex items-center justify-between pt-3 border-t border-slate-200/80 dark:border-white/[0.04]">
                     <span className="text-xs text-slate-500 font-mono">

@@ -12,7 +12,8 @@ export type CourseAdminAction =
   | "review"
   | "publish"
   | "archive"
-  | "rebuild";
+  | "rebuild"
+  | "delete";
 
 const STATUS_LABELS: Record<CourseStatus, string> = {
   draft: "草稿",
@@ -31,12 +32,26 @@ export function getCourseActions(status: string): CourseAdminAction[] {
     return ["view", "review", "rebuild"];
   }
   // Administrators publish their own generated courses without a review round
-  // trip, and restore archived courses the same way.
-  if (status === "draft" || status === "archived") {
+  // trip, and restore archived courses the same way. Drafts/rejected can be
+  // permanently deleted; published courses use archive instead.
+  if (status === "draft") {
+    return ["view", "publish", "rebuild", "delete"];
+  }
+  if (status === "rejected") {
+    return ["view", "rebuild", "delete"];
+  }
+  if (status === "archived") {
     return ["view", "publish", "rebuild"];
   }
   if (status === "published") return ["view", "archive", "rebuild"];
   return ["view", "rebuild"];
+}
+
+export function getCourseDeleteCopy(topic: string): { title: string; message: string } {
+  return {
+    title: "删除课程",
+    message: `确定永久删除「${topic}」？草稿内容、章节与学习路线将一并清理，且不可恢复。已发布课程请改用归档。`,
+  };
 }
 
 export interface CoursePublishCopy {

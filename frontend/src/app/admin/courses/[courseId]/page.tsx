@@ -1,8 +1,9 @@
 "use client";
 
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { use, useCallback, useEffect, useRef, useState } from "react";
-import { ArrowLeft, Archive, BookOpen, Bot, Loader2, RefreshCw } from "lucide-react";
+import { ArrowLeft, Archive, BookOpen, Bot, Loader2, RefreshCw, Trash2 } from "lucide-react";
 import { Card } from "@/components/common/Card";
 import {
   CourseSourceModal,
@@ -11,6 +12,7 @@ import {
 import { useDialog } from "@/components/DialogProvider";
 import {
   adminGetCourse,
+  deleteAdminCourse,
   getCourseJob,
   getCourseChapters,
   rebuildCourse,
@@ -21,6 +23,7 @@ import {
   type CourseChapter,
 } from "@/lib/api";
 import {
+  getCourseDeleteCopy,
   getJobPollRetryDelay,
   getCourseActions,
   getCourseStatusLabel,
@@ -41,6 +44,7 @@ export default function AdminCourseDetailPage({
   params: Promise<{ courseId: string }>;
 }) {
   const { courseId } = use(params);
+  const router = useRouter();
   const { alert, confirm } = useDialog();
   const [course, setCourse] = useState<AdminCourse | null>(null);
   const [chapters, setChapters] = useState<CourseChapter[]>([]);
@@ -197,6 +201,29 @@ export default function AdminCourseDetailPage({
     }
   }
 
+  async function removeCourse() {
+    if (!course) return;
+    const copy = getCourseDeleteCopy(course.topic);
+    const ok = await confirm({
+      title: copy.title,
+      message: copy.message,
+      confirmText: "永久删除",
+      tone: "danger",
+    });
+    if (!ok) return;
+    setBusy(true);
+    try {
+      await deleteAdminCourse(course.id);
+      router.replace("/admin/courses");
+    } catch (err) {
+      await alert({
+        title: "删除失败",
+        message: err instanceof Error ? err.message : "删除失败",
+      });
+      setBusy(false);
+    }
+  }
+
   if (loading) return <div className="flex min-h-64 items-center justify-center"><Loader2 className="animate-spin text-primary" /></div>;
   if (!course) return <div role="alert" className="mx-auto max-w-4xl rounded-xl border border-rose-500/30 p-5 text-rose-500">{error || "课程不存在"}</div>;
 
@@ -231,6 +258,16 @@ export default function AdminCourseDetailPage({
             {actions.includes("publish") && <button disabled={busy} onClick={() => changeStatus("published")} className="rounded-lg border border-emerald-500/30 px-3 py-1.5 text-xs text-emerald-600 dark:text-emerald-300">{getPublishCopy(course.status).label}</button>}
             {actions.includes("archive") && <button disabled={busy} onClick={() => changeStatus("archived")} className="inline-flex items-center gap-1.5 rounded-lg border px-3 py-1.5 text-xs"><Archive size={13} /> 归档</button>}
             {actions.includes("rebuild") && <button disabled={busy} onClick={() => setShowRebuild(true)} className="inline-flex items-center gap-1.5 rounded-lg border border-violet-500/30 px-3 py-1.5 text-xs text-violet-600 dark:text-violet-300"><RefreshCw size={13} /> 重建</button>}
+            {actions.includes("delete") && (
+              <button
+                disabled={busy}
+                type="button"
+                onClick={() => void removeCourse()}
+                className="inline-flex items-center gap-1.5 rounded-lg border border-rose-500/30 px-3 py-1.5 text-xs text-rose-600 dark:text-rose-300 disabled:opacity-50"
+              >
+                <Trash2 size={13} /> 删除
+              </button>
+            )}
           </div>
         </div>
         <dl className="mt-6 grid gap-4 text-xs sm:grid-cols-2 lg:grid-cols-4">

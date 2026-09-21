@@ -279,6 +279,13 @@ export interface CourseRebuildRequest extends Omit<CourseGenerateRequest, "topic
   topic?: string;
 }
 
+export interface ChapterSkillSummary {
+  id: string;
+  sort_order: number;
+  title: string;
+  goal: string | null;
+}
+
 export interface Chapter {
   id: string;
   path_id: string;
@@ -289,6 +296,7 @@ export interface Chapter {
   completed_at: string | null;
   created_at: string;
   preview?: boolean;
+  skills?: ChapterSkillSummary[];
 }
 
 export interface Conversation {
@@ -592,6 +600,10 @@ export async function updateCourseStatus(
     method: "PATCH",
     body: JSON.stringify({ status }),
   });
+}
+
+export async function deleteAdminCourse(courseId: string): Promise<void> {
+  await fetchAPI<void>(`/api/v1/courses/admin/${courseId}`, { method: "DELETE" });
 }
 
 export async function rebuildCourse(

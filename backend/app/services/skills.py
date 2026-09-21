@@ -81,6 +81,42 @@ def normalize_skills_from_chapter_item(
     ]
 
 
+def serialize_skill_summary(skill: Skill) -> dict:
+    return {
+        "id": skill.id,
+        "sort_order": skill.sort_order,
+        "title": skill.title,
+        "goal": skill.goal,
+    }
+
+
+def group_skill_summaries(
+    skills: list[Skill],
+) -> dict[uuid.UUID, list[dict]]:
+    """Group published skill summaries by chapter_id (sorted by sort_order)."""
+    grouped: dict[uuid.UUID, list[dict]] = {}
+    for skill in sorted(skills, key=lambda s: (s.chapter_id.hex, s.sort_order)):
+        grouped.setdefault(skill.chapter_id, []).append(serialize_skill_summary(skill))
+    return grouped
+
+
+async def load_skill_summaries_for_chapters(
+    db: AsyncSession,
+    chapter_ids: list[uuid.UUID],
+) -> dict[uuid.UUID, list[dict]]:
+    if not chapter_ids:
+        return {}
+    result = await db.execute(
+        select(Skill)
+        .where(
+            Skill.chapter_id.in_(chapter_ids),
+            Skill.status == "published",
+        )
+        .order_by(Skill.chapter_id, Skill.sort_order)
+    )
+    return group_skill_summaries(list(result.scalars().all()))
+
+
 async def create_skills_for_chapter(
     db: AsyncSession,
     chapter_id: uuid.UUID,

@@ -77,8 +77,14 @@ test("pending courses expose review but not publish", () => {
 });
 
 test("course actions follow backend lifecycle transitions", () => {
-  // 管理员可从草稿直接发布，无需自审自批的往返。
-  assert.deepEqual(getCourseActions("draft"), ["view", "publish", "rebuild"]);
+  // 管理员可从草稿直接发布，无需自审自批的往返；草稿可永久删除清理。
+  assert.deepEqual(getCourseActions("draft"), [
+    "view",
+    "publish",
+    "rebuild",
+    "delete",
+  ]);
+  assert.deepEqual(getCourseActions("rejected"), ["view", "rebuild", "delete"]);
   assert.deepEqual(getCourseActions("published"), ["view", "archive", "rebuild"]);
   assert.deepEqual(getCourseActions("archived"), ["view", "publish", "rebuild"]);
 });

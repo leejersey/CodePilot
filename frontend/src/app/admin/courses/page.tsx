@@ -12,6 +12,7 @@ import {
   RefreshCw,
   SearchX,
   Send,
+  Trash2,
   X,
 } from "lucide-react";
 import { Card } from "@/components/common/Card";
@@ -26,6 +27,7 @@ import { useDialog } from "@/components/DialogProvider";
 import {
   adminListCourseJobs,
   adminListCourses,
+  deleteAdminCourse,
   generateCourse,
   rebuildCourse,
   reviewCourse,
@@ -36,6 +38,7 @@ import {
 } from "@/lib/api";
 import {
   getCourseActions,
+  getCourseDeleteCopy,
   getCourseStatusLabel,
   getPublishCopy,
   getTerminalCourseJobIds,
@@ -231,6 +234,29 @@ export default function AdminCoursesPage() {
     }
   }
 
+  async function removeCourse(course: Course) {
+    const copy = getCourseDeleteCopy(course.topic);
+    const ok = await confirm({
+      title: copy.title,
+      message: copy.message,
+      confirmText: "永久删除",
+      tone: "danger",
+    });
+    if (!ok) return;
+    setBusyId(course.id);
+    try {
+      await deleteAdminCourse(course.id);
+      await loadCourses();
+    } catch (err) {
+      await alert({
+        title: "删除失败",
+        message: err instanceof Error ? err.message : "删除失败",
+      });
+    } finally {
+      setBusyId(null);
+    }
+  }
+
   async function submitRebuild(course: Course, value: CourseSourceFormValue) {
     setBusyId(course.id);
     try {
@@ -331,6 +357,16 @@ export default function AdminCoursesPage() {
                     {actions.includes("publish") && <button disabled={busyId === course.id} type="button" onClick={() => changeStatus(course, "published")} className="rounded-lg border border-emerald-500/30 px-3 py-1.5 text-xs text-emerald-600 dark:text-emerald-300">{getPublishCopy(course.status).label}</button>}
                     {actions.includes("archive") && <button disabled={busyId === course.id} type="button" onClick={() => changeStatus(course, "archived")} className="inline-flex items-center gap-1.5 rounded-lg border border-slate-300 px-3 py-1.5 text-xs text-slate-500 dark:border-white/10"><Archive size={13} /> 归档</button>}
                     {actions.includes("rebuild") && <button type="button" onClick={() => setSourceModal({ mode: "rebuild", course })} className="inline-flex items-center gap-1.5 rounded-lg border border-violet-500/30 px-3 py-1.5 text-xs text-violet-600 dark:text-violet-300"><RefreshCw size={13} /> 重建</button>}
+                    {actions.includes("delete") && (
+                      <button
+                        disabled={busyId === course.id}
+                        type="button"
+                        onClick={() => void removeCourse(course)}
+                        className="inline-flex items-center gap-1.5 rounded-lg border border-rose-500/30 px-3 py-1.5 text-xs text-rose-600 dark:text-rose-300 disabled:opacity-50"
+                      >
+                        <Trash2 size={13} /> 删除
+                      </button>
+                    )}
                   </div>
                 </Card>
               );

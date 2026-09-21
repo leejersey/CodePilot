@@ -59,26 +59,26 @@ export default function ExercisesHub() {
         <Header />
 
         <main className="flex-1 relative pt-16 pb-20">
-          <section className="relative pt-16 pb-12 overflow-hidden">
+          <section className="relative pt-10 pb-6 overflow-hidden">
             <div className="absolute inset-0 hero-grid pointer-events-none opacity-30" />
             <div className="absolute top-[-10%] left-[-10%] w-[40%] h-[40%] bg-primary/10 rounded-full blur-[120px] pointer-events-none" />
 
             <div className="max-w-screen-2xl mx-auto px-6 relative z-10">
               <div className="max-w-3xl">
-                <div className="inline-flex items-center gap-2 px-3.5 py-1 rounded-full bg-primary/10 border border-primary/20 text-primary text-xs font-mono font-semibold mb-4">
-                  <BookMarked size={13} />
-                  PUBLISHED CHALLENGES
+                <div className="flex items-center gap-2 text-primary text-xs font-mono font-semibold tracking-wider uppercase mb-2">
+                  <BookMarked size={14} />
+                  <span>PUBLISHED CHALLENGES</span>
                 </div>
-                <h1 className="text-4xl md:text-6xl font-headline font-bold text-on-surface tracking-tight mb-4 leading-tight">
-                  编程 <span className="text-primary">演练场</span>
+                <h1 className="font-headline text-3xl md:text-4xl font-bold tracking-tight text-slate-900 dark:text-white">
+                  编程演练场
                 </h1>
-                <p className="text-base md:text-lg text-on-surface-variant font-light max-w-xl leading-relaxed">
+                <p className="mt-2 text-sm text-slate-600 dark:text-slate-400 max-w-xl leading-relaxed">
                   题目由管理员基于知识库出题并发布。选择语言与难度开始挑战。
                 </p>
                 {isAdmin && (
                   <Link
                     href="/admin/exercises"
-                    className="inline-flex mt-4 text-xs font-bold text-primary underline underline-offset-2"
+                    className="inline-flex mt-3 text-xs font-bold text-primary underline underline-offset-2 hover:opacity-80 transition-opacity"
                   >
                     前往练习管理（出题 / 发布）
                   </Link>

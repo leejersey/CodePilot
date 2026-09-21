@@ -50,6 +50,7 @@ from app.services.course_access import (
     get_mapped_course_for_path,
     serialize_legacy_chapter,
 )
+from app.services.skills import load_skill_summaries_for_chapters
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
@@ -664,7 +665,7 @@ async def get_chapters(
     db: AsyncSession = Depends(get_db),
     user: User | None = Depends(get_optional_user),
 ):
-    """获取路线下的所有章节（Redis 缓存）"""
+    """获取路线下的所有章节（附带技能摘要供概念图使用）"""
     path = await db.scalar(select(LearningPath).where(LearningPath.id == path_id))
     if not path or not await can_access_legacy_path(db, path, user):
         raise HTTPException(status_code=404, detail="学习路线不存在")
@@ -676,8 +677,20 @@ async def get_chapters(
         select(Chapter).where(Chapter.path_id == path_id).order_by(Chapter.sort_order)
     )
     chapters = list(result.scalars().all())
+    skills_by_chapter = await load_skill_summaries_for_chapters(
+        db, [chapter.id for chapter in chapters]
+    )
+
     if not mapped_course:
-        return chapters
+        return [
+            serialize_legacy_chapter(
+                chapter,
+                None,
+                mapped=False,
+                skills=skills_by_chapter.get(chapter.id, []),
+            )
+            for chapter in chapters
+        ]
 
     progress_by_chapter = {}
     if user:
@@ -702,6 +715,7 @@ async def get_chapters(
             chapter,
             progress_by_chapter.get(chapter.id),
             mapped=True,
+            skills=skills_by_chapter.get(chapter.id, []),
         )
         for chapter in chapters
     ]
