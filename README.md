@@ -389,6 +389,17 @@ CodePilot/
   </tr>
 </table>
 
+## ☁️ 云端沙箱（BYOK）
+
+学习页「云端运行」走学员自备凭证，平台不代付。在控制台申请密钥后，填到 **个人中心 → 沙箱配置**（`/settings/sandbox`），并选择默认提供商。
+
+| 提供商 | 控制台 | 凭证 |
+|--------|--------|------|
+| **Modal** | [modal.com](https://modal.com/) | Token ID + Secret（Settings → API Tokens） |
+| **Daytona** | [app.daytona.io](https://app.daytona.io/) | API Key |
+
+章节 `.env`（如 `DEEPSEEK_API_KEY`）只注入沙箱内环境变量，与上述云端凭证分开。
+
 ## 📝 开发路线
 
 - [x] **MVP** — 核心对话 + 学习路线 + 代码沙箱 + AI 判题
