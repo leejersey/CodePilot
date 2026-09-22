@@ -138,7 +138,16 @@ alembic upgrade head
 uvicorn app.main:app --reload --port 8000
 ```
 
+另开终端启动 ARQ worker（知识库入库、课程生成、练习出题等异步任务）：
+
+```bash
+cd backend
+source venv/bin/activate   # Windows: venv\Scripts\activate
+arq app.worker.WorkerSettings
+```
+
 - API 文档：http://localhost:8000/docs
+- 若已用 `docker compose up -d` 拉起了 worker 容器，可跳过本机 `arq` 命令
 
 ### 5. 启动前端
 
